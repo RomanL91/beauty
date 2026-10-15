@@ -64,7 +64,7 @@ export class HttpAuthGateway implements AuthGateway {
 
     const connection = new SseConnection({
       url: this.core.url(`/auth/telegram/challenges/${encodeURIComponent(challengeId)}/events`),
-      fetch: (request) => globalThis.fetch(request),
+      fetch: this.core.baseFetch,
       retryMs: 1000,
       maxRetryMs: 10_000,
       onFrame: (frame) => {

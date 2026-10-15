@@ -665,6 +665,25 @@ paths:
         '404':
           $ref: '#/components/responses/Problem'
 
+webhooks:
+  pushNotification:
+    post:
+      operationId: pushNotification
+      summary: Web Push на устройство
+      description: |
+        Не HTTP-эндпоинт API: так описана полезная нагрузка Web Push, которую сервер
+        шифрует (RFC 8291) и отправляет на `endpoint` подписки. Service worker
+        показывает уведомление и по нажатию открывает `url` (путь в том же приложении).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PushPayload' }
+      responses:
+        '201':
+          description: Push-сервис принял сообщение.
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1330,6 +1349,19 @@ components:
         - $ref: '#/components/schemas/MasterMessageEvent'
         - $ref: '#/components/schemas/AppointmentUpdatedEvent'
         - $ref: '#/components/schemas/ConversationUpdatedEvent'
+    PushPayload:
+      type: object
+      required: [kind, title, body, url]
+      properties:
+        kind:
+          type: string
+          enum: [message, appointment_requested, appointment_confirmed, appointment_declined, reminder, task_done]
+        title: { type: string, examples: ['Алиса подтвердила запись'] }
+        body: { type: string, examples: ['Пт, 17 октября · 12:00, классический массаж спины'] }
+        url: { type: string, description: 'Путь в приложении: `/chat`, `/chats/{id}`, `/schedule/{date}`.', examples: ['/chat'] }
+        tag:
+          type: string
+          description: Уведомления с одним тегом заменяют друг друга (например, по переписке).
     PushSubscriptionInput:
       type: object
       required: [app, endpoint, keys]

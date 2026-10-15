@@ -9,7 +9,6 @@ import { MockDb, type MockDbOptions } from './db';
 import { authHandlers } from './handlers/auth';
 import { clientHandlers } from './handlers/client';
 import { masterHandlers } from './handlers/master';
-import { mediaHandlers } from './handlers/media';
 import { publicHandlers } from './handlers/public';
 import { pushHandlers } from './handlers/push';
 
@@ -20,26 +19,46 @@ export { CONVERSATIONS, DARYA_REQUEST_ID } from './fixtures/master-cabinet';
 export { CLIENTS } from './fixtures/people';
 export { uuidv7 } from './ids';
 
-/** Какие группы эндпоинтов мокать. */
+/** Группы эндпоинтов контракта (теги OpenAPI). */
+export type EndpointGroup = 'auth' | 'public' | 'client' | 'master' | 'push';
+
+/** Все группы. */
+export const ALL_GROUPS: readonly EndpointGroup[] = ['auth', 'public', 'client', 'master', 'push'];
+
+/** Какие группы уже реализованы бэкендом — их не мокаем, запросы уходят в сеть. */
 export interface MockScope {
-  /** Вход и сессия; `false` — запросы уходят на реальный API. */
-  readonly auth: boolean;
+  readonly real: ReadonlySet<EndpointGroup>;
 }
 
-/** Набор обработчиков поверх общей базы. */
-export function createHandlers(db: MockDb, scope: MockScope = { auth: true }): RequestHandler[] {
+/** Набор обработчиков поверх общей базы (без «реальных» групп). */
+export function createHandlers(
+  db: MockDb,
+  scope: MockScope = { real: new Set() },
+): RequestHandler[] {
+  const mocked = (group: EndpointGroup) => !scope.real.has(group);
   return [
-    ...(scope.auth ? authHandlers(db) : []),
-    ...publicHandlers(db),
-    ...clientHandlers(db),
-    ...masterHandlers(db),
-    ...pushHandlers(),
-    ...mediaHandlers(db),
+    ...(mocked('auth') ? authHandlers(db) : []),
+    ...(mocked('public') ? publicHandlers(db) : []),
+    ...(mocked('client') ? clientHandlers(db) : []),
+    ...(mocked('master') ? masterHandlers(db) : []),
+    ...(mocked('push') ? pushHandlers() : []),
   ];
 }
 
+/** Разобрать список групп из env (`auth,public` / `all` / пусто). */
+export function parseGroups(value: string | undefined | null): Set<EndpointGroup> {
+  if (!value) return new Set();
+  if (value.trim() === 'all') return new Set(ALL_GROUPS);
+  return new Set(
+    value
+      .split(',')
+      .map((v) => v.trim())
+      .filter((v): v is EndpointGroup => (ALL_GROUPS as readonly string[]).includes(v)),
+  );
+}
+
 /** База и обработчики одним вызовом. */
-export function createMockApi(options: MockDbOptions & { scope?: MockScope } = {}): {
+export function createMockApi(options: MockDbOptions & { readonly scope?: MockScope } = {}): {
   db: MockDb;
   handlers: RequestHandler[];
 } {

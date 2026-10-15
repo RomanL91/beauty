@@ -61,6 +61,7 @@ export type ConversationEvent = Schemas['ConversationEvent'];
 export type MasterEvent = Schemas['MasterEvent'];
 
 export type PushSubscriptionInput = Schemas['PushSubscriptionInput'];
+export type PushPayload = Schemas['PushPayload'];
 
 /** Финальные статусы входа: дальше поток статусов не меняется. */
 export const FINAL_CHALLENGE_STATUSES: ReadonlySet<ChallengeStatus> = new Set([

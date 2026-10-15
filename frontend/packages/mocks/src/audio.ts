@@ -26,3 +26,22 @@ export function silentWav(seconds: number): Uint8Array<ArrayBuffer> {
   new Uint8Array(buffer, 44).fill(128);
   return new Uint8Array(buffer);
 }
+
+/** Тихий WAV как `data:` URL — проигрывается `<audio>` без сети. */
+export function silentWavDataUrl(seconds: number): string {
+  const bytes = silentWav(seconds);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return `data:audio/wav;base64,${btoa(binary)}`;
+}
+
+const PALETTE = ['#E9DDE3', '#E8E4E0', '#F1E4EA', '#EAE7E3', '#E2DCD6', '#EFE6EA'];
+
+/** Заглушка фото работы как `data:` URL (SVG). */
+export function workPhotoDataUrl(index: number): string {
+  const color = PALETTE[index % PALETTE.length] ?? '#E8E4E0';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="${color}"/><circle cx="60" cy="52" r="18" fill="#fff" opacity=".55"/><rect x="30" y="80" width="60" height="8" rx="4" fill="#fff" opacity=".55"/></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}

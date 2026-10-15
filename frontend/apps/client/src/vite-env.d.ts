@@ -6,6 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_DEFAULT_MASTER?: string;
   readonly VITE_VAPID_PUBLIC_KEY?: string;
   readonly VITE_API_PROXY?: string;
+  readonly VITE_REAL_API?: string;
 }
 
 interface ImportMeta {

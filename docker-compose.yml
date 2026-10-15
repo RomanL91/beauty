@@ -1,4 +1,4 @@
-# Локальное окружение: PostgreSQL, RabbitMQ и четыре процесса приложения.
+# Локальное окружение: PostgreSQL, RabbitMQ, четыре процесса приложения и web (nginx с двумя PWA).
 x-app: &app
   build: .
   env_file: .env
@@ -59,6 +59,16 @@ services:
   scheduler:
     <<: *app
     command: ["scheduler"]
+
+  # PWA клиента (http://<slug>.localhost:8080) и мастера (http://master.localhost:8080).
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
+    ports: ["8080:80"]
+    depends_on: [api]
+    restart: unless-stopped
 
 volumes:
   pgdata:

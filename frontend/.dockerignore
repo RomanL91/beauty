@@ -1,0 +1,7 @@
+**/node_modules
+**/dist
+**/dev-dist
+**/.gen-check
+e2e/test-results
+e2e/playwright-report
+*.tmp.mjs

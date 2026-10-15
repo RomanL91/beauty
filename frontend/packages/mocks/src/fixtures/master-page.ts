@@ -1,4 +1,5 @@
 import type { MasterPage, Service } from '@beauty/api';
+import { workPhotoDataUrl } from '../audio';
 import { MASTER_TIMEZONE } from '../clock';
 
 /** Slug мастера из макетов. */
@@ -51,7 +52,7 @@ export function masterPage(): MasterPage {
     services: Object.values(SERVICES),
     photos: Array.from({ length: 6 }, (_, i) => ({
       id: `0192a0c0-0000-7000-8000-00000000060${i}`,
-      url: `/mock-media/work-${i + 1}.svg`,
+      url: workPhotoDataUrl(i + 1),
       alt: `Работа ${i + 1}`,
     })),
     booking_rules: { confirm_within_hours: 2, change_deadline_hours: 12 },

@@ -157,6 +157,7 @@ export class MockDb {
   dispose(): void {
     for (const t of this.#timers) clearTimeout(t);
     this.#timers.clear();
+    for (const url of this.#uploads.keys()) URL.revokeObjectURL(url);
   }
 
   // ───────────────────────────── вход ─────────────────────────────
@@ -379,11 +380,6 @@ export class MockDb {
     return moved;
   }
 
-  /** Аудио загрузок и заглушек. */
-  upload(name: string): Blob | undefined {
-    return this.#uploads.get(name);
-  }
-
   #pickSlot(clientId: string, offerId: string, start: string): Message {
     const offer = this.#clientMessages.find(
       (m): m is MessageOf<'slot_offer'> => m.id === offerId && m.kind === 'slot_offer',
@@ -508,10 +504,11 @@ export class MockDb {
     }
   }
 
+  /** Загруженное голосовое — `blob:` URL (проигрывается без сети). */
   #storeUpload(blob: Blob): string {
-    const name = `upload-${uuidv7()}`;
-    this.#uploads.set(name, blob);
-    return `/mock-media/${name}`;
+    const url = URL.createObjectURL(blob);
+    this.#uploads.set(url, blob);
+    return url;
   }
 
   // ─────────────────────────── график мастера ───────────────────────────

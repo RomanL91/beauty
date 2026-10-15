@@ -14,7 +14,7 @@ export const API_BASE_PATH = '/api/v1';
 export interface HttpCoreOptions {
   /** Origin API; по умолчанию — текущий (dev: Vite proxy, prod: nginx). */
   readonly origin?: string;
-  /** Нижележащий `fetch` (для тестов). */
+  /** Нижележащий `fetch` (моки в странице, тесты). */
   readonly fetch?: RequestFetch;
 }
 
@@ -30,10 +30,13 @@ export class HttpCore {
   readonly bare: BeautyClient;
   /** `fetch` с токеном — для SSE и multipart вне openapi-fetch. */
   readonly authorizedFetch: RequestFetch;
+  /** `fetch` без токена (в mock-режиме — с перехватом моками). */
+  readonly baseFetch: RequestFetch;
   readonly baseUrl: string;
 
   constructor(options: HttpCoreOptions = {}) {
     const baseFetch = options.fetch ?? globalFetch;
+    this.baseFetch = baseFetch;
     this.baseUrl = `${options.origin ?? ''}${API_BASE_PATH}`;
     this.bare = createClient<paths>({ baseUrl: this.baseUrl, fetch: baseFetch });
     this.session = new SessionStore(this.#refresher);

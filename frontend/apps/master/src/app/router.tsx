@@ -3,6 +3,7 @@ import { AssistantPage } from '../pages/assistant/AssistantPage';
 import { ChatsPage } from '../pages/chats/ChatsPage';
 import { DialogPage } from '../pages/dialog/DialogPage';
 import { PlaceholderPage } from '../pages/placeholder/PlaceholderPage';
+import { SettingsPage } from '../pages/placeholder/SettingsPage';
 import { SchedulePage } from '../pages/schedule/SchedulePage';
 import { RootLayout } from './RootLayout';
 import { RouteError } from './RouteError';
@@ -29,12 +30,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'settings',
-        element: (
-          <PlaceholderPage
-            title="Настройки"
-            text="Профиль, услуги и правила записи — в следующей итерации."
-          />
-        ),
+        element: <SettingsPage />,
       },
       { path: '*', element: <Navigate to="/schedule" replace /> },
     ],

@@ -24,6 +24,10 @@ import {
 } from '../../features/booking-actions/BookingSheets';
 import { useClientConversation } from '../../features/send-message/use-client-conversation';
 import { readIntent } from '../../shared/lib/booking-intent';
+import { PushPrompt } from '@beauty/pwa/PushPrompt';
+import { usePushSubscription } from '@beauty/pwa/push';
+import { clearApiCache } from '@beauty/pwa/register';
+import { useContainer } from '../../shared/lib/container-context';
 import { Composer } from '../../widgets/composer/Composer';
 import styles from './ChatPage.module.css';
 
@@ -39,6 +43,14 @@ export function ChatPage() {
 function Chat({ master }: { readonly master: MasterPage }) {
   const chat = useClientConversation();
   const online = useOnline();
+  const { push: pushGateway, env, masterSlug, auth } = useContainer();
+  const push = usePushSubscription({
+    app: 'client',
+    ...(masterSlug && { masterSlug }),
+    vapidKey: env.vapidPublicKey,
+    register: (input) => pushGateway.register(input),
+  });
+  const navigate = useNavigate();
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
   const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
   const [bookingsOpen, setBookingsOpen] = useState(false);
@@ -135,6 +147,14 @@ function Chat({ master }: { readonly master: MasterPage }) {
         )}
       </div>
 
+      {appointments.length > 0 && (
+        <div style={{ padding: '0 12px 8px' }}>
+          <PushPrompt
+            push={push}
+            reason={`Сообщим, когда ${master.name_forms.nominative} подтвердит запись, и напомним о визите.`}
+          />
+        </div>
+      )}
       <Composer onSendText={chat.sendText} onSendVoice={chat.sendVoice} />
 
       <CancelSheet
@@ -154,6 +174,14 @@ function Chat({ master }: { readonly master: MasterPage }) {
         appointments={appointments}
         master={master}
         onClose={() => setBookingsOpen(false)}
+        push={push}
+        onLogout={() => {
+          setBookingsOpen(false);
+          void auth.logout().finally(() => {
+            clearApiCache();
+            void navigate('/', { replace: true });
+          });
+        }}
         onShow={(a) => {
           setBookingsOpen(false);
           document

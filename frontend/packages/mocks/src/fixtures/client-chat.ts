@@ -1,3 +1,4 @@
+import { silentWavDataUrl } from '../audio';
 import type { Appointment, Message } from '@beauty/api';
 import { at, fromNow, nextWeekday, onDate } from '../clock';
 
@@ -50,7 +51,7 @@ export function clientChatSeed(): { messages: Message[]; appointment: Appointmen
       base('client', minutesAgo(26)),
       7,
       'А после массажа можно в бассейн?',
-      '/mock-media/voice-7.wav',
+      silentWavDataUrl(7),
     ),
     text(
       base('agent', minutesAgo(25), {

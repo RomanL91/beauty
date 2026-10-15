@@ -1,7 +1,14 @@
-/* Шрифты локально (@fontsource) — PWA работает офлайн, без Google Fonts. */
-@import '@fontsource/manrope/400.css';
-@import '@fontsource/manrope/500.css';
-@import '@fontsource/manrope/600.css';
-@import '@fontsource/manrope/700.css';
-@import '@fontsource/unbounded/500.css';
-@import '@fontsource/unbounded/600.css';
+/* Шрифты локально (@fontsource) — PWA работает офлайн, без Google Fonts.
+   Только кириллица и латиница: остальные подмножества не нужны и раздувают precache. */
+@import '@fontsource/manrope/cyrillic-400.css';
+@import '@fontsource/manrope/latin-400.css';
+@import '@fontsource/manrope/cyrillic-500.css';
+@import '@fontsource/manrope/latin-500.css';
+@import '@fontsource/manrope/cyrillic-600.css';
+@import '@fontsource/manrope/latin-600.css';
+@import '@fontsource/manrope/cyrillic-700.css';
+@import '@fontsource/manrope/latin-700.css';
+@import '@fontsource/unbounded/cyrillic-500.css';
+@import '@fontsource/unbounded/latin-500.css';
+@import '@fontsource/unbounded/cyrillic-600.css';
+@import '@fontsource/unbounded/latin-600.css';

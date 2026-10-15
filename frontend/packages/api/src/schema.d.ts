@@ -529,7 +529,30 @@ export interface paths {
     trace?: never;
   };
 }
-export type webhooks = Record<string, never>;
+export interface webhooks {
+  pushNotification: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Web Push на устройство
+     * @description Не HTTP-эндпоинт API: так описана полезная нагрузка Web Push, которую сервер
+     *     шифрует (RFC 8291) и отправляет на `endpoint` подписки. Service worker
+     *     показывает уведомление и по нажатию открывает `url` (путь в том же приложении).
+     */
+    post: operations['pushNotification'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+}
 export interface components {
   schemas: {
     /** @description Формат ошибок, реализованный в identity сейчас. */
@@ -1107,6 +1130,27 @@ export interface components {
       | components['schemas']['MasterMessageEvent']
       | components['schemas']['AppointmentUpdatedEvent']
       | components['schemas']['ConversationUpdatedEvent'];
+    PushPayload: {
+      /** @enum {string} */
+      kind:
+        | 'message'
+        | 'appointment_requested'
+        | 'appointment_confirmed'
+        | 'appointment_declined'
+        | 'reminder'
+        | 'task_done';
+      /** @example Алиса подтвердила запись */
+      title: string;
+      /** @example Пт, 17 октября · 12:00, классический массаж спины */
+      body: string;
+      /**
+       * @description Путь в приложении: `/chat`, `/chats/{id}`, `/schedule/{date}`.
+       * @example /chat
+       */
+      url: string;
+      /** @description Уведомления с одним тегом заменяют друг друга (например, по переписке). */
+      tag?: string;
+    };
     PushSubscriptionInput: {
       /** @enum {string} */
       app: 'client' | 'master';
@@ -1935,6 +1979,28 @@ export interface operations {
       };
       401: components['responses']['Problem'];
       404: components['responses']['Problem'];
+    };
+  };
+  pushNotification: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PushPayload'];
+      };
+    };
+    responses: {
+      /** @description Push-сервис принял сообщение. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
     };
   };
 }

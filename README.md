@@ -96,9 +96,12 @@ PWA                               API                          Бот
 
 ```bash
 cp .env.example .env            # заполнить токен бота и JWT-секрет
-docker compose up --build       # postgres, rabbitmq, migrate, api, bot, relay, scheduler
+docker compose up --build       # postgres, rabbitmq, migrate, api, bot, relay, scheduler, web
 # API: http://localhost:8000/api/v1/docs
+# PWA клиента: http://alisa.localhost:8080 · кабинет мастера: http://master.localhost:8080
 ```
+
+Фронтенд (два PWA, контракт API, моки) — `frontend/README.md`.
 
 Без Docker:
 

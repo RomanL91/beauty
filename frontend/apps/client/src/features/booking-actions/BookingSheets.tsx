@@ -9,6 +9,8 @@ import {
   useToast,
 } from '@beauty/ui';
 import { useMutation } from '@tanstack/react-query';
+import { PushPrompt } from '@beauty/pwa/PushPrompt';
+import type { usePushSubscription } from '@beauty/pwa/push';
 import { useState } from 'react';
 import { useSlots } from '../../entities/master/queries';
 import { useContainer } from '../../shared/lib/container-context';
@@ -153,12 +155,16 @@ export function MyBookingsSheet({
   master,
   onClose,
   onShow,
+  onLogout,
+  push,
 }: {
   readonly open: boolean;
   readonly appointments: readonly Appointment[];
   readonly master: MasterPage;
   readonly onClose: () => void;
   readonly onShow: (appointment: Appointment) => void;
+  readonly onLogout: () => void;
+  readonly push: ReturnType<typeof usePushSubscription>;
 }) {
   const tz = master.timezone;
   return (
@@ -184,6 +190,14 @@ export function MyBookingsSheet({
           ))}
         </ul>
       )}
+      <PushPrompt
+        push={push}
+        variant="settings"
+        reason="Напоминания о визитах и ответы мастера — уведомлением."
+      />
+      <Button variant="ghost" onClick={onLogout}>
+        Выйти из аккаунта
+      </Button>
     </Sheet>
   );
 }

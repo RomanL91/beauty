@@ -1,3 +1,4 @@
+import { silentWavDataUrl } from '../audio';
 import type {
   Appointment,
   ClientRef,
@@ -222,7 +223,7 @@ export function daryaDialogSeed(request: Appointment): Message[] {
       base('client', minutesAgo(41)),
       7,
       'А после массажа можно в бассейн?',
-      '/mock-media/voice-7.wav',
+      silentWavDataUrl(7),
     ),
     text(
       base('agent', minutesAgo(40), {
@@ -324,7 +325,7 @@ export function assistantSeed(): Message[] {
       base('master', minutesAgo(10), { ai: false }),
       4,
       'Запиши Дарью на массаж в субботу на двенадцать',
-      '/mock-media/voice-4.wav',
+      silentWavDataUrl(4),
     ),
     choose1,
     choose2,
