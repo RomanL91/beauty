@@ -364,6 +364,20 @@ paths:
         '409':
           $ref: '#/components/responses/Problem'
 
+  /me:
+    get:
+      tags: [master]
+      operationId: getMe
+      summary: Профиль мастера (своя страница)
+      description: Та же модель, что публичная страница, — для подписей в кабинете.
+      responses:
+        '200':
+          description: Профиль.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MasterPage' }
+        '401':
+          $ref: '#/components/responses/Problem'
   /me/schedule:
     get:
       tags: [master]

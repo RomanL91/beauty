@@ -9,6 +9,11 @@ const FILTERS: readonly ConversationFilter[] = ['all', 'needs_me', 'agent', 'me'
 /** Кабинет мастера. */
 export function masterHandlers(db: MockDb) {
   return [
+    http.get(
+      '/me',
+      ({ request, response }) => requireBearer(request) ?? response(200).json(db.page),
+    ),
+
     http.get('/me/schedule', async ({ request, query, response }) => {
       await delay(200);
       const date = query.get('date') ?? '';

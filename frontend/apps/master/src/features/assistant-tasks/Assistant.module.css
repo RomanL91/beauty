@@ -1,0 +1,157 @@
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.choiceRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.option {
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.option[aria-pressed='true'] {
+  border: 1.5px solid var(--c-accent);
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+  font-weight: 700;
+}
+
+.option:disabled {
+  cursor: default;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+}
+
+.cardText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.detail {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--c-text-muted);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--c-divider);
+}
+
+.optionRow {
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 0;
+  background: var(--c-surface);
+  text-align: left;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.optionRow + .optionRow {
+  border-top: 1px solid var(--c-divider);
+}
+
+.optionRow[aria-pressed='true'] {
+  background: var(--c-accent-soft);
+  color: var(--c-agent-ink);
+  font-weight: 700;
+  min-height: 56px;
+}
+
+.muted {
+  color: var(--c-text-muted);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.progressTitle {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.stepIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.done {
+  background: var(--c-ok-bg);
+  color: var(--c-ok-ink);
+}
+
+.waiting {
+  background: var(--c-warn-bg);
+  color: var(--c-warn-ink);
+}
+
+.pending {
+  border: 1.5px solid var(--c-note-border);
+}
+
+.failed {
+  background: #f9dedc;
+  color: var(--c-danger);
+}
+
+.stepPending {
+  color: var(--c-text-muted);
+}
+
+.footnote {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--c-text-muted);
+}
+
+.voiceLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-on-accent-muted);
+}

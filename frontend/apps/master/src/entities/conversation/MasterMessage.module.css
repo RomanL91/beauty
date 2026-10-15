@@ -1,0 +1,119 @@
+.request {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--r-lg);
+  background: var(--c-warn-card);
+  border: 1.5px dashed var(--c-warn);
+}
+
+.confirmed {
+  background: var(--c-ok-bg);
+  border: 1px solid transparent;
+}
+
+.cancelled {
+  background: var(--c-surface-muted);
+  border: 1px solid transparent;
+}
+
+.tag {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-warn-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.confirmed .tag {
+  color: var(--c-ok-ink);
+}
+
+.cancelled .tag {
+  color: var(--c-text-3);
+}
+
+.what {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.buttons > * {
+  flex: 1 1 0;
+}
+
+.note {
+  align-self: stretch;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1.5px dashed var(--c-note-border);
+  background: var(--c-note-bg);
+}
+
+.note svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--c-text-3);
+}
+
+.noteBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.noteTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-text-3);
+}
+
+.noteText {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--c-text-2);
+}
+
+.voiceLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-text-muted);
+}
+
+.voiceCol {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.timeChip {
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.timeChipOn {
+  background: var(--c-accent);
+  color: #fff;
+}

@@ -40,13 +40,13 @@ export function Composer({
   const id = useId();
   const toast = useToast();
   const recorder = useVoiceRecorder({ maxSeconds: maxVoiceSeconds });
-  const { state } = recorder;
+  const { state, reset } = recorder;
 
   useEffect(() => {
     if (state.status !== 'error') return;
     toast({ text: RECORDER_ERRORS[state.reason] });
-    recorder.reset();
-  }, [state, toast, recorder]);
+    reset();
+  }, [state, toast, reset]);
 
   // Высота поля под текст (до ~6 строк).
   useEffect(() => {
@@ -69,11 +69,11 @@ export function Composer({
       <footer className={styles.composer}>
         <VoicePreviewBar
           clip={state.clip}
-          onDiscard={() => recorder.reset()}
+          onDiscard={() => reset()}
           onSend={() => {
             onSendVoice(state.clip);
             // URL превью нужен сообщению в ленте — не отзываем.
-            recorder.reset(true);
+            reset(true);
           }}
         />
       </footer>
