@@ -1,0 +1,48 @@
+# Дополнения к config.yaml профиля-шаблона beauty-template.
+# Модель и провайдера настройте командой `hermes -p beauty-template setup`,
+# затем допишите этот блок в ~/.hermes/profiles/beauty-template/config.yaml.
+# Профили мастеров клонируются из шаблона: `hermes profile create m-xxx --clone-from beauty-template`.
+
+# Агент, с которым пишут анонимные клиенты, не должен иметь shell, файлов и браузера.
+# Оставляем память, навыки, поиск по прошлым сессиям, веб (для консультаций с
+# источниками) и наш MCP. Имена тулсетов — из Toolsets Reference Hermes.
+platform_toolsets:
+  api_server:
+    - memory
+    - skills
+    - session_search
+    - web
+    - mcp-beauty
+
+# Второй рубеж: даже если платформа сменится — эти тулсеты выключены совсем.
+agent:
+  disabled_toolsets:
+    - terminal
+    - file
+    - browser
+    - code_execution
+    - delegation
+    - cronjob
+    - computer_use
+    - kanban
+    - catalog
+    - connections
+
+mcp_servers:
+  beauty:
+    # ${VAR} подставляются из .env ИМЕННО этого профиля (у каждого мастера свой токен).
+    url: "${BEAUTY_MCP_URL}"
+    headers:
+      Authorization: "Bearer ${BEAUTY_MCP_TOKEN}"
+    # Hermes сам подставит имя профиля — MCP сверит его с токеном.
+    identity_header:
+      name: "X-Hermes-Profile"
+      value_from: "profile"
+    timeout: 30
+    connect_timeout: 15
+    tools:
+      prompts: false
+      resources: false
+    # MCP-сервер не просит у агента LLM-вызовов.
+    sampling:
+      enabled: false

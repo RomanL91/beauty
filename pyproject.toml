@@ -1,0 +1,87 @@
+[project]
+name = "beauty"
+version = "0.1.0"
+description = "Персональный ИИ-администратор для мастеров бьюти-индустрии"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "aio-pika>=9.5",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "aiogram>=3.15",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "pyjwt>=2.10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+    "ruff>=0.8",
+    "mypy>=1.13",
+]
+spike = [
+    "httpx>=0.28",
+    "mcp>=2.0",
+    "uvicorn[standard]>=0.32",
+]
+
+[project.scripts]
+beauty = "beauty.entrypoints.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/beauty"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+markers = [
+    "integration: тесты, которым нужен реальный PostgreSQL (BEAUTY_TEST_DATABASE_URL)",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+src = ["src", "tests", "spikes"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "ASYNC", "RUF", "PL", "PT", "TID"]
+ignore = [
+    "RUF001", "RUF002", "RUF003",   # кириллица в строках и докстрингах — норма проекта
+    "PLR0913",                      # конструкторы с явными зависимостями — осознанный DI
+    "PLR2004",
+    "PLR0917",                      # то же для позиционных аргументов
+    "ASYNC109",                     # таймаут в сигнатуре — осознанная семантика ожидания
+    "N818",                         # доменные имена исключений без суффикса Error
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["beauty", "spikes", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR0915", "PLR2004", "RUF012", "ASYNC240", "PLC0415", "PT012"]
+"migrations/**" = ["N999"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+packages = ["beauty"]
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["aio_pika.*", "aiormq.*", "asyncpg.*"]
+ignore_missing_imports = true
