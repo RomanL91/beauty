@@ -13,15 +13,22 @@ Hermes при клонировании не копирует ``API_SERVER_KEY`` 
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
 import re
 import secrets
 import shlex
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
+import yaml
+
 from spikes.hermes.registry import MasterRecord, MasterRegistry
+
+logger = logging.getLogger(__name__)
 
 _ENV_LINE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=")
 
@@ -78,11 +85,35 @@ class LocalCommandRunner(CommandRunner):
 
 
 class ProfileFiles:
-    """Файлы профилей на диске хоста (каталог ``profiles`` из HERMES_HOME, смонтированный в контейнер)."""
+    """Файлы профилей на диске (каталог ``profiles`` из HERMES_HOME, смонтированный volume).
 
-    def __init__(self, profiles_root: Path) -> None:
-        """Задать корень профилей."""
+    Hermes в контейнере работает под UID 10000. Если файлы пишет другой процесс
+    (наш bootstrap под root), им нужно вернуть владельца — иначе ``.env`` с правами
+    0600 Hermes не прочитает. Владелец задаётся ``owner=(uid, gid)``.
+    """
+
+    def __init__(self, profiles_root: Path, owner: tuple[int, int] | None = None) -> None:
+        """Задать корень профилей и (необязательно) владельца файлов."""
         self._root = profiles_root
+        self._owner = owner
+
+    def exists(self, profile: str) -> bool:
+        """Есть ли каталог профиля."""
+        return (self._root / profile).is_dir()
+
+    def read_config(self, profile: str) -> dict[str, Any]:
+        """Прочитать ``config.yaml`` профиля (нет файла — пустой словарь)."""
+        path = self._root / profile / "config.yaml"
+        if not path.exists():
+            return {}
+        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+        return loaded if isinstance(loaded, dict) else {}
+
+    def write_config(self, profile: str, config: Mapping[str, Any]) -> None:
+        """Записать ``config.yaml`` профиля."""
+        path = self._root / profile / "config.yaml"
+        path.write_text(yaml.safe_dump(dict(config), allow_unicode=True, sort_keys=False), encoding="utf-8")
+        self._finalize(path, 0o600)
 
     def upsert_env(self, profile: str, values: Mapping[str, str]) -> None:
         """Заменить или добавить переменные в ``.env`` профиля."""
@@ -98,11 +129,19 @@ class ProfileFiles:
                 result.append(line)
         result.extend(f"{key}={value}" for key, value in pending.items())
         path.write_text("\n".join(result) + "\n", encoding="utf-8")
-        path.chmod(0o600)
+        self._finalize(path, 0o600)
 
     def write_soul(self, profile: str, content: str) -> None:
         """Записать SOUL.md профиля."""
-        (self._root / profile / "SOUL.md").write_text(content, encoding="utf-8")
+        path = self._root / profile / "SOUL.md"
+        path.write_text(content, encoding="utf-8")
+        self._finalize(path, 0o644)
+
+    def _finalize(self, path: Path, mode: int) -> None:
+        """Выставить права и владельца."""
+        path.chmod(mode)
+        if self._owner is not None:
+            os.chown(path, *self._owner)
 
 
 class HermesProfileProvisioner:
@@ -137,5 +176,17 @@ class HermesProfileProvisioner:
             {"API_SERVER_KEY": record.api_server_key, "BEAUTY_MCP_TOKEN": record.mcp_token},
         )
         self._files.write_soul(record.profile, SOUL_TEMPLATE.format(name=display_name))
+        await self._reload(record.profile)
         self._registry.add(record)
         return record
+
+    async def _reload(self, profile: str) -> None:
+        """Попросить мультиплексор перечитать профиль (ключ API и MCP-токен дописаны после create).
+
+        Лучшее усилие: если команда недоступна, мультиплексор подхватит профиль при
+        плановом пересканировании (раз в 30 секунд).
+        """
+        try:
+            await self._runner.run("-p", profile, "gateway", "restart")
+        except RuntimeError as error:
+            logger.warning("Профиль %s не перезапущен в gateway: %s", profile, error)

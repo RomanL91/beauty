@@ -25,7 +25,36 @@
 * **Ресурсы** — RSS процесса gateway при 5 / 20 / 50 профилях (`ps -o rss`).
 * **Стоимость** — токены на ход (`usage` в `GET /v1/runs/{id}`).
 
-## Подготовка
+## Быстрый старт в Docker (рекомендуется)
+
+Всё поднимается одной командой: отдельный Hermes, MCP-заглушка и bootstrap.
+Bootstrap создаёт профиль-шаблон с моделью OpenRouter и ограничением тулсетов,
+а затем профили мастеров. Руками нужно вписать только ключ OpenRouter.
+
+```bash
+cd spikes/hermes/docker
+cp .env.example .env
+# впишите OPENROUTER_API_KEY, затем сгенерируйте два секрета:
+sed -i "s/^HERMES_DEFAULT_API_KEY=.*/HERMES_DEFAULT_API_KEY=$(openssl rand -hex 32)/" .env
+sed -i "s/^SPIKE_TICKET_SECRET=.*/SPIKE_TICKET_SECRET=$(openssl rand -hex 32)/" .env
+
+docker compose up -d --build
+docker compose logs -f bootstrap        # ждём «Готово: профилей мастеров — 5»
+docker compose run --rm spike run       # все сценарии; отчёт — ./out/report.md
+```
+
+Полезное:
+
+* `docker compose run --rm spike run isolation learning` — выборочные сценарии;
+* `docker exec beauty-hermes hermes profile list` — профили в контейнере;
+* `docker compose logs -f hermes` — логи gateway;
+* `./out/calls.jsonl` — журнал всех вызовов MCP-инструментов агентами;
+* полный сброс: `docker compose down -v && rm -rf out`.
+
+Bootstrap идемпотентен: после смены `SPIKE_MODEL` или `SPIKE_MASTERS` выполните
+`docker compose run --rm bootstrap`.
+
+## Подготовка без Docker
 
 ```bash
 pip install -e '.[spike]'

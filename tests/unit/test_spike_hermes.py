@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
+from spikes.hermes.bootstrap import SpikeBootstrap, TemplateProfileBootstrapper
 from spikes.hermes.provisioning import CommandRunner, HermesProfileProvisioner, ProfileFiles
 from spikes.hermes.registry import MasterRegistry
 from spikes.hermes.tickets import AgentFace, InvalidTicketError, TicketCodec
@@ -55,9 +57,10 @@ class FakeRunner(CommandRunner):
 
     async def run(self, *arguments: str) -> str:
         self.calls.append(arguments)
-        profile = self.root / arguments[2]
-        profile.mkdir(parents=True)
-        (profile / ".env").write_text("OPENROUTER_API_KEY=keep-me\nAPI_SERVER_KEY=template-key\n")
+        if arguments[:2] == ("profile", "create"):
+            profile = self.root / arguments[2]
+            profile.mkdir(parents=True)
+            (profile / ".env").write_text("OPENROUTER_API_KEY=keep-me\nAPI_SERVER_KEY=template-key\n")
         return ""
 
 
@@ -67,7 +70,10 @@ async def test_provisioner_clones_template_and_writes_secrets(tmp_path: Path) ->
     registry = MasterRegistry(tmp_path / "masters.json")
     record = await HermesProfileProvisioner(runner, ProfileFiles(tmp_path), registry).provision("Алиса")
 
-    assert runner.calls == [("profile", "create", record.profile, "--clone-from", "beauty-template")]
+    assert runner.calls == [
+        ("profile", "create", record.profile, "--clone-from", "beauty-template"),
+        ("-p", record.profile, "gateway", "restart"),
+    ]
     env = (tmp_path / record.profile / ".env").read_text()
     assert "OPENROUTER_API_KEY=keep-me" in env
     assert f"API_SERVER_KEY={record.api_server_key}" in env
@@ -75,3 +81,63 @@ async def test_provisioner_clones_template_and_writes_secrets(tmp_path: Path) ->
     assert f"BEAUTY_MCP_TOKEN={record.mcp_token}" in env
     assert "Алиса" in (tmp_path / record.profile / "SOUL.md").read_text()
     assert registry.by_mcp_token()[record.mcp_token].profile == record.profile
+
+
+class TemplateRunner(CommandRunner):
+    """Имитация Hermes CLI для bootstrap: создаёт каталоги профилей, остальное записывает."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self.calls: list[tuple[str, ...]] = []
+
+    async def run(self, *arguments: str) -> str:
+        self.calls.append(arguments)
+        if arguments[:2] == ("profile", "create"):
+            profile = self.root / arguments[2]
+            profile.mkdir(parents=True)
+            source = self.root / arguments[4] / ".env" if "--clone-from" in arguments else None
+            env = source.read_text() if source and source.exists() else ""
+            (profile / ".env").write_text(env)
+            (profile / "config.yaml").write_text("display:\n  skin: default\nmodel:\n  temperature: 0.2\n")
+        return ""
+
+
+class ReadyWaiter:
+    """Gateway «уже готов»."""
+
+    async def wait(self) -> None:
+        return None
+
+
+async def test_bootstrap_is_idempotent_and_keys_reach_clones(tmp_path: Path) -> None:
+    """Шаблон получает модель, MCP, тулсеты и ключи; клоны наследуют ключ; повтор не плодит мастеров."""
+    runner = TemplateRunner(tmp_path)
+    files = ProfileFiles(tmp_path)
+    registry = MasterRegistry(tmp_path / "masters.json")
+    overlay = Path(__file__).resolve().parents[2] / "spikes/hermes/templates/beauty-template.config.yaml"
+    env = {"OPENROUTER_API_KEY": "sk-or-1", "BEAUTY_MCP_URL": "http://mcp:8765/mcp"}
+    template = TemplateProfileBootstrapper(runner, files, overlay, "google/gemini-2.5-flash", env)
+    bootstrap = SpikeBootstrap(
+        ReadyWaiter(),  # type: ignore[arg-type]
+        template,
+        HermesProfileProvisioner(runner, files, registry),
+        registry,
+        masters=2,
+    )
+    await bootstrap.run()
+    await bootstrap.run()
+
+    config = yaml.safe_load((tmp_path / "beauty-template" / "config.yaml").read_text())
+    assert config["model"] == {
+        "temperature": 0.2,
+        "provider": "openrouter",
+        "default": "google/gemini-2.5-flash",
+    }
+    assert config["display"] == {"skin": "default"}
+    assert "terminal" in config["agent"]["disabled_toolsets"]
+    assert config["mcp_servers"]["beauty"]["headers"]["Authorization"] == "Bearer ${BEAUTY_MCP_TOKEN}"
+    assert len(registry.load()) == 2
+    for record in registry.load():
+        assert "OPENROUTER_API_KEY=sk-or-1" in (tmp_path / record.profile / ".env").read_text()
+    created = [call for call in runner.calls if call[:2] == ("profile", "create")]
+    assert len(created) == 3, "шаблон и два мастера — каждый по одному разу"

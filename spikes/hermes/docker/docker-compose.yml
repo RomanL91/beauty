@@ -1,0 +1,69 @@
+# Стенд спайка: отдельный Hermes + MCP-заглушка + bootstrap профилей + прогон сценариев.
+#   docker compose up -d            # Hermes, заглушка и разовый bootstrap
+#   docker compose logs -f bootstrap
+#   docker compose run --rm spike run
+name: beauty-spike
+
+x-tools: &tools
+  build:
+    context: ../../..
+    dockerfile: spikes/hermes/docker/Dockerfile
+  environment:
+    SPIKE_TICKET_SECRET: ${SPIKE_TICKET_SECRET:?задайте SPIKE_TICKET_SECRET в .env}
+    OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?задайте OPENROUTER_API_KEY в .env}
+    SPIKE_MODEL: ${SPIKE_MODEL:-google/gemini-2.5-flash}
+    SPIKE_MASTERS: ${SPIKE_MASTERS:-5}
+    SPIKE_HERMES_URL: http://hermes:8642
+    SPIKE_HERMES_CMD: docker exec beauty-hermes hermes
+    SPIKE_PROFILES_ROOT: /hermes/profiles
+    SPIKE_PROFILES_OWNER: "10000:10000"
+    SPIKE_MCP_URL: http://mcp:8765/mcp
+  volumes:
+    - hermes-data:/hermes
+    - ./out:/spike
+    - /var/run/docker.sock:/var/run/docker.sock
+
+services:
+  hermes:
+    image: nousresearch/hermes-agent:${HERMES_TAG:-stable}
+    container_name: beauty-hermes
+    restart: unless-stopped
+    command: gateway run
+    environment:
+      API_SERVER_ENABLED: "true"
+      API_SERVER_HOST: 0.0.0.0
+      API_SERVER_KEY: ${HERMES_DEFAULT_API_KEY:?задайте HERMES_DEFAULT_API_KEY в .env}
+      # Мультиплексор: один gateway обслуживает все профили по префиксу /p/<профиль>/.
+      GATEWAY_MULTIPLEX_PROFILES: "true"
+    ports:
+      - "127.0.0.1:8642:8642"   # только локально: наружу API Hermes не открываем
+    volumes:
+      - hermes-data:/opt/data
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+
+  mcp:
+    <<: *tools
+    command: ["mcp", "--host", "0.0.0.0", "--port", "8765"]
+    restart: unless-stopped
+    environment:
+      SPIKE_TICKET_SECRET: ${SPIKE_TICKET_SECRET:?задайте SPIKE_TICKET_SECRET в .env}
+    volumes:
+      - ./out:/spike
+
+  bootstrap:
+    <<: *tools
+    command: ["bootstrap"]
+    restart: "no"
+    depends_on: [hermes, mcp]
+
+  spike:
+    <<: *tools
+    profiles: ["tools"]        # не стартует по `up`, только `docker compose run --rm spike …`
+    depends_on: [hermes, mcp]
+
+volumes:
+  hermes-data:

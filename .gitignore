@@ -8,3 +8,5 @@ __pycache__/
 var/
 dist/
 *.egg-info/
+spikes/hermes/docker/.env
+spikes/hermes/docker/out/
