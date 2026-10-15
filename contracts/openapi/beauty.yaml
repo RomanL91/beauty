@@ -6,11 +6,10 @@ info:
   description: |
     Источник правды для фронтенда и бэкенда.
 
-    * Раздел **auth** описывает уже реализованный код
-      (`src/beauty/contexts/identity/presentation/api`). Его ошибки пока отдаются
-      в формате `ErrorEnvelope` (`{"error": {"code", "message"}}`).
-    * Остальные разделы — новые: бэкенд реализует их позже, фронтенд работает
-      по ним через MSW. Ошибки — RFC 9457 `application/problem+json`.
+    * Реализовано бэкендом: **auth** (`contexts/identity`) и **public**
+      (`contexts/tenancy`). Остальные разделы фронтенд пока получает от моков.
+    * Ошибки всех эндпоинтов — RFC 9457 `application/problem+json` с расширением
+      `code` (машиночитаемый код; тексты `detail` могут меняться).
 
     Все пути — относительно `/api/v1`. Время — RFC 3339 с часовым поясом,
     идентификаторы — UUIDv7. Access-токен передаётся заголовком
@@ -74,7 +73,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ChallengeStatusResponse' }
         '404':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
   /auth/telegram/challenges/{challenge_id}/events:
     parameters:
       - $ref: '#/components/parameters/ChallengeId'
@@ -95,7 +94,7 @@ paths:
             text/event-stream:
               schema: { $ref: '#/components/schemas/ChallengeStatusEvent' }
         '404':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
   /auth/telegram/challenges/{challenge_id}/session:
     parameters:
       - $ref: '#/components/parameters/ChallengeId'
@@ -117,11 +116,11 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SessionResponse' }
         '404':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
         '409':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
         '410':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
   /auth/session/refresh:
     post:
       tags: [auth]
@@ -139,7 +138,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SessionResponse' }
         '401':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
   /auth/session/logout:
     post:
       tags: [auth]
@@ -161,7 +160,11 @@ paths:
       security: []
       responses:
         '200':
-          description: Профиль, услуги и правила записи.
+          description: Профиль, услуги и правила записи (только опубликованная страница).
+          headers:
+            Cache-Control:
+              description: '`public, max-age=60`'
+              schema: { type: string }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MasterPage' }
@@ -174,7 +177,11 @@ paths:
       tags: [public]
       operationId: listMasterSlots
       summary: Свободные окна
-      description: Без `service` — ближайшие окна для любой услуги (по самой короткой).
+      description: |
+        Окна, **начинающиеся** в `[from, to)`. Без `service` — по самой короткой активной
+        услуге (её id — в `service_id`). Окно поиска дополнительно ограничено правилами
+        мастера: не раньше «сейчас + минимальный интервал» и не дальше горизонта записи.
+        Время в ответе — в часовом поясе мастера. Ответ не кэшируется.
       security: []
       parameters:
         - name: service
@@ -182,9 +189,11 @@ paths:
           schema: { type: string, format: uuid }
         - name: from
           in: query
+          description: Начало окна поиска (RFC 3339 с поясом); по умолчанию — сейчас.
           schema: { type: string, format: date-time }
         - name: to
           in: query
+          description: Конец окна поиска (не включая); по умолчанию — горизонт записи.
           schema: { type: string, format: date-time }
         - name: limit
           in: query
@@ -202,6 +211,8 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/Slot' }
         '404':
+          $ref: '#/components/responses/Problem'
+        '422':
           $ref: '#/components/responses/Problem'
 
   /conversations/me:
@@ -735,11 +746,6 @@ components:
       schema: { type: string }
 
   responses:
-    AuthError:
-      description: Ошибка входа/сессии (текущий формат identity).
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
     Problem:
       description: Ошибка (RFC 9457).
       content:
@@ -747,22 +753,6 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
-    ErrorEnvelope:
-      type: object
-      description: Формат ошибок, реализованный в identity сейчас.
-      required: [error]
-      properties:
-        error:
-          type: object
-          required: [code, message]
-          properties:
-            code:
-              type: string
-              description: |
-                Например: `challenge_not_found` (404), `browser_secret_mismatch` (404),
-                `challenge_expired` (410), `invalid_challenge_state` (409),
-                `invalid_session` (401), `session_reuse_detected` (401), `session_inactive` (401).
-            message: { type: string }
     Problem:
       type: object
       description: RFC 9457 Problem Details.
@@ -775,7 +765,11 @@ components:
         instance: { type: string, format: uri-reference }
         code:
           type: string
-          description: Машиночитаемый код ошибки (как в identity).
+          description: |
+            Машиночитаемый код ошибки. Например: `validation_error` (422),
+            `challenge_not_found` (404), `challenge_expired` (410), `invalid_session` (401),
+            `session_reuse_detected` (401), `master_not_found` (404), `service_not_found` (404),
+            `invalid_slot_window` (422).
         errors:
           type: array
           description: Ошибки полей для 422.

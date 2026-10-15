@@ -35,8 +35,9 @@ VITE_MOCK_AUTH=1 pnpm -C frontend dev      # то же без бэкенда: в
 | `VITE_VAPID_PUBLIC_KEY` | base64url                                  | публичный ключ Web Push; пусто — подписка недоступна                                      |
 | `VITE_API_PROXY`        | URL                                        | куда Vite проксирует `/api` (по умолчанию `http://localhost:8000`)                        |
 
-Сейчас бэкенд реализует только вход (`auth`); у мастера вход — заглушка
-(`StubMasterAuthGateway`), его API целиком в моках.
+Сейчас бэкенд реализует вход (`auth`) и публичную страницу мастера с окнами
+(`public`); docker-сборка клиента — `VITE_REAL_API=auth,public`. У мастера вход —
+заглушка (`StubMasterAuthGateway`), его API целиком в моках.
 
 ## Структура
 

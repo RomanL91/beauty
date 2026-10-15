@@ -1,4 +1,4 @@
-"""Командная строка: ``beauty api | bot | relay | scheduler``."""
+"""Командная строка: ``beauty api | bot | relay | scheduler | seed-demo``."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import signal
 from collections.abc import Callable, Mapping
 
 from beauty.bootstrap.container import ApplicationContainer
+from beauty.bootstrap.demo import DemoMasterSeeder
 from beauty.entrypoints.api import ApiServerWorker
 from beauty.entrypoints.workers import OutboxRelayWorker, SchedulerWorker, TelegramBotWorker, Worker
 from beauty.shared.infrastructure.config import Settings
@@ -32,6 +33,17 @@ class ProcessLauncher:
         """Доступные роли процесса."""
         return tuple(self._WORKERS)
 
+    def seed_demo(self) -> None:
+        """Создать или обновить демо-мастера и выйти."""
+        asyncio.run(self._seed_demo(ApplicationContainer(self._settings, process_name="beauty-seed")))
+
+    @staticmethod
+    async def _seed_demo(container: ApplicationContainer) -> None:
+        try:
+            await DemoMasterSeeder(container.mediator).seed()
+        finally:
+            await container.aclose()
+
     def launch(self, role: str) -> None:
         """Запустить роль (блокирующий вызов)."""
         container = ApplicationContainer(self._settings, process_name=f"beauty-{role}")
@@ -53,8 +65,12 @@ def main() -> None:
     settings = Settings()
     launcher = ProcessLauncher(settings)
     parser = argparse.ArgumentParser(prog="beauty", description="Процессы сервиса Beauty")
-    parser.add_argument("role", choices=launcher.roles())
-    launcher.launch(parser.parse_args().role)
+    parser.add_argument("role", choices=(*launcher.roles(), "seed-demo"))
+    role = parser.parse_args().role
+    if role == "seed-demo":
+        launcher.seed_demo()
+    else:
+        launcher.launch(role)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Cookie, Request, Response, status
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 
 from beauty.contexts.identity.application.commands import (
     ExchangeChallengeForSession,
@@ -31,6 +31,7 @@ from beauty.contexts.identity.presentation.api.stream import ChallengeStatusStre
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.domain.clock import Clock
 from beauty.shared.infrastructure.realtime.hub import RealtimeHub
+from beauty.shared.infrastructure.web.errors import problem_response
 
 ChallengeSecret = Annotated[str | None, Cookie(alias=CHALLENGE_COOKIE)]
 RefreshCookie = Annotated[str | None, Cookie(alias=REFRESH_COOKIE)]
@@ -168,10 +169,7 @@ class IdentityApiController:
         try:
             tokens = await self._mediator.send(RefreshSession(refresh))
         except (InvalidSessionError, SessionReuseError) as error:
-            failure = JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                content={"error": {"code": error.code, "message": str(error)}},
-            )
+            failure = problem_response(status.HTTP_401_UNAUTHORIZED, error.code, str(error))
             self._cookies.clear_refresh(failure)
             return failure
         return self._session_response(response, tokens)

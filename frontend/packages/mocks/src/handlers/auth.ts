@@ -2,7 +2,7 @@ import { delay } from 'msw';
 import { FINAL_CHALLENGE_STATUSES, type ChallengeStatus } from '@beauty/api';
 import type { MockDb } from '../db';
 import { frame, streamFrom } from '../sse';
-import { authError, http, run } from './support';
+import { http, problem, run } from './support';
 
 /** Вход через Telegram: сценарий «бот подтвердил» идёт сам по таймеру. */
 export function authHandlers(db: MockDb) {
@@ -20,7 +20,7 @@ export function authHandlers(db: MockDb) {
           status,
           expires_at: expiresAt,
         });
-      }, 'auth'),
+      }),
     ),
 
     http.get('/auth/telegram/challenges/{challenge_id}/events', ({ params, request, response }) =>
@@ -42,18 +42,18 @@ export function authHandlers(db: MockDb) {
             return () => clearInterval(timer);
           }),
         );
-      }, 'auth'),
+      }),
     ),
 
     http.post('/auth/telegram/challenges/{challenge_id}/session', ({ params, response }) =>
-      run(() => response(200).json(db.exchangeChallenge(params.challenge_id)), 'auth'),
+      run(() => response(200).json(db.exchangeChallenge(params.challenge_id))),
     ),
 
     http.post('/auth/session/refresh', ({ response }) => {
       const session = db.refreshSession();
       return session
         ? response(200).json(session)
-        : authError(401, 'invalid_session', 'Сессия недействительна');
+        : problem(401, 'invalid_session', 'Сессия недействительна');
     }),
 
     http.post('/auth/session/logout', ({ response }) => {

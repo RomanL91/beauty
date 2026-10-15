@@ -10,6 +10,8 @@
 
 * **shared kernel** — фундамент всех контекстов;
 * **контекст `identity`** — глобальный аккаунт клиента и вход через Telegram;
+* **контекст `tenancy`** — мастер-арендатор, его публичная страница, услуги,
+  расписание и свободные окна (`docs/tasks/backend-iteration-1-tenancy.md`);
 * **спайк Hermes** (`spikes/hermes`) — проверка runtime агента до разработки
   контекста `agent`.
 
@@ -35,11 +37,17 @@ src/beauty/
 │   ├── infrastructure/             # таблицы, маппинг, репозитории, JWT, read-модель, realtime-топики
 │   ├── presentation/api|bot/       # FastAPI-контроллер + SSE, aiogram-бот
 │   └── module.py                   # сборка контекста
-├── bootstrap/                      # корень композиции (Pure DI), каталог схемы
-└── entrypoints/                    # процессы: api, bot, relay, scheduler
+├── contexts/tenancy/
+│   ├── domain/                     # Master + Service, VO (slug, расписание, правила записи), SlotFinder
+│   ├── application/                # команды кабинета/CLI, запросы страницы и окон, порты чтения
+│   ├── infrastructure/             # таблицы (JSONB для расписания), маппинг, SQL-читатели
+│   ├── presentation/api/           # GET /masters/{slug}, GET /masters/{slug}/slots
+│   └── module.py
+├── bootstrap/                      # корень композиции (Pure DI), каталог схемы, демо-данные
+└── entrypoints/                    # процессы: api, bot, relay, scheduler, seed-demo
 migrations/                         # Alembic (async)
 spikes/hermes/                      # кит спайка Hermes (см. его README)
-tests/unit | tests/integration      # 104 теста; интеграционные — на реальном PostgreSQL
+tests/unit | tests/integration      # 182 теста; интеграционные — на реальном PostgreSQL
 ```
 
 ## Вход клиента через Telegram
@@ -96,7 +104,7 @@ PWA                               API                          Бот
 
 ```bash
 cp .env.example .env            # заполнить токен бота и JWT-секрет
-docker compose up --build       # postgres, rabbitmq, migrate, api, bot, relay, scheduler, web
+docker compose up --build       # postgres, rabbitmq, migrate, seed, api, bot, relay, scheduler, web
 # API: http://localhost:8000/api/v1/docs
 # PWA клиента: http://alisa.localhost:8080 · кабинет мастера: http://master.localhost:8080
 ```
@@ -108,6 +116,7 @@ docker compose up --build       # postgres, rabbitmq, migrate, api, bot, relay, 
 ```bash
 pip install -e '.[dev]'
 alembic upgrade head
+beauty seed-demo                # демо-мастер alisa (идемпотентно)
 beauty api | beauty bot | beauty relay | beauty scheduler
 ```
 
@@ -129,12 +138,16 @@ BEAUTY_TEST_DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/postgres p
 * inbox при повторной доставке;
 * аренду отложенных задач;
 * использование частичного индекса (через `EXPLAIN`);
-* сквозной HTTP-сценарий с SSE и кражей refresh-токена.
+* сквозной HTTP-сценарий с SSE и кражей refresh-токена;
+* tenancy: маппинг агрегата с услугами, гонку за slug, страницу и окна мастера;
+* ответы API и ошибки (problem+json) — по схемам из `contracts/openapi/beauty.yaml`.
 
 ## Дальше
 
 1. Прогнать спайк Hermes (`spikes/hermes/README.md`): по его итогам фиксируем
    адаптер `AgentRuntime` (один экземпляр или пул с шардированием мастеров).
-2. Контекст `tenancy`: мастер, страница-поддомен, `BookingPolicy`.
-3. Контексты `catalog`, `crm` и `scheduling`: исключающее ограничение `EXCLUDE
-   USING gist` против двойной записи, `SlotSwapProcess`.
+2. ~~Контекст `tenancy`~~ — сделан (страница мастера и окна на реальном API).
+3. Контекст записи: заявка с удержанием окна, подтверждение мастером, исключающее
+   ограничение `EXCLUDE USING gist` против двойной записи; его адаптер
+   `BusyTimeSource` заменит `NoBusyTime` в поиске окон.
+4. Переписка (SSE с Bearer, `Last-Event-ID`) и агент; затем роль мастера, поручения, push.

@@ -44,6 +44,7 @@ class ApiApplicationFactory:
         )
         container.http_errors.install(app)
         app.include_router(container.identity.api_router(container.mediator), prefix=settings.http.api_prefix)
+        app.include_router(container.tenancy.api_router(container.mediator), prefix=settings.http.api_prefix)
         app.add_api_route("/health", self._health, methods=["GET"], include_in_schema=False)
         return app
 

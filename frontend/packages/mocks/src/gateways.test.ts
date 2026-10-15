@@ -59,7 +59,14 @@ describe('HttpAuthGateway', () => {
     const stop = auth.watchChallenge(challenge.challenge_id, { onStatus: (s) => seen.push(s) });
     await waitFor(() => (seen.includes('completed') ? true : undefined));
     stop();
-    expect(seen).toEqual(['pending', 'claimed', 'confirmed', 'completed']);
+    // Сколько шагов поток застанет, зависит от того, когда подключится SSE (под нагрузкой —
+    // позже первого шага), поэтому проверяем порядок, а не полный список.
+    const order = ['pending', 'claimed', 'confirmed', 'completed'];
+    expect(seen.at(-1)).toBe('completed');
+    expect(seen.map((s) => order.indexOf(s))).toEqual(
+      [...seen.map((s) => order.indexOf(s))].sort(),
+    );
+    expect(new Set(seen).size).toBe(seen.length);
 
     await auth.exchangeChallenge(challenge.challenge_id);
     expect(core.session.getSnapshot().status).toBe('authenticated');

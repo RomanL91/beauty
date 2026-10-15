@@ -21,8 +21,9 @@ class SchemaCatalog:
         "beauty.shared.infrastructure.inbox.table",
         "beauty.shared.infrastructure.scheduling.table",
         "beauty.contexts.identity.infrastructure.tables",
+        "beauty.contexts.tenancy.infrastructure.tables",
     )
-    SCHEMAS: tuple[str, ...] = ("infra", "identity")
+    SCHEMAS: tuple[str, ...] = ("infra", "identity", "tenancy")
 
     @classmethod
     def load(cls) -> MetaData:

@@ -80,6 +80,7 @@ async def clean_database(container: ApplicationContainer) -> None:
         await connection.execute(
             text(
                 "TRUNCATE identity.client_sessions, identity.auth_challenges, identity.client_accounts, "
+                "tenancy.master_services, tenancy.masters, "
                 "infra.outbox, infra.inbox, infra.scheduled_jobs CASCADE"
             )
         )

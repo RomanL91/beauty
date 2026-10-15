@@ -160,7 +160,10 @@ export interface paths {
     };
     /**
      * Свободные окна
-     * @description Без `service` — ближайшие окна для любой услуги (по самой короткой).
+     * @description Окна, **начинающиеся** в `[from, to)`. Без `service` — по самой короткой активной
+     *     услуге (её id — в `service_id`). Окно поиска дополнительно ограничено правилами
+     *     мастера: не раньше «сейчас + минимальный интервал» и не дальше горизонта записи.
+     *     Время в ответе — в часовом поясе мастера. Ответ не кэшируется.
      */
     get: operations['listMasterSlots'];
     put?: never;
@@ -555,18 +558,6 @@ export interface webhooks {
 }
 export interface components {
   schemas: {
-    /** @description Формат ошибок, реализованный в identity сейчас. */
-    ErrorEnvelope: {
-      error: {
-        /**
-         * @description Например: `challenge_not_found` (404), `browser_secret_mismatch` (404),
-         *     `challenge_expired` (410), `invalid_challenge_state` (409),
-         *     `invalid_session` (401), `session_reuse_detected` (401), `session_inactive` (401).
-         */
-        code: string;
-        message: string;
-      };
-    };
     /** @description RFC 9457 Problem Details. */
     Problem: {
       /**
@@ -579,7 +570,12 @@ export interface components {
       detail?: string;
       /** Format: uri-reference */
       instance?: string;
-      /** @description Машиночитаемый код ошибки (как в identity). */
+      /**
+       * @description Машиночитаемый код ошибки. Например: `validation_error` (422),
+       *     `challenge_not_found` (404), `challenge_expired` (410), `invalid_session` (401),
+       *     `session_reuse_detected` (401), `master_not_found` (404), `service_not_found` (404),
+       *     `invalid_slot_window` (422).
+       */
       code?: string;
       /** @description Ошибки полей для 422. */
       errors?: {
@@ -1166,15 +1162,6 @@ export interface components {
     };
   };
   responses: {
-    /** @description Ошибка входа/сессии (текущий формат identity). */
-    AuthError: {
-      headers: {
-        [name: string]: unknown;
-      };
-      content: {
-        'application/json': components['schemas']['ErrorEnvelope'];
-      };
-    };
     /** @description Ошибка (RFC 9457). */
     Problem: {
       headers: {
@@ -1243,7 +1230,7 @@ export interface operations {
           'application/json': components['schemas']['ChallengeStatusResponse'];
         };
       };
-      404: components['responses']['AuthError'];
+      404: components['responses']['Problem'];
     };
   };
   streamTelegramChallenge: {
@@ -1266,7 +1253,7 @@ export interface operations {
           'text/event-stream': components['schemas']['ChallengeStatusEvent'];
         };
       };
-      404: components['responses']['AuthError'];
+      404: components['responses']['Problem'];
     };
   };
   exchangeTelegramChallenge: {
@@ -1291,9 +1278,9 @@ export interface operations {
           'application/json': components['schemas']['SessionResponse'];
         };
       };
-      404: components['responses']['AuthError'];
-      409: components['responses']['AuthError'];
-      410: components['responses']['AuthError'];
+      404: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+      410: components['responses']['Problem'];
     };
   };
   refreshSession: {
@@ -1314,7 +1301,7 @@ export interface operations {
           'application/json': components['schemas']['SessionResponse'];
         };
       };
-      401: components['responses']['AuthError'];
+      401: components['responses']['Problem'];
     };
   };
   logout: {
@@ -1346,9 +1333,11 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Профиль, услуги и правила записи. */
+      /** @description Профиль, услуги и правила записи (только опубликованная страница). */
       200: {
         headers: {
+          /** @description `public, max-age=60` */
+          'Cache-Control'?: string;
           [name: string]: unknown;
         };
         content: {
@@ -1362,7 +1351,9 @@ export interface operations {
     parameters: {
       query?: {
         service?: string;
+        /** @description Начало окна поиска (RFC 3339 с поясом); по умолчанию — сейчас. */
         from?: string;
+        /** @description Конец окна поиска (не включая); по умолчанию — горизонт записи. */
         to?: string;
         limit?: number;
       };
@@ -1386,6 +1377,7 @@ export interface operations {
         };
       };
       404: components['responses']['Problem'];
+      422: components['responses']['Problem'];
     };
   };
   getMyConversation: {

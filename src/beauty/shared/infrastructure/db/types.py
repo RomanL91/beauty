@@ -10,7 +10,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from sqlalchemy import BigInteger, Dialect, Text
+from sqlalchemy import BigInteger, Dialect, Integer, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.types import TypeDecorator
 
 
@@ -51,3 +52,36 @@ class BigIntegerValueObjectType(_ValueObjectType):
 
     impl = BigInteger
     cache_ok = True
+
+
+class IntegerValueObjectType(_ValueObjectType):
+    """VO, хранящийся как ``integer``."""
+
+    impl = Integer
+    cache_ok = True
+
+
+class JsonValueObjectType(TypeDecorator[Any]):
+    """VO, хранящийся как ``jsonb`` (расписания, списки внутри агрегата).
+
+    Преобразование задают две функции: VO → JSON-совместимое значение и обратно.
+    Поле читается и пишется целиком, поэтому VO должен быть неизменяемым —
+    изменение агрегата всегда присваивает новый объект.
+    """
+
+    impl = JSONB
+    cache_ok = True
+
+    def __init__(self, dump: Callable[[Any], Any], load: Callable[[Any], Any]) -> None:
+        """Задать сериализацию."""
+        super().__init__()
+        self._dump = dump
+        self._load = load
+
+    def process_bind_param(self, value: Any, dialect: Dialect) -> Any:
+        """VO → JSON."""
+        return None if value is None else self._dump(value)
+
+    def process_result_value(self, value: Any, dialect: Dialect) -> Any:
+        """JSON → VO."""
+        return None if value is None else self._load(value)

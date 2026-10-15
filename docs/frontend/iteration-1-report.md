@@ -105,9 +105,9 @@ POST /api/v1/auth/session/refresh                → 200   (сессия вос�
 7. **SSE читается через `fetch`, а не `EventSource`** — чтобы передавать
    `Authorization` и переживать refresh токена; переподключение с `Last-Event-ID` и
    экспоненциальной паузой. Вход: при обрыве SSE включается опрос `GET` раз в 3 с.
-8. **Ошибки identity** сейчас не RFC 9457, а `{"error": {"code", "message"}}`. Контракт
-   описывает реализованное как есть (`ErrorEnvelope`), новые эндпоинты — problem+json;
-   `ApiError` понимает оба формата.
+8. **Ошибки identity** на момент итерации были не RFC 9457, а
+   `{"error": {"code", "message"}}`; `ApiError` понимает оба формата. С бэкенд-итерации 1
+   все эндпоинты отдают problem+json, `ErrorEnvelope` из контракта убран.
 9. **Кэш данных в service worker** — network-first для `GET /api/v1/*` (кроме входа и SSE),
    при выходе кэш очищается. Шрифты — только кириллица и латиница.
 10. **Отсчёт автоотклонения** тикает локально каждые 15 с (график) / 30 с (карточка
@@ -130,6 +130,10 @@ POST /api/v1/auth/session/refresh                → 200   (сессия вос�
 * `webhooks.pushNotification` / `PushPayload` — полезная нагрузка Web Push.
 
 ## Открытые вопросы к контракту API
+
+Вопросы 1–4 решены — см. `docs/tasks/backend-iteration-1-tenancy.md`, раздел 0
+(problem+json везде; SSE принимает Bearer; журнал `Last-Event-ID` 24 ч и `event: reset`;
+SSO через `BEAUTY_AUTH__COOKIE_DOMAIN=.beautiful.kz`).
 
 1. **Формат ошибок identity**: переводим на problem+json (тогда `ErrorEnvelope` уходит из
    контракта) или оставляем?

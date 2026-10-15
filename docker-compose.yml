@@ -42,6 +42,12 @@ services:
       postgres:
         condition: service_healthy
 
+  # Демо-мастер alisa (идемпотентно): страница http://alisa.localhost:8080 работает сразу.
+  seed:
+    <<: *app
+    command: ["seed-demo"]
+    restart: "no"
+
   api:
     <<: *app
     command: ["api"]

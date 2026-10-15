@@ -14,6 +14,7 @@ from functools import cached_property
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from beauty.contexts.identity.module import IdentityDependencies, IdentityModule
+from beauty.contexts.tenancy.module import TenancyDependencies, TenancyModule
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.application.middleware import ConcurrencyRetryMiddleware, LoggingMiddleware
 from beauty.shared.domain.clock import Clock, SystemClock
@@ -74,6 +75,7 @@ class ApplicationContainer:
         """Медиатор с зарегистрированными обработчиками всех модулей."""
         mediator = Mediator(middlewares=(LoggingMiddleware(), ConcurrencyRetryMiddleware()))
         self.identity.register(mediator, self.http_errors)
+        self.tenancy.register(mediator, self.http_errors)
         return mediator
 
     @cached_property
@@ -124,6 +126,18 @@ class ApplicationContainer:
                 auth=self.settings.auth,
                 telegram=self.settings.telegram,
                 http=self.settings.http,
+            )
+        )
+
+    @cached_property
+    def tenancy(self) -> TenancyModule:
+        """Модуль Tenancy."""
+        return TenancyModule(
+            TenancyDependencies(
+                session_factory=self.session_factory,
+                outbox_writer=self.outbox_writer,
+                clock=self.clock,
+                id_generator=self.id_generator,
             )
         )
 

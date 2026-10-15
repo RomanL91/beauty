@@ -1,0 +1,29 @@
+"""Прикладные ошибки Tenancy."""
+
+from __future__ import annotations
+
+from beauty.shared.application.errors import ApplicationError, ConflictError, NotFoundError
+
+
+class MasterNotFoundError(NotFoundError):
+    """Мастер не найден (или его страница не опубликована)."""
+
+    code = "master_not_found"
+
+
+class ServiceNotFoundError(NotFoundError):
+    """У мастера нет такой услуги."""
+
+    code = "service_not_found"
+
+
+class SlugTakenError(ConflictError):
+    """Адрес страницы уже занят."""
+
+    code = "slug_taken"
+
+
+class InvalidSlotWindowError(ApplicationError):
+    """Некорректные границы поиска окон."""
+
+    code = "invalid_slot_window"

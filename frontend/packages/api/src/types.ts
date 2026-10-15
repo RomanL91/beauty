@@ -10,7 +10,6 @@ type Schemas = components['schemas'];
 
 export type { components, paths };
 
-export type ErrorEnvelope = Schemas['ErrorEnvelope'];
 export type Problem = Schemas['Problem'];
 
 export type ChallengeStatus = Schemas['ChallengeStatus'];
