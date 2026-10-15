@@ -1,0 +1,44 @@
+.sheet {
+  width: min(100%, var(--column));
+  max-width: var(--column);
+  max-height: 85dvh;
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  border-radius: 22px 22px 0 0;
+  background: var(--c-surface);
+  color: var(--c-text);
+  box-shadow: 0 -8px 32px rgb(31 26 29 / 0.16);
+}
+
+.sheet::backdrop {
+  background: rgb(31 26 29 / 0.4);
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 10px 20px calc(24px + env(safe-area-inset-bottom));
+}
+
+.grabber {
+  align-self: center;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--c-border-strong);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  flex: 1 1 auto;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+}

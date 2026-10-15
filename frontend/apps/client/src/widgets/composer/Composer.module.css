@@ -1,0 +1,44 @@
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
+  background: var(--c-surface);
+  border-top: 1px solid var(--c-border);
+}
+
+.field {
+  flex: 1 1 auto;
+  min-height: var(--tap);
+  max-height: 140px;
+  padding: 11px 14px;
+  border-radius: 22px;
+  border: 1px solid var(--c-border-strong);
+  background: var(--c-bg);
+  font-size: 15px;
+  line-height: 20px;
+  resize: none;
+}
+
+.field::placeholder {
+  color: var(--c-text-muted);
+}
+
+.mic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: 50%;
+  background: var(--c-accent);
+  color: #fff;
+  transition: transform 120ms ease;
+}
+
+.mic[aria-pressed='true'] {
+  transform: scale(1.18);
+  background: var(--c-danger);
+}

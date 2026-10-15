@@ -11,7 +11,7 @@ export default defineConfig({
           include: ['packages/*/src/**/*.test.ts'],
         },
       },
-      // приложения добавят свои проекты: 'apps/*/vitest.config.ts'
+      'apps/*/vitest.config.ts',
     ],
   },
 });

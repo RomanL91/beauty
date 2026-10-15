@@ -15,7 +15,19 @@ import type {
   Slot,
   StartChallengeResponse,
 } from '@beauty/api';
-import { addDays, at, fromNow, hhmm, humanDate, localDate, minutesBetween, weekday } from './clock';
+import {
+  addDays,
+  at,
+  fromNow,
+  hhmm,
+  humanDate,
+  localDate,
+  minutesBetween,
+  onDate,
+  weekday,
+} from './clock';
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 import { EventLog } from './event-log';
 import { uuidv7 } from './ids';
 import { CLIENT_CONVERSATION_ID, clientChatSeed } from './fixtures/client-chat';
@@ -285,6 +297,8 @@ export class MockDb {
 
     if (input.kind === 'slot_pick')
       return this.#pickSlot(input.client_id, input.offer_id, input.start);
+    if (input.kind === 'book_slot')
+      return this.#bookSlot(input.client_id, input.service_id, input.start);
 
     const message = text(
       base('client', new Date().toISOString(), { clientId: input.client_id }),
@@ -402,6 +416,38 @@ export class MockDb {
     return message;
   }
 
+  /** Запрос конкретного окна (после входа со страницы мастера). */
+  #bookSlot(clientId: string, serviceId: string, start: string): Message {
+    const service = this.#service(serviceId);
+    const message = text(
+      base('client', new Date().toISOString(), { clientId }),
+      `Хочу записаться: ${service.title.toLowerCase()}, ${humanDate(start.slice(0, 10))} в ${hhmm(start)}`,
+    );
+    this.#pushClient(message);
+    const free = this.listSlots(DEMO_SLUG, { service: service.id, limit: 60 }).find(
+      (s) => Date.parse(s.start) === Date.parse(start),
+    );
+    if (!free) {
+      this.#later(() => this.#agentAnswer(`запись ${service.title}`));
+      return message;
+    }
+    const appointment: Appointment = {
+      id: uuidv7(),
+      status: 'requested',
+      service,
+      start: free.start,
+      end: free.end,
+      client: ME_CLIENT,
+      hold_until: fromNow(this.page.booking_rules.confirm_within_hours * 3600_000),
+      auto_decline_at: fromNow(this.page.booking_rules.confirm_within_hours * 3600_000),
+    };
+    this.#clientAppointments.set(appointment.id, appointment);
+    this.#later(() =>
+      this.#pushClient(bookingCard(base('agent', new Date().toISOString()), appointment)),
+    );
+    return message;
+  }
+
   #agentAnswer(question: string): void {
     const wantsBooking = /запис|окн|свобод|время|можно на|хочу на/i.test(question);
     if (!wantsBooking) {
@@ -432,7 +478,7 @@ export class MockDb {
     this.#pushClient(
       slotOffer(
         base('agent', new Date().toISOString()),
-        `В ${humanDate(firstDate)}, на «${service.title.toLowerCase()}» (${service.duration_min} мин) свободно:`,
+        `${capitalize(onDate(firstDate))} на «${service.title.toLowerCase()}» (${service.duration_min} мин) свободно:`,
         sameDay,
       ),
     );

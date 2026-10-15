@@ -1,5 +1,7 @@
 import type { Appointment, Message } from '@beauty/api';
-import { at, fromNow, humanDate, nextWeekday } from '../clock';
+import { at, fromNow, nextWeekday, onDate } from '../clock';
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 import { SERVICES } from './master-page';
 import { ME_CLIENT } from './people';
 import { base, bookingCard, slotFor, slotOffer, text, voice } from './messages';
@@ -38,7 +40,7 @@ export function clientChatSeed(): { messages: Message[]; appointment: Appointmen
     ),
     slotOffer(
       base('agent', minutesAgo(29)),
-      `Здравствуйте, Дарья! В ${humanDate(friday)}, на классический массаж спины (40 мин) свободно:`,
+      `Здравствуйте, Дарья! ${capitalize(onDate(friday))}, на классический массаж спины (40 мин) свободно:`,
       slots,
       chosen.start,
     ),

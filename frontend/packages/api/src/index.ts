@@ -33,3 +33,19 @@ export { HttpInboxGateway } from './adapters/http-inbox-gateway';
 export { HttpAssistantGateway } from './adapters/http-assistant-gateway';
 export { HttpMasterEventsGateway } from './adapters/http-master-events-gateway';
 export { HttpPushGateway } from './adapters/http-push-gateway';
+export {
+  EMPTY_FEED,
+  feedReducer,
+  oldestMessageId,
+  type Delivery,
+  type FeedAction,
+  type FeedItem,
+  type FeedState,
+  type OutgoingDraft,
+} from './model/message-feed';
+export {
+  formatRemainingClock,
+  formatRemainingLong,
+  remaining,
+  type Remaining,
+} from './model/countdown';

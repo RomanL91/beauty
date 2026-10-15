@@ -16,6 +16,7 @@ export default defineConfig([
     'e2e/screenshots',
     'e2e/playwright-report',
     'e2e/test-results',
+    '**/*.tmp.mjs',
   ]),
   js.configs.recommended,
   tseslint.configs.recommended,

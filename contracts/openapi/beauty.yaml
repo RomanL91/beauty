@@ -267,7 +267,8 @@ paths:
       operationId: sendConversationMessage
       summary: Отправить сообщение
       description: |
-        Текст или выбор слота — JSON, голосовое — multipart. `client_id` — идемпотентность:
+        Текст, выбор окна из предложения или запрос конкретного окна — JSON, голосовое —
+        multipart. `client_id` — идемпотентность:
         повтор с тем же `client_id` вернёт то же сообщение.
       requestBody:
         required: true
@@ -821,11 +822,11 @@ components:
         alt: { type: string }
     MasterPage:
       type: object
-      required: [slug, display_name, short_name, specialty, address, timezone, avatar_url, about, services, photos, booking_rules]
+      required: [slug, display_name, name_forms, specialty, address, timezone, avatar_url, about, services, photos, booking_rules]
       properties:
         slug: { type: string }
         display_name: { type: string, examples: ['Алиса Мельникова'] }
-        short_name: { type: string, description: 'Как называть в текстах («Запись к Алисе»).', examples: ['Алиса'] }
+        name_forms: { $ref: '#/components/schemas/NameForms' }
         specialty: { type: string, examples: ['Косметолог · массаж'] }
         address: { type: string }
         timezone: { type: string, examples: ['Asia/Almaty'] }
@@ -841,6 +842,14 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Photo' }
         booking_rules: { $ref: '#/components/schemas/BookingRules' }
+    NameForms:
+      type: object
+      description: Имя мастера в падежах для текстов интерфейса (заполняет мастер).
+      required: [nominative, genitive, dative]
+      properties:
+        nominative: { type: string, description: '«Алиса ответит»', examples: ['Алиса'] }
+        genitive: { type: string, description: '«Ждёт подтверждения Алисы»', examples: ['Алисы'] }
+        dative: { type: string, description: '«Запись к Алисе»', examples: ['Алисе'] }
     Slot:
       type: object
       required: [start, end]
@@ -1095,15 +1104,29 @@ components:
         kind: { type: string, const: slot_pick }
         offer_id: { type: string, format: uuid, description: '`id` сообщения slot_offer.' }
         start: { type: string, format: date-time }
+    BookSlotInput:
+      type: object
+      description: |
+        Запрос конкретного окна, выбранного на странице мастера до входа (продолжение
+        записи после входа). В ленте появится сообщение клиента с услугой и временем,
+        агент ответит карточкой заявки или, если окно уже занято, — другими окнами.
+      required: [client_id, kind, service_id, start]
+      properties:
+        client_id: { type: string, format: uuid }
+        kind: { type: string, const: book_slot }
+        service_id: { type: string, format: uuid }
+        start: { type: string, format: date-time }
     ClientMessageInput:
       oneOf:
         - $ref: '#/components/schemas/TextInput'
         - $ref: '#/components/schemas/SlotPickInput'
+        - $ref: '#/components/schemas/BookSlotInput'
       discriminator:
         propertyName: kind
         mapping:
           text: '#/components/schemas/TextInput'
           slot_pick: '#/components/schemas/SlotPickInput'
+          book_slot: '#/components/schemas/BookSlotInput'
     VoiceUpload:
       type: object
       required: [client_id, audio, duration]

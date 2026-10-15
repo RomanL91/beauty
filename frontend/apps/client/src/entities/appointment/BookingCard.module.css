@@ -1,0 +1,84 @@
+.card {
+  display: flex;
+  flex-direction: column;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.requested {
+  background: var(--c-warn-bg);
+  color: var(--c-warn-ink);
+}
+
+.confirmed {
+  background: var(--c-ok-bg);
+  color: var(--c-ok-ink);
+}
+
+.cancelled,
+.completed {
+  background: var(--c-surface-muted);
+  color: var(--c-text-2);
+}
+
+.left {
+  margin-left: auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.when {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.what {
+  font-size: 14px;
+  color: var(--c-text-2);
+}
+
+.note {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--c-text-muted);
+}
+
+.actions {
+  display: flex;
+  border-top: 1px solid var(--c-divider);
+}
+
+.action {
+  flex: 1 1 0;
+  min-height: 46px;
+  border: 0;
+  background: transparent;
+  color: var(--c-accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.action + .action {
+  border-left: 1px solid var(--c-divider);
+  color: var(--c-text-muted);
+  font-weight: 600;
+}
+
+.struck {
+  text-decoration: line-through;
+  color: var(--c-text-muted);
+}

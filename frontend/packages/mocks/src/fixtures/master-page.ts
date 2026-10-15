@@ -39,7 +39,7 @@ export function masterPage(): MasterPage {
   return {
     slug: DEMO_SLUG,
     display_name: 'Алиса Мельникова',
-    short_name: 'Алиса',
+    name_forms: { nominative: 'Алиса', genitive: 'Алисы', dative: 'Алисе' },
     specialty: 'Косметолог · массаж',
     address: 'Астана, ул. Кенесары, 40',
     timezone: MASTER_TIMEZONE,

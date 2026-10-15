@@ -22,6 +22,7 @@ export type Money = Schemas['Money'];
 export type Service = Schemas['Service'];
 export type BookingRules = Schemas['BookingRules'];
 export type MasterPage = Schemas['MasterPage'];
+export type NameForms = Schemas['NameForms'];
 export type Slot = Schemas['Slot'];
 
 export type ClientRef = Schemas['ClientRef'];
@@ -41,6 +42,7 @@ export type TaskStep = Schemas['TaskStep'];
 
 export type TextInput = Schemas['TextInput'];
 export type SlotPickInput = Schemas['SlotPickInput'];
+export type BookSlotInput = Schemas['BookSlotInput'];
 export type ClientMessageInput = Schemas['ClientMessageInput'];
 
 export type Handler = Schemas['Handler'];

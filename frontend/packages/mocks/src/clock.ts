@@ -66,3 +66,15 @@ export function humanDate(date: string): string {
 export function hhmm(moment: string): string {
   return new Date(Date.parse(moment) + OFFSET_MS).toISOString().slice(11, 16);
 }
+
+const ACCUSATIVE: Record<string, string> = {
+  среда: 'среду',
+  пятница: 'пятницу',
+  суббота: 'субботу',
+};
+
+/** «в пятницу, 17 октября» — винительный падеж дня недели. */
+export function onDate(date: string): string {
+  const [weekdayName = '', rest = ''] = humanDate(date).split(', ');
+  return `в ${ACCUSATIVE[weekdayName] ?? weekdayName}, ${rest}`;
+}

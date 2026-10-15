@@ -206,7 +206,8 @@ export interface paths {
     put?: never;
     /**
      * Отправить сообщение
-     * @description Текст или выбор слота — JSON, голосовое — multipart. `client_id` — идемпотентность:
+     * @description Текст, выбор окна из предложения или запрос конкретного окна — JSON, голосовое —
+     *     multipart. `client_id` — идемпотентность:
      *     повтор с тем же `client_id` вернёт то же сообщение.
      */
     post: operations['sendConversationMessage'];
@@ -612,11 +613,7 @@ export interface components {
       slug: string;
       /** @example Алиса Мельникова */
       display_name: string;
-      /**
-       * @description Как называть в текстах («Запись к Алисе»).
-       * @example Алиса
-       */
-      short_name: string;
+      name_forms: components['schemas']['NameForms'];
       /** @example Косметолог · массаж */
       specialty: string;
       address: string;
@@ -627,6 +624,24 @@ export interface components {
       services: components['schemas']['Service'][];
       photos: components['schemas']['Photo'][];
       booking_rules: components['schemas']['BookingRules'];
+    };
+    /** @description Имя мастера в падежах для текстов интерфейса (заполняет мастер). */
+    NameForms: {
+      /**
+       * @description «Алиса ответит»
+       * @example Алиса
+       */
+      nominative: string;
+      /**
+       * @description «Ждёт подтверждения Алисы»
+       * @example Алисы
+       */
+      genitive: string;
+      /**
+       * @description «Запись к Алисе»
+       * @example Алисе
+       */
+      dative: string;
     };
     Slot: {
       /** Format: date-time */
@@ -902,7 +917,28 @@ export interface components {
       /** Format: date-time */
       start: string;
     };
-    ClientMessageInput: components['schemas']['TextInput'] | components['schemas']['SlotPickInput'];
+    /**
+     * @description Запрос конкретного окна, выбранного на странице мастера до входа (продолжение
+     *     записи после входа). В ленте появится сообщение клиента с услугой и временем,
+     *     агент ответит карточкой заявки или, если окно уже занято, — другими окнами.
+     */
+    BookSlotInput: {
+      /** Format: uuid */
+      client_id: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      kind: 'book_slot';
+      /** Format: uuid */
+      service_id: string;
+      /** Format: date-time */
+      start: string;
+    };
+    ClientMessageInput:
+      | components['schemas']['TextInput']
+      | components['schemas']['SlotPickInput']
+      | components['schemas']['BookSlotInput'];
     VoiceUpload: {
       /** Format: uuid */
       client_id: string;

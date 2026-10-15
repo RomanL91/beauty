@@ -1,0 +1,256 @@
+/* Лента сообщений: размеры и цвета — из макетов ClientChat / MasterDialog / MasterAssistant. */
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 86%;
+}
+
+.out {
+  align-self: flex-end;
+  align-items: flex-end;
+  max-width: 78%;
+}
+
+.in {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.wide {
+  width: 86%;
+}
+
+.bubble {
+  padding: 10px 14px;
+  font-size: 15px;
+  line-height: 21px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.bubble.flush {
+  padding: 0;
+  overflow: hidden;
+  white-space: normal;
+}
+
+.bubble.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  white-space: normal;
+}
+
+.out .bubble {
+  border-radius: 18px 18px 4px 18px;
+}
+
+.in .bubble {
+  border-radius: 18px 18px 18px 4px;
+}
+
+.accent {
+  background: var(--c-accent);
+  color: #fff;
+}
+
+.accent a {
+  color: #fff;
+}
+
+.surface {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+}
+
+.soft {
+  background: var(--c-accent-soft);
+  color: var(--c-agent-ink);
+}
+
+.pending {
+  opacity: 0.72;
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 4px;
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+
+.out .meta {
+  padding: 0 4px 0 0;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-accent);
+}
+
+.failed {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--c-danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sources {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--c-divider);
+}
+
+.sourcesTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sources a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.day {
+  align-self: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text-muted);
+}
+
+.system {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 90%;
+  padding: 8px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.success {
+  background: var(--c-ok-bg);
+  color: var(--c-ok-ink);
+}
+
+.info {
+  background: var(--c-surface-muted);
+  color: var(--c-text-2);
+}
+
+.warning {
+  background: var(--c-warn-bg);
+  color: var(--c-warn-ink);
+}
+
+.voice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.voiceRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  position: relative;
+}
+
+/* Зона нажатия 44 px вокруг круга 36 px. */
+.play::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+
+.playOnAccent {
+  background: #fff;
+  color: var(--c-accent);
+}
+
+.playOnSurface {
+  background: var(--c-accent);
+  color: #fff;
+}
+
+.duration {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.transcript {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.transcriptOnAccent {
+  color: var(--c-on-accent-muted);
+}
+
+.transcriptOnSurface {
+  color: var(--c-text-2);
+}
+
+.slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.slot {
+  min-height: var(--tap);
+  padding: 0 16px;
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.slot[aria-pressed='true'] {
+  border: 1.5px solid var(--c-accent);
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+  font-weight: 700;
+}
+
+.slot:disabled {
+  cursor: default;
+}
