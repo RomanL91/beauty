@@ -28,7 +28,14 @@ services:
     image: nousresearch/hermes-agent:${HERMES_TAG:-stable}
     container_name: beauty-hermes
     restart: unless-stopped
-    command: gateway run
+    # Под мультиплексором gateway читает API_SERVER_KEY только из .env профиля, а не из env
+    # контейнера (а stage2 образа при ключе в env его в .env не пишет) — кладём ключ сами.
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        grep -q '^API_SERVER_KEY=..' /opt/data/.env 2>/dev/null
+        || echo "API_SERVER_KEY=$$API_SERVER_KEY" >> /opt/data/.env;
+        exec /opt/hermes/docker/entrypoint-dispatch.sh gateway run
     environment:
       API_SERVER_ENABLED: "true"
       API_SERVER_HOST: 0.0.0.0

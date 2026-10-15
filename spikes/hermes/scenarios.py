@@ -94,6 +94,43 @@ class Scenario(ABC):
         return [record for record in map(json.loads, lines) if record["ts"] >= since]
 
 
+class BaselineLatencyScenario(Scenario):
+    """H6: латентность одиночного хода без нагрузки — точка отсчёта для H1."""
+
+    name = "baseline_latency"
+    hypothesis = "Одиночный ход без нагрузки укладывается в 8 с (p50 последовательных ходов)"
+
+    LIMIT_S = 8.0
+
+    def __init__(self, turns: int = 3) -> None:
+        """Число последовательных ходов: медиана сглаживает холодный первый ход."""
+        self._turns = turns
+
+    async def run(self, context: SpikeContext) -> ScenarioReport:
+        """Сделать ходы по одному, каждый в новой сессии."""
+        master = context.masters[0]
+        results = []
+        for _ in range(self._turns):
+            session_id = f"conv-{uuid4().hex[:12]}"
+            ticket = context.tickets.issue(master.master_id, AgentFace.FRONT_DESK, session_id, "card-alina")
+            results.append(
+                await context.client.run(
+                    master,
+                    "Здравствуйте! Какие у вас есть услуги и цены?",
+                    session_id,
+                    RunInstructions.front_desk(ticket, "Алина"),
+                )
+            )
+        latencies = self._latencies(results)
+        completed = all(result.status == "completed" for result in results)
+        return ScenarioReport(
+            self.name,
+            self.hypothesis,
+            passed=completed and latencies["p50_s"] <= self.LIMIT_S,
+            metrics={"turns": len(results), **latencies},
+        )
+
+
 class ConcurrencyScenario(Scenario):
     """H1: мультиплексор выдерживает параллельные диалоги многих мастеров."""
 
@@ -213,7 +250,8 @@ class IsolationScenario(Scenario):
         return ScenarioReport(
             self.name,
             self.hypothesis,
-            passed=not foreign and not wrong_face and not leaked,
+            # Без вызовов MCP изоляцию не проверить: «нарушений нет» тогда ничего не значит.
+            passed=bool(journal) and not foreign and not wrong_face and not leaked,
             metrics={
                 "mcp_calls": len(journal),
                 "denied": sum(1 for r in journal if "denied" in r),
@@ -290,6 +328,7 @@ class HotProfileScenario(Scenario):
 SCENARIOS: dict[str, type[Scenario]] = {
     scenario.name: scenario
     for scenario in (
+        BaselineLatencyScenario,
         ConcurrencyScenario,
         SameSessionScenario,
         IsolationScenario,

@@ -1,15 +1,19 @@
-"""Тесты кита спайка Hermes: тикеты, реестр, правка .env профиля, провижинер."""
+"""Тесты кита спайка Hermes: тикеты, реестр, правка .env профиля, провижинер, сценарии."""
 
 from __future__ import annotations
 
+import json
+import time
 from pathlib import Path
 
 import pytest
 import yaml
 
 from spikes.hermes.bootstrap import SpikeBootstrap, TemplateProfileBootstrapper
+from spikes.hermes.client import HermesRunsClient, RunResult
 from spikes.hermes.provisioning import CommandRunner, HermesProfileProvisioner, ProfileFiles
-from spikes.hermes.registry import MasterRegistry
+from spikes.hermes.registry import MasterRecord, MasterRegistry
+from spikes.hermes.scenarios import BaselineLatencyScenario, IsolationScenario, SpikeContext
 from spikes.hermes.tickets import AgentFace, InvalidTicketError, TicketCodec
 
 SECRET = b"s" * 48
@@ -141,3 +145,65 @@ async def test_bootstrap_is_idempotent_and_keys_reach_clones(tmp_path: Path) -> 
         assert "OPENROUTER_API_KEY=sk-or-1" in (tmp_path / record.profile / ".env").read_text()
     created = [call for call in runner.calls if call[:2] == ("profile", "create")]
     assert len(created) == 3, "шаблон и два мастера — каждый по одному разу"
+
+
+MASTER = MasterRecord("m1", "Мастер 1", "m-1", "k" * 32, "t" * 32)
+
+
+class ScriptedClient(HermesRunsClient):
+    """Отдаёт заранее заданные ходы и пишет в журнал MCP заданные вызовы."""
+
+    def __init__(
+        self, journal: Path, latencies: list[float], calls: list[dict[str, object]], status: str = "completed"
+    ) -> None:
+        self._journal = journal
+        self._latencies = iter(latencies)
+        self._calls = calls
+        self._status = status
+
+    async def run(self, master: MasterRecord, text: str, session_id: str, instructions: str) -> RunResult:
+        with self._journal.open("a", encoding="utf-8") as journal:
+            for call in self._calls:
+                journal.write(json.dumps({"ts": time.time(), **call}) + "\n")
+        return RunResult(master.profile, session_id, self._status, "ok", next(self._latencies, 1.0), 200)
+
+
+def _context(client: ScriptedClient, journal: Path) -> SpikeContext:
+    return SpikeContext(client, [MASTER], TicketCodec(SECRET), journal)
+
+
+@pytest.mark.parametrize(
+    ("latencies", "status", "passed"),
+    [
+        ([5.0, 6.0, 12.0], "completed", True),
+        ([5.0, 9.0, 12.0], "completed", False),
+        ([1.0, 1.0, 1.0], "failed", False),
+    ],
+)
+async def test_baseline_latency_judges_median_turn(
+    tmp_path: Path, latencies: list[float], status: str, passed: bool
+) -> None:
+    journal = tmp_path / "calls.jsonl"
+    report = await BaselineLatencyScenario().run(
+        _context(ScriptedClient(journal, latencies, [], status), journal)
+    )
+    assert report.passed is passed
+
+
+async def test_isolation_without_mcp_calls_is_not_a_pass(tmp_path: Path) -> None:
+    journal = tmp_path / "calls.jsonl"
+    report = await IsolationScenario().run(_context(ScriptedClient(journal, [], []), journal))
+    assert report.passed is False
+    assert report.metrics["mcp_calls"] == 0
+
+
+async def test_isolation_passes_with_clean_mcp_calls(tmp_path: Path) -> None:
+    journal = tmp_path / "calls.jsonl"
+    call = {
+        "tool": "send_message",
+        "master_id": "m1",
+        "face": AgentFace.FRONT_DESK.value,
+        "arguments": {"text": "Нет"},
+    }
+    report = await IsolationScenario().run(_context(ScriptedClient(journal, [], [call]), journal))
+    assert report.passed is True

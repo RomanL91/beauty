@@ -138,7 +138,8 @@ def main() -> None:
     mcp.add_argument("--host", default="127.0.0.1")
     mcp.add_argument("--port", type=int, default=8765)
     run = commands.add_parser("run", help="прогнать сценарии")
-    run.add_argument("scenarios", nargs="*", default=list(SCENARIOS), choices=list(SCENARIOS))
+    # Без default: Python 3.13 сверяет default целиком с choices, и `run` без аргументов падает.
+    run.add_argument("scenarios", nargs="*", choices=list(SCENARIOS))
     arguments = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -147,7 +148,7 @@ def main() -> None:
         "bootstrap": lambda: asyncio.run(cli.bootstrap()),
         "provision": lambda: asyncio.run(cli.provision(arguments.count)),
         "mcp": lambda: cli.mcp(arguments.host, arguments.port),
-        "run": lambda: asyncio.run(cli.run(arguments.scenarios)),
+        "run": lambda: asyncio.run(cli.run(arguments.scenarios or list(SCENARIOS))),
     }
     actions[arguments.command]()
 
