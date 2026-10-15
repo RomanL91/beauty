@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Диалог с клиентом</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;family=Unbounded:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#7A2E57}a:hover{color:#5C1F40}
+</style>
+</helmet>
+<div style="width: 390px; height: 1100px; box-sizing: border-box; background: #F4F3F0; color: #1F1A1D; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <header style="display: flex; flex-direction: column; gap: 10px; padding: 8px 12px 12px; background: #FFFFFF; border-bottom: 1px solid #E4E0DC">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <a href="MasterChats.dc.html" aria-label="К чатам" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 22px; color: #1F1A1D">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"></path></svg>
+      </a>
+      <div style="width: 40px; height: 40px; border-radius: 20px; background: #E9DDE3; color: #7A2E57; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0">ДК</div>
+      <div style="flex: 1 1 auto; display: flex; flex-direction: column">
+        <span style="font-size: 16px; font-weight: 700">Дарья К.</span>
+        <span style="font-size: 13px; color: #5E5860">+7 705 ••• 89 67 · 3-й визит</span>
+      </div>
+      <button type="button" aria-label="Карточка клиента" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: transparent; color: #1F1A1D; display: flex; align-items: center; justify-content: center; cursor: pointer">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="9" cy="11" r="2.5"></circle><path d="M5.5 17a3.5 3.5 0 0 1 7 0M15 10h3M15 14h3"></path></svg>
+      </button>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 4px">
+      <span style="font-size: 13px; font-weight: 600; color: #5E5860">Диалог ведёт</span>
+      <div role="group" aria-label="Кто ведёт диалог" style="display: flex; padding: 3px; border-radius: 14px; background: #EAE7E3; margin-left: auto">
+        <button type="button" onClick="{{ toAgent }}" aria-pressed="{{ agentOn }}" style="{{ agentBtn }}">Агент</button>
+        <button type="button" onClick="{{ toMe }}" aria-pressed="{{ meOn }}" style="{{ meBtn }}">Я</button>
+      </div>
+    </div>
+
+    <sc-if value="{{ agentOn }}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 12px; background: #F1E4EA; color: #4A2236; font-size: 13px; line-height: 18px">
+        <span style="width: 8px; height: 8px; border-radius: 4px; background: #7A2E57; flex-shrink: 0"></span>
+        Агент отвечает сам. Если напишете вы — он встанет на паузу.
+      </div>
+    </sc-if>
+    <sc-if value="{{ meOn }}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 12px; background: #EAE7E3; color: #3A3438; font-size: 13px; line-height: 18px">
+        <span style="width: 8px; height: 8px; border-radius: 4px; background: #5E5860; flex-shrink: 0"></span>
+        Агент на паузе и молчит, пока вы не вернёте ему диалог.
+      </div>
+    </sc-if>
+  </header>
+
+  <main style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 14px; padding: 16px 14px; overflow: hidden">
+    <div style="align-self: flex-start; max-width: 80%; padding: 10px 14px; border-radius: 18px 18px 18px 4px; background: #FFFFFF; border: 1px solid #E4E0DC; font-size: 15px; line-height: 21px">Здравствуйте! Хочу на массаж спины в пятницу, есть время?</div>
+
+    <div style="align-self: flex-end; max-width: 84%; display: flex; flex-direction: column; gap: 4px; align-items: flex-end">
+      <span style="font-size: 12px; font-weight: 700; color: #7A2E57">Агент · 14:02</span>
+      <div style="padding: 10px 14px; border-radius: 18px 18px 4px 18px; background: #F1E4EA; color: #2E1522; font-size: 15px; line-height: 21px">Здравствуйте, Дарья! В пятницу свободно 12:00, 15:30 и 18:00.</div>
+    </div>
+
+    <div style="align-self: flex-start; max-width: 80%; padding: 10px 14px; border-radius: 18px 18px 18px 4px; background: #FFFFFF; border: 1px solid #E4E0DC; font-size: 15px; line-height: 21px">12:00</div>
+
+    <div style="align-self: stretch; border-radius: 16px; background: #FFF8EA; border: 1.5px dashed #C08A1E; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+      <span style="font-size: 12px; font-weight: 700; color: #6E4700; text-transform: uppercase; letter-spacing: 0.06em">Заявка · держим слот</span>
+      <span style="font-size: 15px; font-weight: 700">Пт, 17 октября · 12:00–12:40 · Массаж спины</span>
+      <div style="display: flex; gap: 8px">
+        <button type="button" style="flex: 1 1 0; min-height: 44px; border: 0; border-radius: 12px; background: #7A2E57; color: #FFFFFF; font: 700 14px Manrope, sans-serif; cursor: pointer">Подтвердить</button>
+        <button type="button" style="flex: 1 1 0; min-height: 44px; border: 1px solid #D9D3CE; border-radius: 12px; background: #FFFFFF; color: #1F1A1D; font: 600 14px Manrope, sans-serif; cursor: pointer">Предложить другое</button>
+      </div>
+    </div>
+
+    <div style="align-self: flex-start; max-width: 80%; padding: 10px 14px; border-radius: 18px 18px 18px 4px; background: #FFFFFF; border: 1px solid #E4E0DC; font-size: 15px; line-height: 21px; display: flex; flex-direction: column; gap: 4px">
+      <span style="font-size: 12px; font-weight: 700; color: #5E5860">Голосовое 0:07 · расшифровка</span>
+      «А после массажа можно в бассейн?»
+    </div>
+
+    <div style="align-self: flex-end; max-width: 84%; display: flex; flex-direction: column; gap: 4px; align-items: flex-end">
+      <span style="font-size: 12px; font-weight: 700; color: #7A2E57">Агент · 14:05 · по памятке «После массажа»</span>
+      <div style="padding: 10px 14px; border-radius: 18px 18px 4px 18px; background: #F1E4EA; color: #2E1522; font-size: 15px; line-height: 21px">Обычно советуют подождать пару часов — так написано и в памятке Алисы.</div>
+    </div>
+
+    <div style="align-self: stretch; display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; border: 1.5px dashed #B9B1AC; background: #FAF9F7">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4A4448" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 12px; font-weight: 700; color: #4A4448">Заметка агента · видите только вы</span>
+        <span style="font-size: 14px; line-height: 20px; color: #3A3438">Дарья третий раз выбирает обеденное время. Записал в карточку: «удобно 12–14».</span>
+      </div>
+    </div>
+  </main>
+
+  <footer style="display: flex; flex-direction: column; gap: 6px; padding: 10px 12px 24px; background: #FFFFFF; border-top: 1px solid #E4E0DC">
+    <div style="display: flex; align-items: flex-end; gap: 8px">
+      <label for="reply" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Ответ от вашего имени</label>
+      <textarea id="reply" rows="1" placeholder="Ответить от своего имени" style="flex: 1 1 auto; min-height: 44px; box-sizing: border-box; resize: none; padding: 11px 14px; border-radius: 22px; border: 1px solid #D9D3CE; background: #F4F3F0; font: 400 15px Manrope, sans-serif; color: #1F1A1D"></textarea>
+      <button type="button" aria-label="Отправить" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: #7A2E57; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+      </button>
+    </div>
+    <span style="font-size: 12px; color: #5E5860; padding-left: 6px">Клиент увидит сообщение с подписью «Алиса», без пометки ИИ.</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { mode: 'agent' };
+  }
+  renderVals() {
+    const agentOn = this.state.mode === 'agent';
+    const base = 'min-height: 40px; min-width: 64px; padding: 0 14px; border-radius: 11px; font: 700 14px Manrope, sans-serif; cursor: pointer; border: 0;';
+    const on = base + ' background: #FFFFFF; color: #1F1A1D; box-shadow: 0 1px 2px rgba(31,26,29,0.16);';
+    const off = base + ' background: transparent; color: #5E5860;';
+    return {
+      agentOn: agentOn,
+      meOn: !agentOn,
+      agentBtn: agentOn ? on : off,
+      meBtn: agentOn ? off : on,
+      toAgent: () => this.setState({ mode: 'agent' }),
+      toMe: () => this.setState({ mode: 'me' })
+    };
+  }
+}
+</script>
+</body>
+</html>

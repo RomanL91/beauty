@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Поручение агенту</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;family=Unbounded:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#7A2E57}a:hover{color:#5C1F40}
+</style>
+</helmet>
+<div style="width: 390px; height: 1060px; box-sizing: border-box; background: #F4F3F0; color: #1F1A1D; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column">
+
+  <header style="display: flex; align-items: center; gap: 10px; padding: 8px 12px 12px; background: #FFFFFF; border-bottom: 1px solid #E4E0DC">
+    <a href="MasterSchedule.dc.html" aria-label="К графику" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 22px; color: #1F1A1D">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"></path></svg>
+    </a>
+    <div style="flex: 1 1 auto; display: flex; flex-direction: column">
+      <span style="font-family: Unbounded, sans-serif; font-size: 17px; font-weight: 600">Поручения</span>
+      <span style="font-size: 13px; color: #5E5860">Ваш администратор · видите только вы</span>
+    </div>
+  </header>
+
+  <main style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 14px; padding: 16px 14px; overflow: hidden">
+    <div style="align-self: flex-end; width: 76%; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 18px 18px 4px 18px; background: #7A2E57; color: #FFFFFF">
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #F6E6EE">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>
+        Голосовое · 0:04
+      </div>
+      <span style="font-size: 15px; line-height: 21px">«Запиши Дарью на массаж в субботу на двенадцать»</span>
+    </div>
+
+    <div style="align-self: flex-start; max-width: 86%; padding: 10px 14px; border-radius: 18px 18px 18px 4px; background: #FFFFFF; border: 1px solid #E4E0DC; display: flex; flex-direction: column; gap: 10px">
+      <span style="font-size: 15px; line-height: 21px">Дарья с телефоном на …89 67?</span>
+      <div style="display: flex; gap: 8px">
+        <button type="button" aria-pressed="true" style="min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1.5px solid #7A2E57; background: #F1E4EA; color: #7A2E57; font: 700 14px Manrope, sans-serif; cursor: pointer">Да, она</button>
+        <button type="button" style="min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid #D9D3CE; background: #FFFFFF; color: #1F1A1D; font: 600 14px Manrope, sans-serif; cursor: pointer">Другая Дарья</button>
+      </div>
+    </div>
+
+    <div style="align-self: flex-start; width: 92%; border-radius: 18px 18px 18px 4px; background: #FFFFFF; border: 1px solid #E4E0DC; overflow: hidden">
+      <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 15px; line-height: 21px">В субботу в 12:00 уже записана <b>Оксана Л.</b> — чистка лица до 13:30.</span>
+        <span style="font-size: 14px; line-height: 20px; color: #5E5860">У Оксаны в карточке: «удобно после обеда». Свободно 15:00–16:30.</span>
+      </div>
+      <div style="display: flex; flex-direction: column; border-top: 1px solid #EEEAE6">
+        <button type="button" aria-pressed="true" style="min-height: 56px; padding: 10px 14px; border: 0; border-bottom: 1px solid #EEEAE6; background: #F1E4EA; color: #2E1522; text-align: left; font: 700 14px/20px Manrope, sans-serif; cursor: pointer">Предложить Оксане 15:00, Дарью — на 12:00</button>
+        <button type="button" style="min-height: 52px; padding: 10px 14px; border: 0; border-bottom: 1px solid #EEEAE6; background: #FFFFFF; color: #1F1A1D; text-align: left; font: 600 14px/20px Manrope, sans-serif; cursor: pointer">Записать Дарью на 15:00</button>
+        <button type="button" style="min-height: 52px; padding: 10px 14px; border: 0; background: #FFFFFF; color: #5E5860; text-align: left; font: 600 14px/20px Manrope, sans-serif; cursor: pointer">Ничего не менять</button>
+      </div>
+    </div>
+
+    <div style="align-self: flex-start; width: 92%; padding: 12px 14px; border-radius: 18px 18px 18px 4px; background: #FFFFFF; border: 1px solid #E4E0DC; display: flex; flex-direction: column; gap: 10px">
+      <span style="font-size: 15px; font-weight: 700">Делаю перестановку</span>
+      <div style="display: flex; gap: 10px; align-items: center; font-size: 14px">
+        <span style="width: 22px; height: 22px; border-radius: 11px; background: #E2F1E8; color: #1C5E40; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"></path></svg></span>
+        Слот 15:00 придержан для Оксаны
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center; font-size: 14px">
+        <span style="width: 22px; height: 22px; border-radius: 11px; background: #FBEFD6; color: #6E4700; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l2 2"></path></svg></span>
+        Оксане отправлено предложение · ждём ответа
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center; font-size: 14px; color: #5E5860">
+        <span style="width: 22px; height: 22px; border-radius: 11px; border: 1.5px solid #B9B1AC; box-sizing: border-box; flex-shrink: 0"></span>
+        Записать Дарью на 12:00 и сообщить ей
+      </div>
+      <span style="font-size: 13px; line-height: 19px; color: #5E5860">Если Оксана откажется или не ответит до 18:00 — ничего не меняю и пишу вам.</span>
+    </div>
+  </main>
+
+  <footer style="display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 24px; background: #FFFFFF; border-top: 1px solid #E4E0DC">
+    <div style="display: flex; gap: 8px; overflow: hidden">
+      <button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #E4E0DC; border-radius: 18px; background: #FFFFFF; color: #1F1A1D; font: 600 13px Manrope, sans-serif; white-space: nowrap; cursor: pointer">Что у меня завтра?</button>
+      <button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #E4E0DC; border-radius: 18px; background: #FFFFFF; color: #1F1A1D; font: 600 13px Manrope, sans-serif; white-space: nowrap; cursor: pointer">Закрой воскресенье</button>
+      <button type="button" style="min-height: 36px; padding: 0 12px; border: 1px solid #E4E0DC; border-radius: 18px; background: #FFFFFF; color: #1F1A1D; font: 600 13px Manrope, sans-serif; white-space: nowrap; cursor: pointer">Обед на 14:00</button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px">
+      <label for="task" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Поручение текстом</label>
+      <input id="task" type="text" placeholder="Поручение текстом" style="flex: 1 1 auto; min-height: 48px; box-sizing: border-box; padding: 0 16px; border-radius: 24px; border: 1px solid #D9D3CE; background: #F4F3F0; font: 400 15px Manrope, sans-serif; color: #1F1A1D">
+      <button type="button" aria-label="Удерживайте и говорите" style="width: 64px; height: 64px; border: 0; border-radius: 32px; background: #7A2E57; color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg>
+      </button>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

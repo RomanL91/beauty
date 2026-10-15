@@ -1,0 +1,30 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-15T17:35:00Z"},
+  "title": "Beauty — макеты PWA",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 390, "h": 1560, "title": "Клиент · страница мастера", "is_interactive": true, "radius": 28},
+    "ClientLogin.dc.html": {"x": 470, "y": 0, "w": 390, "h": 844, "title": "Клиент · вход через Telegram", "is_interactive": true, "radius": 28},
+    "ClientChat.dc.html": {"x": 940, "y": 0, "w": 390, "h": 1100, "title": "Клиент · чат с администратором", "is_interactive": true, "radius": 28},
+    "MasterSchedule.dc.html": {"x": 0, "y": 1980, "w": 390, "h": 1060, "title": "Мастер · график дня", "is_interactive": true, "radius": 28},
+    "MasterChats.dc.html": {"x": 470, "y": 1980, "w": 390, "h": 844, "title": "Мастер · все чаты", "is_interactive": true, "radius": 28},
+    "MasterDialog.dc.html": {"x": 940, "y": 1980, "w": 390, "h": 1100, "title": "Мастер · диалог и пульт агента", "is_interactive": true, "radius": 28},
+    "MasterAssistant.dc.html": {"x": 1410, "y": 1980, "w": 390, "h": 1060, "title": "Мастер · поручение голосом", "is_interactive": true, "radius": 28}
+  },
+  "order": [
+    "Main.dc.html",
+    "ClientLogin.dc.html",
+    "ClientChat.dc.html",
+    "MasterSchedule.dc.html",
+    "MasterChats.dc.html",
+    "MasterDialog.dc.html",
+    "MasterAssistant.dc.html"
+  ],
+  "notes": {
+    "client": {"x": 0, "y": -300, "text": "Клиент: alisa.beautiful.kz", "kind": "title1", "maxW": 1330},
+    "master": {"x": 0, "y": 1680, "text": "Мастер: дашборд PWA", "kind": "title1", "maxW": 1800}
+  },
+  "designSystems": []
+}
