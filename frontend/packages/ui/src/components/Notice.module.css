@@ -1,0 +1,47 @@
+.notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.notice svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.accent {
+  background: var(--c-accent-soft);
+  color: var(--c-accent-ink);
+}
+.accent svg {
+  color: var(--c-accent);
+}
+
+.muted {
+  background: var(--c-surface-muted);
+  color: var(--c-text-3);
+  font-size: 13px;
+  line-height: 19px;
+}
+.muted svg {
+  color: var(--c-text-muted);
+}
+
+.warn {
+  background: var(--c-warn-bg);
+  color: var(--c-warn-ink);
+}
+
+.ok {
+  background: var(--c-ok-bg);
+  color: var(--c-ok-ink);
+}
+
+.body {
+  flex: 1 1 auto;
+  min-width: 0;
+}

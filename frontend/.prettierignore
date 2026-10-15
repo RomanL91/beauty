@@ -1,0 +1,8 @@
+pnpm-lock.yaml
+dist
+dev-dist
+packages/api/src/schema.d.ts
+packages/mocks/public/mockServiceWorker.js
+apps/*/public/mockServiceWorker.js
+e2e/screenshots
+.gen-check

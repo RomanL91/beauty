@@ -1,0 +1,124 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  text-align: center;
+  white-space: nowrap;
+  transition:
+    background-color 120ms ease,
+    opacity 120ms ease;
+}
+
+.button:disabled,
+.button[aria-disabled='true'] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.lg {
+  min-height: var(--tap-cta);
+  border-radius: var(--r-lg);
+  font-size: 16px;
+}
+
+.xl {
+  min-height: 54px;
+  border-radius: var(--r-lg);
+  font-size: 16px;
+  gap: 10px;
+}
+
+.block {
+  display: flex;
+  width: 100%;
+}
+
+.primary {
+  background: var(--c-accent);
+  color: #fff;
+}
+.primary:hover {
+  background: var(--c-accent-hover);
+  color: #fff;
+}
+
+.secondary {
+  background: var(--c-surface);
+  border-color: var(--c-border);
+  color: var(--c-text);
+  font-weight: 600;
+}
+.secondary:hover {
+  background: #faf9f7;
+  color: var(--c-text);
+}
+
+.outline {
+  background: var(--c-surface);
+  border-color: var(--c-border-strong);
+  color: var(--c-text);
+  font-weight: 600;
+}
+.outline:hover {
+  color: var(--c-text);
+}
+
+.soft {
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+}
+.soft:hover {
+  color: var(--c-accent-hover);
+}
+
+.telegram {
+  background: var(--c-telegram);
+  color: #fff;
+}
+.telegram:hover {
+  background: #156287;
+  color: #fff;
+}
+
+.ghost {
+  background: transparent;
+  color: var(--c-accent);
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--c-text);
+}
+
+.iconButton:disabled {
+  opacity: 0.5;
+}
+
+.iconButtonOutlined {
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+}
+
+.iconButtonAccent {
+  background: var(--c-accent);
+  color: #fff;
+}

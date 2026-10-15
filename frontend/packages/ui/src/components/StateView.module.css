@@ -1,0 +1,33 @@
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--c-text-muted);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+.text {
+  max-width: 300px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--c-surface-muted);
+  color: var(--c-text-3);
+}

@@ -1,0 +1,17 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: var(--column);
+  min-height: 100dvh;
+  margin: 0 auto;
+  background: var(--c-bg);
+}
+
+@media (min-width: 520px) {
+  .shell {
+    box-shadow:
+      0 0 0 1px var(--c-border),
+      0 12px 40px rgb(31 26 29 / 0.06);
+  }
+}

@@ -1,0 +1,51 @@
+/* Токены дизайна — из docs/design/mockups/README.md. Менять только вместе с README. */
+:root {
+  --c-bg: #f4f3f0;
+  --c-surface: #ffffff;
+  --c-surface-muted: #eae7e3;
+  --c-placeholder: #e8e4e0;
+  --c-note-bg: #faf9f7;
+  --c-text: #1f1a1d;
+  --c-text-2: #3a3438;
+  --c-text-3: #4a4448;
+  --c-text-muted: #5e5860;
+  --c-text-disabled: #8c8589;
+  --c-border: #e4e0dc;
+  --c-border-strong: #d9d3ce;
+  --c-divider: #eeeae6;
+  --c-dashed: #d2cbc6;
+  --c-note-border: #b9b1ac;
+  --c-accent: #7a2e57;
+  --c-accent-hover: #5c1f40;
+  --c-accent-soft: #f1e4ea;
+  --c-accent-avatar: #e9dde3;
+  --c-accent-ink: #4a2236;
+  --c-agent-ink: #2e1522;
+  --c-on-accent-muted: #f6e6ee;
+  --c-wave: #ebc9da;
+  --c-warn-bg: #fbefd6;
+  --c-warn-card: #fff8ea;
+  --c-warn-ink: #6e4700;
+  --c-warn: #c08a1e;
+  --c-ok-bg: #e2f1e8;
+  --c-ok-ink: #1c5e40;
+  --c-ok: #2e8b5e;
+  --c-danger: #b3261e;
+  --c-telegram: #1a76a6;
+
+  --font-display: 'Unbounded', system-ui, sans-serif;
+  --font-body: 'Manrope', system-ui, sans-serif;
+
+  --r-badge: 8px;
+  --r-sm: 12px;
+  --r-md: 14px;
+  --r-lg: 16px;
+  --r-xl: 18px;
+  --r-2xl: 22px;
+  --r-pill: 999px;
+
+  --tap: 44px;
+  --tap-cta: 52px;
+  --column: 480px;
+  --focus-ring: 0 0 0 3px #ffffff, 0 0 0 5px var(--c-accent);
+}

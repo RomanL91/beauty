@@ -1,0 +1,22 @@
+{
+  "name": "@beauty/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "gen": "openapi-typescript ../../../contracts/openapi/beauty.yaml -o src/schema.d.ts && prettier --log-level warn --write src/schema.d.ts",
+    "gen:check": "mkdir -p .gen-check && openapi-typescript ../../../contracts/openapi/beauty.yaml -o .gen-check/schema.d.ts && prettier --config ../../.prettierrc.json --log-level warn --write .gen-check/schema.d.ts && diff -q .gen-check/schema.d.ts src/schema.d.ts && echo 'Типы актуальны'",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3"
+  }
+}

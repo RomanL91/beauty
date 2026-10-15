@@ -1,0 +1,1312 @@
+openapi: 3.1.0
+info:
+  title: Beauty API
+  version: 0.1.0
+  summary: Контракт HTTP API платформы beautiful.kz.
+  description: |
+    Источник правды для фронтенда и бэкенда.
+
+    * Раздел **auth** описывает уже реализованный код
+      (`src/beauty/contexts/identity/presentation/api`). Его ошибки пока отдаются
+      в формате `ErrorEnvelope` (`{"error": {"code", "message"}}`).
+    * Остальные разделы — новые: бэкенд реализует их позже, фронтенд работает
+      по ним через MSW. Ошибки — RFC 9457 `application/problem+json`.
+
+    Все пути — относительно `/api/v1`. Время — RFC 3339 с часовым поясом,
+    идентификаторы — UUIDv7. Access-токен передаётся заголовком
+    `Authorization: Bearer <token>`; refresh-токен живёт только в httpOnly-cookie
+    `bk_refresh`, секрет браузера при входе — в httpOnly-cookie `bk_auth_challenge`.
+
+    SSE-потоки (`text/event-stream`): в каждом кадре `data` — JSON указанной схемы,
+    `event` — имя события, `id` — идентификатор для `Last-Event-ID`; строки-комментарии
+    `: ping` — пинги, клиент их игнорирует.
+  license:
+    name: Proprietary
+    url: https://beautiful.kz
+servers:
+  - url: /api/v1
+tags:
+  - name: auth
+    description: Вход через Telegram и сессия (реализовано).
+  - name: public
+    description: Публичная страница мастера.
+  - name: client
+    description: Переписка и записи клиента.
+  - name: master
+    description: Кабинет мастера.
+  - name: push
+    description: Подписки Web Push.
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/telegram/challenges:
+    post:
+      tags: [auth]
+      operationId: startTelegramChallenge
+      summary: Начать вход через Telegram
+      description: Создаёт вход и ставит httpOnly-cookie `bk_auth_challenge` (путь `/api/v1/auth/telegram`).
+      security: []
+      responses:
+        '201':
+          description: Вход начат.
+          headers:
+            Set-Cookie:
+              description: '`bk_auth_challenge=<secret>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth/telegram`'
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StartChallengeResponse' }
+  /auth/telegram/challenges/{challenge_id}:
+    parameters:
+      - $ref: '#/components/parameters/ChallengeId'
+    get:
+      tags: [auth]
+      operationId: getTelegramChallenge
+      summary: Статус входа
+      description: Доступен только браузеру, начавшему вход (по cookie `bk_auth_challenge`).
+      security:
+        - challengeCookie: []
+      responses:
+        '200':
+          description: Текущий статус.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChallengeStatusResponse' }
+        '404':
+          $ref: '#/components/responses/AuthError'
+  /auth/telegram/challenges/{challenge_id}/events:
+    parameters:
+      - $ref: '#/components/parameters/ChallengeId'
+    get:
+      tags: [auth]
+      operationId: streamTelegramChallenge
+      summary: SSE-поток статуса входа
+      description: |
+        Первый кадр — текущий статус (с `retry: 3000`), далее — кадр на каждое изменение
+        (`event: status`). Поток закрывается на финальном статусе
+        (`completed`, `consumed`, `rejected`, `expired`) или через ~330 с; кадры без `id`.
+      security:
+        - challengeCookie: []
+      responses:
+        '200':
+          description: Поток событий.
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/ChallengeStatusEvent' }
+        '404':
+          $ref: '#/components/responses/AuthError'
+  /auth/telegram/challenges/{challenge_id}/session:
+    parameters:
+      - $ref: '#/components/parameters/ChallengeId'
+    post:
+      tags: [auth]
+      operationId: exchangeTelegramChallenge
+      summary: Обменять завершённый вход на сессию
+      description: Гасит вход (`completed` → `consumed`), удаляет `bk_auth_challenge`, ставит `bk_refresh`.
+      security:
+        - challengeCookie: []
+      responses:
+        '200':
+          description: Сессия открыта.
+          headers:
+            Set-Cookie:
+              description: '`bk_refresh=<token>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth/session`'
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '404':
+          $ref: '#/components/responses/AuthError'
+        '409':
+          $ref: '#/components/responses/AuthError'
+        '410':
+          $ref: '#/components/responses/AuthError'
+  /auth/session/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshSession
+      summary: Обновить access-токен
+      description: |
+        Ротирует refresh-токен из cookie `bk_refresh`. При `invalid_session` или
+        `session_reuse_detected` отвечает 401 и сразу удаляет cookie.
+      security:
+        - refreshCookie: []
+      responses:
+        '200':
+          description: Новый access-токен.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '401':
+          $ref: '#/components/responses/AuthError'
+  /auth/session/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Выйти
+      security:
+        - refreshCookie: []
+      responses:
+        '204':
+          description: Сессия отозвана, cookie удалена.
+
+  /masters/{slug}:
+    parameters:
+      - $ref: '#/components/parameters/MasterSlug'
+    get:
+      tags: [public]
+      operationId: getMasterPage
+      summary: Публичная страница мастера
+      security: []
+      responses:
+        '200':
+          description: Профиль, услуги и правила записи.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MasterPage' }
+        '404':
+          $ref: '#/components/responses/Problem'
+  /masters/{slug}/slots:
+    parameters:
+      - $ref: '#/components/parameters/MasterSlug'
+    get:
+      tags: [public]
+      operationId: listMasterSlots
+      summary: Свободные окна
+      description: Без `service` — ближайшие окна для любой услуги (по самой короткой).
+      security: []
+      parameters:
+        - name: service
+          in: query
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Окна по возрастанию времени.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Slot' }
+        '404':
+          $ref: '#/components/responses/Problem'
+
+  /conversations/me:
+    parameters:
+      - name: master
+        in: query
+        required: true
+        description: Slug мастера.
+        schema: { type: string }
+    get:
+      tags: [client]
+      operationId: getMyConversation
+      summary: Моя переписка с мастером
+      responses:
+        '200':
+          description: Переписка.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientConversation' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [client]
+      operationId: openMyConversation
+      summary: Открыть переписку (идемпотентно)
+      responses:
+        '200':
+          description: Переписка уже была.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientConversation' }
+        '201':
+          description: Переписка создана.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientConversation' }
+        '401':
+          $ref: '#/components/responses/Problem'
+  /conversations/{conversation_id}/messages:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+    get:
+      tags: [client]
+      operationId: listConversationMessages
+      summary: История сообщений
+      parameters:
+        - $ref: '#/components/parameters/Before'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Страница истории.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessagePage' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [client]
+      operationId: sendConversationMessage
+      summary: Отправить сообщение
+      description: |
+        Текст или выбор слота — JSON, голосовое — multipart. `client_id` — идемпотентность:
+        повтор с тем же `client_id` вернёт то же сообщение.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientMessageInput' }
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/VoiceUpload' }
+      responses:
+        '201':
+          description: Сообщение принято.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+  /conversations/{conversation_id}/events:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+    get:
+      tags: [client]
+      operationId: streamConversation
+      summary: SSE-поток переписки
+      description: |
+        Каждый кадр имеет `id`; при переподключении клиент передаёт `Last-Event-ID`,
+        сервер досылает пропущенное. Клиент дедуплицирует сообщения по `id`.
+        Access-токен — заголовком `Authorization` (поток читается через fetch).
+      parameters:
+        - $ref: '#/components/parameters/LastEventId'
+      responses:
+        '200':
+          description: Поток событий.
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/ConversationEvent' }
+        '401':
+          $ref: '#/components/responses/Problem'
+  /appointments/{appointment_id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/AppointmentId'
+    post:
+      tags: [client]
+      operationId: cancelAppointment
+      summary: Отменить запись
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: Запись отменена.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appointment' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /appointments/{appointment_id}/reschedule:
+    parameters:
+      - $ref: '#/components/parameters/AppointmentId'
+    post:
+      tags: [client]
+      operationId: rescheduleAppointment
+      summary: Перенести запись
+      description: Новая заявка на указанное время; старая освобождается после подтверждения.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start]
+              properties:
+                start: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Заявка на перенос создана.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appointment' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+
+  /me/schedule:
+    get:
+      tags: [master]
+      operationId: getMySchedule
+      summary: График дня и обзор недели
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: День.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DaySchedule' }
+        '401':
+          $ref: '#/components/responses/Problem'
+  /me/appointments/{appointment_id}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/AppointmentId'
+    post:
+      tags: [master]
+      operationId: confirmAppointment
+      summary: Подтвердить заявку
+      responses:
+        '200':
+          description: Подтверждено.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appointment' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /me/appointments/{appointment_id}/decline:
+    parameters:
+      - $ref: '#/components/parameters/AppointmentId'
+    post:
+      tags: [master]
+      operationId: declineAppointment
+      summary: Отклонить заявку
+      description: С `offer_alternatives` агент предложит клиенту другие окна («Предложить другое»).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                offer_alternatives: { type: boolean, default: false }
+                reason: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: Отклонено.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appointment' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /me/conversations:
+    get:
+      tags: [master]
+      operationId: listMyConversations
+      summary: Чаты мастера
+      parameters:
+        - name: filter
+          in: query
+          schema: { $ref: '#/components/schemas/ConversationFilter' }
+        - name: q
+          in: query
+          description: Имя, телефон или текст сообщения.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Список и счётчики фильтров.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationList' }
+        '401':
+          $ref: '#/components/responses/Problem'
+  /me/conversations/{conversation_id}:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+    get:
+      tags: [master]
+      operationId: getMyConversationDetail
+      summary: Шапка диалога
+      responses:
+        '200':
+          description: Клиент и кто ведёт диалог.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversationSummary' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /me/conversations/{conversation_id}/messages:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+    get:
+      tags: [master]
+      operationId: listMyConversationMessages
+      summary: История диалога (с заметками агента)
+      parameters:
+        - $ref: '#/components/parameters/Before'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Страница истории.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessagePage' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [master]
+      operationId: sendMyConversationMessage
+      summary: Ответить от своего имени
+      description: Переводит диалог на мастера (`handler = master`), агент встаёт на паузу.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TextInput' }
+      responses:
+        '201':
+          description: Отправлено.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MasterSendResult' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /me/conversations/{conversation_id}/handler:
+    parameters:
+      - $ref: '#/components/parameters/ConversationId'
+    put:
+      tags: [master]
+      operationId: setConversationHandler
+      summary: Кто ведёт диалог
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HandlerState' }
+      responses:
+        '200':
+          description: Сохранено.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HandlerState' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /me/assistant/messages:
+    get:
+      tags: [master]
+      operationId: listAssistantMessages
+      summary: Лента поручений
+      parameters:
+        - $ref: '#/components/parameters/Before'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Страница ленты.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessagePage' }
+        '401':
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [master]
+      operationId: sendAssistantMessage
+      summary: Дать поручение
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TextInput' }
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/VoiceUpload' }
+      responses:
+        '201':
+          description: Поручение принято; ответы агента придут по `/me/events`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+  /me/assistant/choices/{choice_id}:
+    parameters:
+      - name: choice_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [master]
+      operationId: answerAssistantChoice
+      summary: Выбрать вариант
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [option_id]
+              properties:
+                option_id: { type: string }
+      responses:
+        '200':
+          description: Сообщение-выбор с отмеченным вариантом.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /me/events:
+    get:
+      tags: [master]
+      operationId: streamMasterEvents
+      summary: SSE-поток кабинета мастера
+      parameters:
+        - $ref: '#/components/parameters/LastEventId'
+      responses:
+        '200':
+          description: Поток событий.
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/MasterEvent' }
+        '401':
+          $ref: '#/components/responses/Problem'
+
+  /push/subscriptions:
+    post:
+      tags: [push]
+      operationId: createPushSubscription
+      summary: Подписать устройство на уведомления
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PushSubscriptionInput' }
+      responses:
+        '201':
+          description: Подписка сохранена (повтор того же endpoint — та же подписка).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: string, format: uuid }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+  /push/subscriptions/{subscription_id}:
+    parameters:
+      - name: subscription_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [push]
+      operationId: deletePushSubscription
+      summary: Отписать устройство
+      responses:
+        '204':
+          description: Подписка удалена.
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    challengeCookie:
+      type: apiKey
+      in: cookie
+      name: bk_auth_challenge
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: bk_refresh
+
+  parameters:
+    ChallengeId:
+      name: challenge_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MasterSlug:
+      name: slug
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-z0-9-]{2,40}$' }
+    ConversationId:
+      name: conversation_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AppointmentId:
+      name: appointment_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Before:
+      name: before
+      in: query
+      description: Курсор — `id` самого старого загруженного сообщения.
+      schema: { type: string, format: uuid }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 30 }
+    LastEventId:
+      name: Last-Event-ID
+      in: header
+      schema: { type: string }
+
+  responses:
+    AuthError:
+      description: Ошибка входа/сессии (текущий формат identity).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Problem:
+      description: Ошибка (RFC 9457).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    ErrorEnvelope:
+      type: object
+      description: Формат ошибок, реализованный в identity сейчас.
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: |
+                Например: `challenge_not_found` (404), `browser_secret_mismatch` (404),
+                `challenge_expired` (410), `invalid_challenge_state` (409),
+                `invalid_session` (401), `session_reuse_detected` (401), `session_inactive` (401).
+            message: { type: string }
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details.
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri-reference, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }
+        code:
+          type: string
+          description: Машиночитаемый код ошибки (как в identity).
+        errors:
+          type: array
+          description: Ошибки полей для 422.
+          items:
+            type: object
+            required: [pointer, detail]
+            properties:
+              pointer: { type: string, description: 'JSON Pointer поля, например `/text`.' }
+              detail: { type: string }
+
+    ChallengeStatus:
+      type: string
+      enum: [pending, claimed, confirmed, completed, consumed, rejected, expired]
+      description: |
+        `pending` — ждём бота; `claimed` — бот открыт; `confirmed` — код выбран;
+        `completed` — контакт получен, можно обменять на сессию; `consumed` — уже обменян;
+        `rejected` — выбран чужой код; `expired` — истёк.
+    StartChallengeResponse:
+      type: object
+      required: [challenge_id, deep_link, confirmation_code, expires_at]
+      properties:
+        challenge_id: { type: string, format: uuid }
+        deep_link: { type: string, description: 'Ссылка на бота: https://t.me/<bot>?start=<nonce>' }
+        confirmation_code: { type: string, description: 'Двузначный код: показать крупно, его выберут в боте' }
+        expires_at: { type: string, format: date-time }
+    ChallengeStatusResponse:
+      type: object
+      required: [challenge_id, status, expires_at]
+      properties:
+        challenge_id: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/ChallengeStatus' }
+        expires_at: { type: string, format: date-time }
+    ChallengeStatusEvent:
+      type: object
+      description: "Кадр `event: status`."
+      required: [status]
+      properties:
+        status: { $ref: '#/components/schemas/ChallengeStatus' }
+    SessionResponse:
+      type: object
+      required: [account_id, access_token, token_type, expires_at]
+      properties:
+        account_id: { type: string, format: uuid }
+        access_token: { type: string }
+        token_type: { type: string, default: Bearer }
+        expires_at: { type: string, format: date-time }
+
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: integer, description: 'В минимальных единицах валюты (тиын).' }
+        currency: { type: string, enum: [KZT] }
+    Service:
+      type: object
+      required: [id, title, duration_min, price]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        duration_min: { type: integer, minimum: 5 }
+        price:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+    BookingRules:
+      type: object
+      required: [confirm_within_hours, change_deadline_hours]
+      properties:
+        confirm_within_hours: { type: integer, minimum: 1, description: 'За сколько часов мастер подтверждает заявку.' }
+        change_deadline_hours: { type: integer, minimum: 0, description: 'Перенос/отмена — не позднее чем за N часов.' }
+    Photo:
+      type: object
+      required: [id, url]
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        alt: { type: string }
+    MasterPage:
+      type: object
+      required: [slug, display_name, short_name, specialty, address, timezone, avatar_url, about, services, photos, booking_rules]
+      properties:
+        slug: { type: string }
+        display_name: { type: string, examples: ['Алиса Мельникова'] }
+        short_name: { type: string, description: 'Как называть в текстах («Запись к Алисе»).', examples: ['Алиса'] }
+        specialty: { type: string, examples: ['Косметолог · массаж'] }
+        address: { type: string }
+        timezone: { type: string, examples: ['Asia/Almaty'] }
+        avatar_url:
+          oneOf:
+            - { type: string, format: uri }
+            - type: 'null'
+        about: { type: string }
+        services:
+          type: array
+          items: { $ref: '#/components/schemas/Service' }
+        photos:
+          type: array
+          items: { $ref: '#/components/schemas/Photo' }
+        booking_rules: { $ref: '#/components/schemas/BookingRules' }
+    Slot:
+      type: object
+      required: [start, end]
+      properties:
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        service_id: { type: string, format: uuid }
+
+    AppointmentBase:
+      type: object
+      required: [id, service, start, end, client]
+      properties:
+        id: { type: string, format: uuid }
+        service: { $ref: '#/components/schemas/Service' }
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        client: { $ref: '#/components/schemas/ClientRef' }
+        note: { type: string, description: 'Пояснение («перенесена агентом с четверга»).' }
+    AppointmentRequested:
+      allOf:
+        - $ref: '#/components/schemas/AppointmentBase'
+        - type: object
+          required: [status, hold_until, auto_decline_at]
+          properties:
+            status: { type: string, const: requested }
+            hold_until: { type: string, format: date-time, description: 'До какого момента слот держится за клиентом.' }
+            auto_decline_at: { type: string, format: date-time, description: 'Когда заявка отклонится без ответа мастера.' }
+    AppointmentConfirmed:
+      allOf:
+        - $ref: '#/components/schemas/AppointmentBase'
+        - type: object
+          required: [status, confirmed_at]
+          properties:
+            status: { type: string, const: confirmed }
+            confirmed_at: { type: string, format: date-time }
+            reminder:
+              type: string
+              enum: [none, sent, read]
+              description: Состояние напоминания о визите.
+    AppointmentCancelled:
+      allOf:
+        - $ref: '#/components/schemas/AppointmentBase'
+        - type: object
+          required: [status, cancelled_by]
+          properties:
+            status: { type: string, const: cancelled }
+            cancelled_by: { type: string, enum: [client, master, system] }
+    AppointmentCompleted:
+      allOf:
+        - $ref: '#/components/schemas/AppointmentBase'
+        - type: object
+          required: [status]
+          properties:
+            status: { type: string, const: completed }
+    Appointment:
+      oneOf:
+        - $ref: '#/components/schemas/AppointmentRequested'
+        - $ref: '#/components/schemas/AppointmentConfirmed'
+        - $ref: '#/components/schemas/AppointmentCancelled'
+        - $ref: '#/components/schemas/AppointmentCompleted'
+      discriminator:
+        propertyName: status
+        mapping:
+          requested: '#/components/schemas/AppointmentRequested'
+          confirmed: '#/components/schemas/AppointmentConfirmed'
+          cancelled: '#/components/schemas/AppointmentCancelled'
+          completed: '#/components/schemas/AppointmentCompleted'
+    ClientRef:
+      type: object
+      required: [id, display_name, visit_number]
+      properties:
+        id: { type: string, format: uuid }
+        display_name: { type: string, description: 'Как мастер видит клиента («Дарья К.» или «Новый клиент · …12 34»).' }
+        phone_masked: { type: string, examples: ['+7 705 ••• 89 67'] }
+        visit_number: { type: integer, minimum: 1, description: 'Какой это визит к мастеру.' }
+
+    Author:
+      type: string
+      enum: [client, agent, master]
+    Source:
+      type: object
+      required: [title, url]
+      properties:
+        title: { type: string }
+        url: { type: string, format: uri }
+    MessageBase:
+      type: object
+      required: [id, author, ai_generated, sources, created_at]
+      properties:
+        id: { type: string, format: uuid, description: UUIDv7 }
+        client_id:
+          description: Идентификатор, присвоенный отправителем (идемпотентность, сверка оптимистичных сообщений).
+          oneOf:
+            - { type: string, format: uuid }
+            - type: 'null'
+        author: { $ref: '#/components/schemas/Author' }
+        ai_generated: { type: boolean }
+        sources:
+          type: array
+          items: { $ref: '#/components/schemas/Source' }
+        created_at: { type: string, format: date-time }
+    TextMessage:
+      allOf:
+        - $ref: '#/components/schemas/MessageBase'
+        - type: object
+          required: [kind, text]
+          properties:
+            kind: { type: string, const: text }
+            text: { type: string }
+    VoiceMessage:
+      allOf:
+        - $ref: '#/components/schemas/MessageBase'
+        - type: object
+          required: [kind, audio_url, duration, transcript]
+          properties:
+            kind: { type: string, const: voice }
+            audio_url: { type: string, format: uri-reference }
+            duration: { type: number, description: Секунды. }
+            transcript:
+              oneOf:
+                - type: string
+                - type: 'null'
+    SlotOfferMessage:
+      allOf:
+        - $ref: '#/components/schemas/MessageBase'
+        - type: object
+          required: [kind, text, slots, selected_start]
+          properties:
+            kind: { type: string, const: slot_offer }
+            text: { type: string }
+            slots:
+              type: array
+              items: { $ref: '#/components/schemas/Slot' }
+            selected_start:
+              oneOf:
+                - { type: string, format: date-time }
+                - type: 'null'
+    BookingCardMessage:
+      allOf:
+        - $ref: '#/components/schemas/MessageBase'
+        - type: object
+          required: [kind, appointment]
+          properties:
+            kind: { type: string, const: booking_card }
+            appointment: { $ref: '#/components/schemas/Appointment' }
+    SystemMessage:
+      allOf:
+        - $ref: '#/components/schemas/MessageBase'
+        - type: object
+          required: [kind, text, tone]
+          properties:
+            kind: { type: string, const: system }
+            text: { type: string }
+            tone: { type: string, enum: [info, success, warning] }
+    AgentNoteMessage:
+      allOf:
+        - $ref: '#/components/schemas/MessageBase'
+        - type: object
+          description: Заметка агента — только мастеру, клиенту не отдаётся никогда.
+          required: [kind, text]
+          properties:
+            kind: { type: string, const: agent_note }
+            text: { type: string }
+    ChoiceOption:
+      type: object
+      required: [id, label]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        tone: { type: string, enum: [default, muted] }
+    ChoiceMessage:
+      allOf:
+        - $ref: '#/components/schemas/MessageBase'
+        - type: object
+          required: [kind, choice_id, text, options, selected_option_id]
+          properties:
+            kind: { type: string, const: choice }
+            choice_id: { type: string, format: uuid }
+            text: { type: string }
+            detail: { type: string }
+            options:
+              type: array
+              items: { $ref: '#/components/schemas/ChoiceOption' }
+            selected_option_id:
+              oneOf:
+                - type: string
+                - type: 'null'
+    TaskStep:
+      type: object
+      required: [id, label, state]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        state: { type: string, enum: [done, waiting, pending, failed] }
+    TaskProgressMessage:
+      allOf:
+        - $ref: '#/components/schemas/MessageBase'
+        - type: object
+          required: [kind, task_id, title, steps]
+          properties:
+            kind: { type: string, const: task_progress }
+            task_id: { type: string, format: uuid }
+            title: { type: string }
+            steps:
+              type: array
+              items: { $ref: '#/components/schemas/TaskStep' }
+            footnote: { type: string }
+    Message:
+      oneOf:
+        - $ref: '#/components/schemas/TextMessage'
+        - $ref: '#/components/schemas/VoiceMessage'
+        - $ref: '#/components/schemas/SlotOfferMessage'
+        - $ref: '#/components/schemas/BookingCardMessage'
+        - $ref: '#/components/schemas/SystemMessage'
+        - $ref: '#/components/schemas/AgentNoteMessage'
+        - $ref: '#/components/schemas/ChoiceMessage'
+        - $ref: '#/components/schemas/TaskProgressMessage'
+      discriminator:
+        propertyName: kind
+        mapping:
+          text: '#/components/schemas/TextMessage'
+          voice: '#/components/schemas/VoiceMessage'
+          slot_offer: '#/components/schemas/SlotOfferMessage'
+          booking_card: '#/components/schemas/BookingCardMessage'
+          system: '#/components/schemas/SystemMessage'
+          agent_note: '#/components/schemas/AgentNoteMessage'
+          choice: '#/components/schemas/ChoiceMessage'
+          task_progress: '#/components/schemas/TaskProgressMessage'
+    MessagePage:
+      type: object
+      description: Сообщения по возрастанию `created_at`.
+      required: [items, has_more]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Message' }
+        has_more: { type: boolean, description: 'Есть ли сообщения старше первого в `items`.' }
+
+    TextInput:
+      type: object
+      required: [client_id, kind, text]
+      properties:
+        client_id: { type: string, format: uuid }
+        kind: { type: string, const: text }
+        text: { type: string, minLength: 1, maxLength: 4000 }
+    SlotPickInput:
+      type: object
+      description: Выбор окна из `slot_offer` (в ленте появится сообщение клиента с временем и карточка заявки).
+      required: [client_id, kind, offer_id, start]
+      properties:
+        client_id: { type: string, format: uuid }
+        kind: { type: string, const: slot_pick }
+        offer_id: { type: string, format: uuid, description: '`id` сообщения slot_offer.' }
+        start: { type: string, format: date-time }
+    ClientMessageInput:
+      oneOf:
+        - $ref: '#/components/schemas/TextInput'
+        - $ref: '#/components/schemas/SlotPickInput'
+      discriminator:
+        propertyName: kind
+        mapping:
+          text: '#/components/schemas/TextInput'
+          slot_pick: '#/components/schemas/SlotPickInput'
+    VoiceUpload:
+      type: object
+      required: [client_id, audio, duration]
+      properties:
+        client_id: { type: string, format: uuid }
+        audio:
+          type: string
+          format: binary
+          description: '`audio/webm;codecs=opus` или `audio/mp4` (iOS Safari), до 2 минут, до 5 МБ.'
+        duration: { type: number, maximum: 120 }
+
+    Handler:
+      type: string
+      enum: [agent, master]
+    HandlerState:
+      type: object
+      required: [handler]
+      properties:
+        handler: { $ref: '#/components/schemas/Handler' }
+    ClientConversation:
+      type: object
+      required: [id, master_slug]
+      properties:
+        id: { type: string, format: uuid }
+        master_slug: { type: string }
+    ConversationFilter:
+      type: string
+      enum: [all, needs_me, agent, me]
+    ConversationSummary:
+      type: object
+      required: [id, client, handler, needs_me, last_message, unread]
+      properties:
+        id: { type: string, format: uuid }
+        client: { $ref: '#/components/schemas/ClientRef' }
+        handler: { $ref: '#/components/schemas/Handler' }
+        needs_me:
+          description: Почему агент передал диалог мастеру; `null` — не нужен.
+          oneOf:
+            - type: string
+              enum: [request, question]
+            - type: 'null'
+        last_message:
+          oneOf:
+            - type: object
+              required: [author, preview, created_at]
+              properties:
+                author: { $ref: '#/components/schemas/Author' }
+                preview: { type: string }
+                created_at: { type: string, format: date-time }
+            - type: 'null'
+        unread: { type: integer, minimum: 0 }
+    ConversationList:
+      type: object
+      required: [items, counts]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ConversationSummary' }
+        counts:
+          type: object
+          required: [all, needs_me, agent, me]
+          properties:
+            all: { type: integer }
+            needs_me: { type: integer }
+            agent: { type: integer }
+            me: { type: integer }
+    MasterSendResult:
+      type: object
+      required: [message, handler]
+      properties:
+        message: { $ref: '#/components/schemas/Message' }
+        handler: { $ref: '#/components/schemas/Handler' }
+
+    ScheduleAppointmentItem:
+      type: object
+      required: [kind, appointment, conversation_id]
+      properties:
+        kind: { type: string, const: appointment }
+        appointment: { $ref: '#/components/schemas/Appointment' }
+        conversation_id:
+          oneOf:
+            - { type: string, format: uuid }
+            - type: 'null'
+    ScheduleFreeItem:
+      type: object
+      required: [kind, start, end]
+      properties:
+        kind: { type: string, const: free }
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+    ScheduleBreakItem:
+      type: object
+      required: [kind, start, end, title]
+      properties:
+        kind: { type: string, const: break }
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        title: { type: string, examples: ['Перерыв'] }
+    ScheduleItem:
+      oneOf:
+        - $ref: '#/components/schemas/ScheduleAppointmentItem'
+        - $ref: '#/components/schemas/ScheduleFreeItem'
+        - $ref: '#/components/schemas/ScheduleBreakItem'
+      discriminator:
+        propertyName: kind
+        mapping:
+          appointment: '#/components/schemas/ScheduleAppointmentItem'
+          free: '#/components/schemas/ScheduleFreeItem'
+          break: '#/components/schemas/ScheduleBreakItem'
+    WeekDay:
+      type: object
+      required: [date, day_off]
+      properties:
+        date: { type: string, format: date }
+        day_off: { type: boolean }
+    DaySchedule:
+      type: object
+      required: [date, week, day_off, items, summary]
+      properties:
+        date: { type: string, format: date }
+        week:
+          type: array
+          description: Неделя (пн–вс), в которую входит `date`.
+          items: { $ref: '#/components/schemas/WeekDay' }
+        day_off: { type: boolean }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ScheduleItem' }
+        summary:
+          type: object
+          required: [appointments, pending_requests, free_minutes]
+          properties:
+            appointments: { type: integer }
+            pending_requests: { type: integer }
+            free_minutes: { type: integer }
+
+    MessageCreatedEvent:
+      type: object
+      description: "`event: message.created`"
+      required: [type, message]
+      properties:
+        type: { type: string, const: message.created }
+        message: { $ref: '#/components/schemas/Message' }
+    MessageUpdatedEvent:
+      type: object
+      description: "`event: message.updated` — изменилось сообщение (статус заявки в карточке, выбор, прогресс поручения)."
+      required: [type, message]
+      properties:
+        type: { type: string, const: message.updated }
+        message: { $ref: '#/components/schemas/Message' }
+    ConversationEvent:
+      oneOf:
+        - $ref: '#/components/schemas/MessageCreatedEvent'
+        - $ref: '#/components/schemas/MessageUpdatedEvent'
+      discriminator:
+        propertyName: type
+        mapping:
+          message.created: '#/components/schemas/MessageCreatedEvent'
+          message.updated: '#/components/schemas/MessageUpdatedEvent'
+    MasterMessageEvent:
+      type: object
+      description: "`event: message.created` / `message.updated`; `conversation_id = null` — лента поручений."
+      required: [type, conversation_id, message]
+      properties:
+        type: { type: string, enum: [message.created, message.updated] }
+        conversation_id:
+          oneOf:
+            - { type: string, format: uuid }
+            - type: 'null'
+        message: { $ref: '#/components/schemas/Message' }
+    AppointmentUpdatedEvent:
+      type: object
+      description: "`event: appointment.updated` — новая заявка или смена статуса."
+      required: [type, appointment]
+      properties:
+        type: { type: string, const: appointment.updated }
+        appointment: { $ref: '#/components/schemas/Appointment' }
+    ConversationUpdatedEvent:
+      type: object
+      description: "`event: conversation.updated` — сменился обработчик, «нужны вы», счётчики."
+      required: [type, conversation]
+      properties:
+        type: { type: string, const: conversation.updated }
+        conversation: { $ref: '#/components/schemas/ConversationSummary' }
+    MasterEvent:
+      oneOf:
+        - $ref: '#/components/schemas/MasterMessageEvent'
+        - $ref: '#/components/schemas/AppointmentUpdatedEvent'
+        - $ref: '#/components/schemas/ConversationUpdatedEvent'
+    PushSubscriptionInput:
+      type: object
+      required: [app, endpoint, keys]
+      properties:
+        app: { type: string, enum: [client, master] }
+        master_slug: { type: string, description: 'Для клиентского приложения — чей поддомен.' }
+        endpoint: { type: string, format: uri }
+        expiration_time:
+          oneOf:
+            - type: integer
+            - type: 'null'
+        keys:
+          type: object
+          required: [p256dh, auth]
+          properties:
+            p256dh: { type: string }
+            auth: { type: string }
