@@ -21,6 +21,14 @@ describe('MasterSlugResolver', () => {
     expect(prod.resolve(loc('beautiful.kz', '?master=alisa'))).toBeNull();
   });
 
+  it('стенд в локальной сети: <slug>.<ip>.nip.io', () => {
+    expect(prod.resolve(loc('alisa.192-168-0-143.nip.io'))).toBe('alisa');
+    expect(prod.resolve(loc('alisa.192.168.0.143.nip.io'))).toBe('alisa');
+    expect(prod.resolve(loc('master.192-168-0-143.nip.io'))).toBeNull();
+    expect(prod.resolve(loc('192-168-0-143.nip.io'))).toBeNull();
+    expect(prod.resolve(loc('alisa.nip.io.evil.com'))).toBeNull();
+  });
+
   it('dev: *.localhost, затем ?master= (запоминается), затем по умолчанию', () => {
     const memory = new Map<string, string>();
     const dev = new MasterSlugResolver(

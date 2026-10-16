@@ -22,6 +22,16 @@ export class SubdomainStrategy implements SlugStrategy {
   }
 }
 
+/** `<slug>.192-168-0-10.nip.io` — стенд с телефона в локальной сети (DNS nip.io отдаёт IP из имени). */
+export class NipIoStrategy implements SlugStrategy {
+  private static readonly HOST = /^([a-z0-9-]+)\.\d{1,3}(?:[.-]\d{1,3}){3}\.nip\.io$/;
+
+  resolve({ hostname }: Pick<Location, 'hostname'>): string | null {
+    const label = NipIoStrategy.HOST.exec(hostname.toLowerCase())?.[1];
+    return label && SLUG.test(label) && !RESERVED.has(label) ? label : null;
+  }
+}
+
 /** `?master=<slug>` — для dev и превью без поддоменов. */
 export class QueryParamStrategy implements SlugStrategy {
   resolve({ search }: Pick<Location, 'search'>): string | null {
@@ -58,10 +68,14 @@ export class MasterSlugResolver {
     defaultMaster: string | null;
   }): MasterSlugResolver {
     if (!options.dev)
-      return new MasterSlugResolver([new SubdomainStrategy(['beautiful.kz', 'localhost'])]);
+      return new MasterSlugResolver([
+        new SubdomainStrategy(['beautiful.kz', 'localhost']),
+        new NipIoStrategy(),
+      ]);
     return new MasterSlugResolver(
       [
         new SubdomainStrategy(['beautiful.kz', 'localhost']),
+        new NipIoStrategy(),
         new QueryParamStrategy(),
         new FixedStrategy(options.defaultMaster),
       ],
