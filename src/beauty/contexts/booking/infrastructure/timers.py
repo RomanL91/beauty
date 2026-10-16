@@ -11,10 +11,11 @@ from beauty.shared.infrastructure.scheduling.scheduler import JobRequest, JobSch
 
 
 class ScheduledAppointmentTimers(AppointmentTimers):
-    """Ключи задач: ``booking:<id>:expire`` и ``booking:<id>:complete``."""
+    """Ключи задач: ``booking:<id>:expire``, ``booking:<id>:complete``, ``booking:<id>:remind``."""
 
     EXPIRE_KIND: ClassVar[str] = "booking.expire_request"
     COMPLETE_KIND: ClassVar[str] = "booking.complete_visit"
+    REMIND_KIND: ClassVar[str] = "booking.remind_visit"
 
     def __init__(self, scheduler: JobScheduler) -> None:
         """Привязать к планировщику сессии."""
@@ -27,6 +28,10 @@ class ScheduledAppointmentTimers(AppointmentTimers):
     async def complete_at(self, appointment_id: UUID, moment: datetime) -> None:
         """Отметка о визите."""
         await self._schedule(self.COMPLETE_KIND, appointment_id, "complete", moment)
+
+    async def remind_at(self, appointment_id: UUID, moment: datetime) -> None:
+        """Напоминание о визите."""
+        await self._schedule(self.REMIND_KIND, appointment_id, "remind", moment)
 
     async def cancel(self, appointment_id: UUID) -> None:
         """Снять все ожидающие задачи записи."""

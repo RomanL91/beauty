@@ -86,7 +86,10 @@ async def test_request_schedules_expiry_and_counts_visits(world: World) -> None:
     first = await world.request()
     assert world.store.timers == {f"expire:{first}": world.clock.now() + timedelta(hours=2)}
     await world.confirm(first)
-    assert world.store.timers == {f"complete:{first}": START + timedelta(hours=1)}
+    assert world.store.timers == {
+        f"complete:{first}": START + timedelta(hours=1),
+        f"remind:{first}": START - timedelta(hours=24),
+    }
 
     second = await world.request(START + timedelta(days=1))
     assert world.store.appointments[second].client.visit_number == 2
@@ -143,7 +146,7 @@ async def test_reschedule_keeps_old_until_confirmed(world: World) -> None:
 
     await world.confirm(second_try)
     assert world.store.appointments[old].cancel_reason is CancelReason.RESCHEDULED
-    assert set(world.store.timers) == {f"complete:{second_try}"}
+    assert set(world.store.timers) == {f"complete:{second_try}", f"remind:{second_try}"}
 
 
 async def test_declined_reschedule_leaves_old_and_overlap_is_taken(world: World) -> None:

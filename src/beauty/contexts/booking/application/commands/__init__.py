@@ -14,6 +14,8 @@ from beauty.contexts.booking.application.commands.decisions import (
     DeclineAppointmentHandler,
     ExpireAppointment,
     ExpireAppointmentHandler,
+    RemindVisit,
+    RemindVisitHandler,
 )
 from beauty.contexts.booking.application.commands.request import (
     RequestAppointment,
@@ -36,6 +38,8 @@ __all__ = [
     "DeclineAppointmentHandler",
     "ExpireAppointment",
     "ExpireAppointmentHandler",
+    "RemindVisit",
+    "RemindVisitHandler",
     "RequestAppointment",
     "RequestAppointmentHandler",
     "RescheduleAppointment",

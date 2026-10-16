@@ -55,3 +55,22 @@ class ConversationChanged(DomainEvent):
 
     conversation_id: UUID
     master_id: UUID
+
+
+@dataclass(frozen=True, kw_only=True)
+class MessageAdded(DomainEvent):
+    """В переписке новое сообщение: кто, какого вида, превью и кто сейчас ведёт диалог.
+
+    Для тех, кому важно «кто кому написал» (уведомления), без чтения ленты.
+    """
+
+    routing_key = "conversations.message.added"
+
+    conversation_id: UUID
+    master_id: UUID
+    client_id: UUID
+    message_id: UUID
+    author: str
+    kind: str
+    preview: str
+    handler: str

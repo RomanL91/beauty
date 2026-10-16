@@ -30,6 +30,7 @@ from beauty.contexts.booking.domain.events import (
     AppointmentCancelled,
     AppointmentCompleted,
     AppointmentConfirmed,
+    AppointmentReminderDue,
     AppointmentRequested,
 )
 from beauty.contexts.booking.domain.value_objects import (
@@ -43,6 +44,10 @@ from beauty.contexts.booking.domain.value_objects import (
 from beauty.shared.domain.aggregate import AggregateRoot
 
 OPEN_STATUSES = frozenset({AppointmentStatus.REQUESTED, AppointmentStatus.CONFIRMED})
+
+
+REMINDER_LEADS = (timedelta(hours=24), timedelta(hours=2))
+"""За сколько до визита напоминать: первое, что ещё впереди на момент подтверждения."""
 
 
 class Appointment(AggregateRoot):
@@ -79,6 +84,7 @@ class Appointment(AggregateRoot):
         self.cancelled_by: CancelledBy | None = None
         self.cancel_reason: CancelReason | None = None
         self.completed_at: datetime | None = None
+        self.reminded_at: datetime | None = None
         self.revision = 1
         self.created_at = created_at
         self.updated_at = created_at
@@ -196,6 +202,32 @@ class Appointment(AggregateRoot):
         self._cancel(CancelledBy.CLIENT, CancelReason.RESCHEDULED, now)
         return True
 
+    def reminder_moment(self) -> datetime | None:
+        """Когда напомнить о подтверждённой записи: за сутки, а если до визита меньше — за 2 ч.
+
+        ``None`` — напоминать уже поздно (до визита меньше 2 ч от подтверждения).
+        """
+        if self.confirmed_at is None:
+            return None
+        for lead in REMINDER_LEADS:
+            moment = self.slot.start - lead
+            if moment > self.confirmed_at:
+                return moment
+        return None
+
+    def remind(self, now: datetime) -> bool:
+        """Напомнить клиенту о визите (один раз, пока запись подтверждена и визит впереди)."""
+        if (
+            self.status is not AppointmentStatus.CONFIRMED
+            or self.reminded_at is not None
+            or now >= self.slot.start
+        ):
+            return False
+        self.reminded_at = now
+        self._touch(now)
+        self._record(AppointmentReminderDue(**self._event_fields(now)))
+        return True
+
     def complete(self, now: datetime) -> bool:
         """Визит прошёл."""
         if self.status is not AppointmentStatus.CONFIRMED or now < self.slot.end:
@@ -232,7 +264,10 @@ class Appointment(AggregateRoot):
             hold = self.hold_until.astimezone(zone).isoformat()
             payload |= {"hold_until": hold, "auto_decline_at": hold}
         elif self.status is AppointmentStatus.CONFIRMED and self.confirmed_at is not None:
-            payload |= {"confirmed_at": self.confirmed_at.astimezone(zone).isoformat(), "reminder": "none"}
+            payload |= {
+                "confirmed_at": self.confirmed_at.astimezone(zone).isoformat(),
+                "reminder": "none" if self.reminded_at is None else "sent",
+            }
         elif self.status is AppointmentStatus.CANCELLED and self.cancelled_by is not None:
             payload["cancelled_by"] = self.cancelled_by.value
         return payload

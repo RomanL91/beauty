@@ -56,6 +56,10 @@ class AppointmentTimers(ABC):
         """Отметить визит состоявшимся в ``moment``."""
 
     @abstractmethod
+    async def remind_at(self, appointment_id: UUID, moment: datetime) -> None:
+        """Напомнить клиенту о визите в ``moment``."""
+
+    @abstractmethod
     async def cancel(self, appointment_id: UUID) -> None:
         """Отменить все ожидающие задачи записи."""
 

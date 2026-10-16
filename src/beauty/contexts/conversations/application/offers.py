@@ -6,9 +6,9 @@ from datetime import date, datetime, time
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from beauty.contexts.conversations.application.phrases import capitalize, day_phrase
 from beauty.contexts.conversations.application.ports import MasterCatalog, MasterInfo, ServiceInfo
 from beauty.contexts.conversations.domain.content import MessageContent, SlotOfferContent, TextContent
+from beauty.shared.application.phrases import capitalize, day_phrase
 from beauty.shared.domain.clock import Clock
 
 SEARCH_LIMIT = 40

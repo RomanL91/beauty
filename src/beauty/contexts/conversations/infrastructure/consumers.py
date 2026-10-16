@@ -64,5 +64,6 @@ class AppointmentConsumer(IntegrationEventHandler):
                 reason=payload.get("reason"),
                 reschedule_of=_uuid(payload.get("reschedule_of")),
                 offer_alternatives=bool(payload.get("offer_alternatives", False)),
+                event=envelope.routing_key.rsplit(".", 1)[-1],
             )
         )

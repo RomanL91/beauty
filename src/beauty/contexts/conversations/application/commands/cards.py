@@ -10,7 +10,6 @@ from uuid import UUID
 
 from beauty.contexts.conversations.application.commands.base import post, revise
 from beauty.contexts.conversations.application.offers import SlotOfferComposer
-from beauty.contexts.conversations.application.phrases import day_label, day_phrase, time_label
 from beauty.contexts.conversations.application.ports import MasterCatalog
 from beauty.contexts.conversations.application.uow import ConversationsUnitOfWork
 from beauty.contexts.conversations.domain.content import (
@@ -22,6 +21,7 @@ from beauty.contexts.conversations.domain.content import (
 from beauty.contexts.conversations.domain.conversation import Conversation, NeedsMaster
 from beauty.contexts.conversations.domain.message import Message
 from beauty.shared.application.cqrs import Command, Handler
+from beauty.shared.application.phrases import day_label, day_phrase, time_label
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
 
@@ -50,6 +50,7 @@ class SyncAppointment(Command[None]):
     reason: str | None = None
     reschedule_of: UUID | None = None
     offer_alternatives: bool = False
+    event: str = ""  # последнее слово ключа события Booking: requested, confirmed, reminder_due…
 
 
 class SyncAppointmentHandler(Handler[SyncAppointment, None]):
@@ -130,13 +131,27 @@ class SyncAppointmentHandler(Handler[SyncAppointment, None]):
 
     async def _note(self, message: SyncAppointment) -> SystemContent | None:
         start = datetime.fromisoformat(str(message.appointment["start"]))
+        if message.event == "reminder_due":
+            return self._reminder(message, start)
         if message.status == "confirmed":
             return SystemContent(
                 f"Запись подтверждена: {day_label(start.date())} в {time_label(start)}. Ждём вас!",
                 Tone.SUCCESS,
             )
-        if message.status != "cancelled":
-            return None
+        if message.status == "cancelled":
+            return await self._cancellation(message, start)
+        return None
+
+    def _reminder(self, message: SyncAppointment, start: datetime) -> SystemContent:
+        today = self._clock.now().astimezone(start.tzinfo).date()
+        service = message.appointment.get("service")
+        title = service.get("title") if isinstance(service, Mapping) else None
+        what = f" — {title}" if title else ""
+        return SystemContent(
+            f"Напоминаем: {day_phrase(start.date(), today)} в {time_label(start)}{what}. Ждём вас!", Tone.INFO
+        )
+
+    async def _cancellation(self, message: SyncAppointment, start: datetime) -> SystemContent | None:
         if message.reason in ("declined", "master_cancelled"):
             master = await self._catalog.by_id(message.master_id)
             who = master.name if master is not None else "Мастер"

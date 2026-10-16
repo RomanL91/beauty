@@ -98,6 +98,10 @@ class RecordingTimers(AppointmentTimers):
         """Запомнить."""
         self._store.timers[f"complete:{appointment_id}"] = moment
 
+    async def remind_at(self, appointment_id: UUID, moment: datetime) -> None:
+        """Запомнить."""
+        self._store.timers[f"remind:{appointment_id}"] = moment
+
     async def cancel(self, appointment_id: UUID) -> None:
         """Забыть все таймеры записи."""
         for key in [k for k in self._store.timers if k.endswith(str(appointment_id))]:

@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any, ClassVar
 from uuid import UUID
 
-from beauty.contexts.booking.application.commands import CompleteAppointment, ExpireAppointment
+from beauty.contexts.booking.application.commands import CompleteAppointment, ExpireAppointment, RemindVisit
 from beauty.contexts.booking.infrastructure.timers import ScheduledAppointmentTimers
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.infrastructure.scheduling.registry import JobHandler
@@ -38,3 +38,17 @@ class CompleteVisitJob(JobHandler):
     async def handle(self, payload: Mapping[str, Any]) -> None:
         """Отправить команду (она идемпотентна)."""
         await self._mediator.send(CompleteAppointment(UUID(str(payload["appointment_id"]))))
+
+
+class RemindVisitJob(JobHandler):
+    """Пора напомнить клиенту о визите."""
+
+    kind: ClassVar[str] = ScheduledAppointmentTimers.REMIND_KIND
+
+    def __init__(self, mediator: Mediator) -> None:
+        """Получить медиатор."""
+        self._mediator = mediator
+
+    async def handle(self, payload: Mapping[str, Any]) -> None:
+        """Отправить команду (она идемпотентна)."""
+        await self._mediator.send(RemindVisit(UUID(str(payload["appointment_id"]))))

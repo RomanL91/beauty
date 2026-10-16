@@ -20,6 +20,8 @@ from beauty.contexts.booking.application.commands import (
     DeclineAppointmentHandler,
     ExpireAppointment,
     ExpireAppointmentHandler,
+    RemindVisit,
+    RemindVisitHandler,
     RequestAppointment,
     RequestAppointmentHandler,
     RescheduleAppointment,
@@ -39,7 +41,7 @@ from beauty.contexts.booking.application.queries import (
     ListClientAppointments,
     ListClientAppointmentsHandler,
 )
-from beauty.contexts.booking.infrastructure.jobs import CompleteVisitJob, ExpireRequestJob
+from beauty.contexts.booking.infrastructure.jobs import CompleteVisitJob, ExpireRequestJob, RemindVisitJob
 from beauty.contexts.booking.infrastructure.mapping import BookingOrmMapper
 from beauty.contexts.booking.infrastructure.readers import (
     SqlBusyTimeReader,
@@ -113,6 +115,7 @@ class BookingModule:
         )
         mediator.register(ExpireAppointment, lambda: ExpireAppointmentHandler(self._uow(), clock))
         mediator.register(CompleteAppointment, lambda: CompleteAppointmentHandler(self._uow(), clock))
+        mediator.register(RemindVisit, lambda: RemindVisitHandler(self._uow(), clock))
         mediator.register(ListBusyIntervals, lambda: ListBusyIntervalsHandler(self._busy_reader))
         mediator.register(
             ListClientAppointments, lambda: ListClientAppointmentsHandler(self._client_reader, clock)
@@ -128,6 +131,7 @@ class BookingModule:
         """Обработчики задач планировщика."""
         registry.register(ExpireRequestJob(mediator))
         registry.register(CompleteVisitJob(mediator))
+        registry.register(RemindVisitJob(mediator))
 
     def api_router(self, mediator: Mediator, auth: BearerAuth) -> APIRouter:
         """HTTP-роутер записей клиента."""

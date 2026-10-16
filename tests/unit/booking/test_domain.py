@@ -191,3 +191,34 @@ def test_master_cannot_cancel_past_visit() -> None:
     appointment.confirm(NOW)
     with pytest.raises(AppointmentClosed):
         appointment.cancel_by_master(START + timedelta(hours=1))
+
+
+def test_reminder_a_day_before_or_two_hours_before() -> None:
+    """Напоминание: за сутки; подтвердили меньше чем за сутки — за 2 ч; совсем поздно — нет."""
+    appointment = requested()
+    appointment.confirm(NOW)
+    assert appointment.reminder_moment() == START - timedelta(hours=24)
+    soon = requested(start=NOW + timedelta(hours=5))
+    soon.confirm(NOW)
+    assert soon.reminder_moment() == NOW + timedelta(hours=3)
+    late = requested(start=NOW + timedelta(minutes=90))
+    late.confirm(NOW)
+    assert late.reminder_moment() is None
+    assert requested().reminder_moment() is None  # заявка ещё не подтверждена
+
+
+def test_remind_once_while_confirmed() -> None:
+    """Напоминание одно; снимок — reminder: sent; отменённой записи не напоминаем."""
+    appointment = requested()
+    appointment.confirm(NOW)
+    appointment.pull_events()
+    at = START - timedelta(hours=24)
+    assert appointment.remind(at) is True
+    (event,) = appointment.pull_events()
+    assert event.routing_key == "booking.appointment.reminder_due"
+    assert appointment.snapshot()["reminder"] == "sent"
+    assert appointment.remind(at) is False
+    cancelled = requested()
+    cancelled.confirm(NOW)
+    cancelled.cancel_by_master(NOW)
+    assert cancelled.remind(at) is False

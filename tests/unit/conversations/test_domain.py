@@ -7,7 +7,6 @@ from uuid import UUID
 
 import pytest
 
-from beauty.contexts.conversations.application.phrases import capitalize, day_label, day_phrase
 from beauty.contexts.conversations.domain.content import (
     BookingCardContent,
     MessageContent,
@@ -35,6 +34,7 @@ from beauty.contexts.conversations.domain.errors import (
 from beauty.contexts.conversations.domain.events import ClientMessagePosted, ConversationChanged, FeedAppended
 from beauty.contexts.conversations.domain.message import Message
 from beauty.contexts.conversations.infrastructure.serialization import dump_content, load_content
+from beauty.shared.application.phrases import capitalize, day_label, day_phrase
 
 NOW = datetime(2026, 10, 15, 12, 0, tzinfo=UTC)
 ALMATY = timezone(timedelta(hours=5))

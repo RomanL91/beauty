@@ -51,6 +51,7 @@ appointments = Table(
     Column("change_deadline_hours", Integer, nullable=False),
     Column("reschedule_of", UUID(as_uuid=True)),
     Column("confirmed_at", DateTime(timezone=True)),
+    Column("reminded_at", DateTime(timezone=True), comment="когда клиенту напомнили о визите"),
     Column("cancelled_at", DateTime(timezone=True)),
     Column("cancelled_by", _enum(CancelledBy, "cancelled_by")),
     Column("cancel_reason", _enum(CancelReason, "cancel_reason")),

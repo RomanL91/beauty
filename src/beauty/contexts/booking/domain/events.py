@@ -52,6 +52,13 @@ class AppointmentCancelled(AppointmentEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
+class AppointmentReminderDue(AppointmentEvent):
+    """Пора напомнить клиенту о визите."""
+
+    routing_key = "booking.appointment.reminder_due"
+
+
+@dataclass(frozen=True, kw_only=True)
 class AppointmentCompleted(AppointmentEvent):
     """Визит состоялся."""
 

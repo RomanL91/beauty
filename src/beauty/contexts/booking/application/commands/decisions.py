@@ -43,6 +43,9 @@ class ConfirmAppointmentHandler(_Decision, Handler[ConfirmAppointment, Appointme
             if appointment.confirm(now):
                 await uow.timers.cancel(appointment.id)
                 await uow.timers.complete_at(appointment.id, appointment.slot.end)
+                reminder = appointment.reminder_moment()
+                if reminder is not None:
+                    await uow.timers.remind_at(appointment.id, reminder)
                 if appointment.reschedule_of is not None:
                     previous = await uow.appointments.get(appointment.reschedule_of)
                     if previous is not None and previous.supersede(now):
@@ -138,6 +141,24 @@ class ExpireAppointmentHandler(_Decision, Handler[ExpireAppointment, None]):
         async with self._uow as uow:
             appointment = await uow.appointments.get(message.appointment_id)
             if appointment is not None and appointment.expire(self._clock.now()):
+                await uow.commit()
+
+
+@dataclass(frozen=True, slots=True)
+class RemindVisit(Command[None]):
+    """Планировщик: пора напомнить клиенту о визите."""
+
+    appointment_id: UUID
+
+
+class RemindVisitHandler(_Decision, Handler[RemindVisit, None]):
+    """Напоминание (идемпотентно: отменённая или уже напомненная запись не трогается)."""
+
+    async def handle(self, message: RemindVisit) -> None:
+        """Напомнить."""
+        async with self._uow as uow:
+            appointment = await uow.appointments.get(message.appointment_id)
+            if appointment is not None and appointment.remind(self._clock.now()):
                 await uow.commit()
 
 
