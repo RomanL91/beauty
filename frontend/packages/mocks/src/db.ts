@@ -300,6 +300,15 @@ export class MockDb {
       return this.#pickSlot(input.client_id, input.offer_id, input.start);
     if (input.kind === 'book_slot')
       return this.#bookSlot(input.client_id, input.service_id, input.start);
+    if (input.kind === 'request_slots') {
+      const asked = text(
+        base('client', new Date().toISOString(), { clientId: input.client_id }),
+        input.text,
+      );
+      this.#pushClient(asked);
+      this.#later(() => this.#offerSlots(this.#service(input.service_id ?? null)));
+      return asked;
+    }
 
     const message = text(
       base('client', new Date().toISOString(), { clientId: input.client_id }),
@@ -459,6 +468,11 @@ export class MockDb {
       this.page.services.find((s) =>
         question.toLowerCase().includes(s.title.toLowerCase().split(' ').slice(-1)[0]!),
       ) ?? SERVICES.backMassage;
+    this.#offerSlots(service);
+  }
+
+  /** Окна на ближайший день с окнами (как администратор записи на бэкенде). */
+  #offerSlots(service: Service): void {
     const slots = this.listSlots(DEMO_SLUG, { service: service.id, limit: 30 });
     const firstDate = slots[0]?.start.slice(0, 10);
     const sameDay = slots.filter((s) => s.start.startsWith(firstDate ?? '')).slice(0, 4);

@@ -133,7 +133,9 @@ POST /api/v1/auth/session/refresh                → 200   (сессия вос�
 
 Вопросы 1–4 решены — см. `docs/tasks/backend-iteration-1-tenancy.md`, раздел 0
 (problem+json везде; SSE принимает Bearer; журнал `Last-Event-ID` 24 ч и `event: reset`;
-SSO через `BEAUTY_AUTH__COOKIE_DOMAIN=.beautiful.kz`).
+SSO через `BEAUTY_AUTH__COOKIE_DOMAIN=.beautiful.kz`). Вопросы 7 (голосовые — подписанные
+ссылки), 11 (занятое окно — 201 и новое `slot_offer`) и 16 (`hold_until` = `auto_decline_at`)
+решены в `docs/tasks/backend-iteration-2-booking.md`, раздел 0.
 
 1. **Формат ошибок identity**: переводим на problem+json (тогда `ErrorEnvelope` уходит из
    контракта) или оставляем?

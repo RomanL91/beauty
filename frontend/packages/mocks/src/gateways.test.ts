@@ -145,7 +145,7 @@ describe('HttpConversationGateway', () => {
 
     const offer = await waitFor(() =>
       events
-        .map((e) => e.message)
+        .flatMap((e) => ('message' in e ? [e.message] : []))
         .find(
           (m): m is MessageOf<'slot_offer'> => m.kind === 'slot_offer' && m.selected_start === null,
         ),
@@ -160,7 +160,7 @@ describe('HttpConversationGateway', () => {
 
     const card = await waitFor(() =>
       events
-        .map((e) => e.message)
+        .flatMap((e) => ('message' in e ? [e.message] : []))
         .find((m): m is MessageOf<'booking_card'> => m.kind === 'booking_card'),
     );
     stop();
@@ -193,10 +193,12 @@ describe('HttpConversationGateway', () => {
     });
     expect(voice.kind).toBe('voice');
     const updated = await waitFor(() =>
-      events.find((e) => e.type === 'message.updated' && e.message.id === voice.id),
+      events
+        .flatMap((e) => (e.type === 'message.updated' ? [e.message] : []))
+        .find((m) => m.id === voice.id),
     );
     stop();
-    expect(updated.message).toMatchObject({ kind: 'voice', transcript: expect.any(String) });
+    expect(updated).toMatchObject({ kind: 'voice', transcript: expect.any(String) });
   });
 });
 

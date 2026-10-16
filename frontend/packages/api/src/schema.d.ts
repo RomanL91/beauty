@@ -255,7 +255,12 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Отменить запись */
+    /**
+     * Отменить запись
+     * @description Неподтверждённую заявку можно отозвать до начала визита, подтверждённую запись —
+     *     не позднее `booking_rules.change_deadline_hours` (иначе 409 `change_deadline_passed`).
+     *     Чужая запись — 404.
+     */
     post: operations['cancelAppointment'];
     delete?: never;
     options?: never;
@@ -276,7 +281,9 @@ export interface paths {
     put?: never;
     /**
      * Перенести запись
-     * @description Новая заявка на указанное время; старая освобождается после подтверждения.
+     * @description Новая заявка на указанное время (в переписке появится её карточка); прежняя запись
+     *     остаётся в силе и освобождается, только когда мастер подтвердит перенос. Время,
+     *     пересекающееся с прежней записью, — 409 `slot_taken`.
      */
     post: operations['rescheduleAppointment'];
     delete?: never;
@@ -574,7 +581,10 @@ export interface components {
        * @description Машиночитаемый код ошибки. Например: `validation_error` (422),
        *     `challenge_not_found` (404), `challenge_expired` (410), `invalid_session` (401),
        *     `session_reuse_detected` (401), `master_not_found` (404), `service_not_found` (404),
-       *     `invalid_slot_window` (422).
+       *     `invalid_slot_window` (422), `conversation_not_found` (404), `appointment_not_found` (404),
+       *     `offer_not_found` (404), `offer_already_used` (409), `slot_not_offered` (422),
+       *     `slot_unavailable` / `slot_taken` (409), `change_deadline_passed` (409),
+       *     `appointment_closed` (409), `invalid_voice` (422), `voice_too_large` (413).
        */
       code?: string;
       /** @description Ошибки полей для 422. */
@@ -974,10 +984,28 @@ export interface components {
       /** Format: date-time */
       start: string;
     };
+    /**
+     * @description «Хочу записаться — какое время свободно?» (со страницы мастера, услуга выбрана
+     *     или нет). В ленте — `text` клиента, администратор ответит `slot_offer` на
+     *     ближайший день с окнами (без услуги — по самой короткой).
+     */
+    RequestSlotsInput: {
+      /** Format: uuid */
+      client_id: string;
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      kind: 'request_slots';
+      text: string;
+      /** Format: uuid */
+      service_id?: string;
+    };
     ClientMessageInput:
       | components['schemas']['TextInput']
       | components['schemas']['SlotPickInput']
-      | components['schemas']['BookSlotInput'];
+      | components['schemas']['BookSlotInput']
+      | components['schemas']['RequestSlotsInput'];
     VoiceUpload: {
       /** Format: uuid */
       client_id: string;
@@ -1092,6 +1120,17 @@ export interface components {
       type: 'message.created';
       message: components['schemas']['Message'];
     };
+    /**
+     * @description `event: reset` — присланный `Last-Event-ID` старше журнала потока (журнал хранится
+     *     24 ч): досылать нечего, клиент перечитывает историю. `id` кадра — текущая позиция.
+     */
+    StreamResetEvent: {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      type: 'reset';
+    };
     /** @description `event: message.updated` — изменилось сообщение (статус заявки в карточке, выбор, прогресс поручения). */
     MessageUpdatedEvent: {
       /**
@@ -1102,7 +1141,9 @@ export interface components {
       message: components['schemas']['Message'];
     };
     ConversationEvent:
-      components['schemas']['MessageCreatedEvent'] | components['schemas']['MessageUpdatedEvent'];
+      | components['schemas']['MessageCreatedEvent']
+      | components['schemas']['MessageUpdatedEvent']
+      | components['schemas']['StreamResetEvent'];
     /** @description `event: message.created` / `message.updated`; `conversation_id = null` — лента поручений. */
     MasterMessageEvent: {
       /** @enum {string} */
@@ -1436,6 +1477,7 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      404: components['responses']['Problem'];
     };
   };
   listConversationMessages: {
@@ -1549,7 +1591,9 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      404: components['responses']['Problem'];
       409: components['responses']['Problem'];
+      422: components['responses']['Problem'];
     };
   };
   rescheduleAppointment: {
@@ -1580,7 +1624,9 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      404: components['responses']['Problem'];
       409: components['responses']['Problem'];
+      422: components['responses']['Problem'];
     };
   };
   getMe: {

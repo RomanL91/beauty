@@ -6,8 +6,9 @@ info:
   description: |
     Источник правды для фронтенда и бэкенда.
 
-    * Реализовано бэкендом: **auth** (`contexts/identity`) и **public**
-      (`contexts/tenancy`). Остальные разделы фронтенд пока получает от моков.
+    * Реализовано бэкендом: **auth** (`contexts/identity`), **public**
+      (`contexts/tenancy`) и **client** (`contexts/conversations`, `contexts/booking`).
+      Остальные разделы фронтенд пока получает от моков.
     * Ошибки всех эндпоинтов — RFC 9457 `application/problem+json` с расширением
       `code` (машиночитаемый код; тексты `detail` могут меняться).
 
@@ -253,6 +254,8 @@ paths:
               schema: { $ref: '#/components/schemas/ClientConversation' }
         '401':
           $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
   /conversations/{conversation_id}/messages:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
@@ -330,6 +333,10 @@ paths:
       tags: [client]
       operationId: cancelAppointment
       summary: Отменить запись
+      description: |
+        Неподтверждённую заявку можно отозвать до начала визита, подтверждённую запись —
+        не позднее `booking_rules.change_deadline_hours` (иначе 409 `change_deadline_passed`).
+        Чужая запись — 404.
       requestBody:
         content:
           application/json:
@@ -345,7 +352,11 @@ paths:
               schema: { $ref: '#/components/schemas/Appointment' }
         '401':
           $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
         '409':
+          $ref: '#/components/responses/Problem'
+        '422':
           $ref: '#/components/responses/Problem'
   /appointments/{appointment_id}/reschedule:
     parameters:
@@ -354,7 +365,10 @@ paths:
       tags: [client]
       operationId: rescheduleAppointment
       summary: Перенести запись
-      description: Новая заявка на указанное время; старая освобождается после подтверждения.
+      description: |
+        Новая заявка на указанное время (в переписке появится её карточка); прежняя запись
+        остаётся в силе и освобождается, только когда мастер подтвердит перенос. Время,
+        пересекающееся с прежней записью, — 409 `slot_taken`.
       requestBody:
         required: true
         content:
@@ -372,7 +386,11 @@ paths:
               schema: { $ref: '#/components/schemas/Appointment' }
         '401':
           $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
         '409':
+          $ref: '#/components/responses/Problem'
+        '422':
           $ref: '#/components/responses/Problem'
 
   /me:
@@ -769,7 +787,10 @@ components:
             Машиночитаемый код ошибки. Например: `validation_error` (422),
             `challenge_not_found` (404), `challenge_expired` (410), `invalid_session` (401),
             `session_reuse_detected` (401), `master_not_found` (404), `service_not_found` (404),
-            `invalid_slot_window` (422).
+            `invalid_slot_window` (422), `conversation_not_found` (404), `appointment_not_found` (404),
+            `offer_not_found` (404), `offer_already_used` (409), `slot_not_offered` (422),
+            `slot_unavailable` / `slot_taken` (409), `change_deadline_passed` (409),
+            `appointment_closed` (409), `invalid_voice` (422), `voice_too_large` (413).
         errors:
           type: array
           description: Ошибки полей для 422.
@@ -1143,17 +1164,31 @@ components:
         kind: { type: string, const: book_slot }
         service_id: { type: string, format: uuid }
         start: { type: string, format: date-time }
+    RequestSlotsInput:
+      type: object
+      description: |
+        «Хочу записаться — какое время свободно?» (со страницы мастера, услуга выбрана
+        или нет). В ленте — `text` клиента, администратор ответит `slot_offer` на
+        ближайший день с окнами (без услуги — по самой короткой).
+      required: [client_id, kind, text]
+      properties:
+        client_id: { type: string, format: uuid }
+        kind: { type: string, const: request_slots }
+        text: { type: string, minLength: 1, maxLength: 500 }
+        service_id: { type: string, format: uuid }
     ClientMessageInput:
       oneOf:
         - $ref: '#/components/schemas/TextInput'
         - $ref: '#/components/schemas/SlotPickInput'
         - $ref: '#/components/schemas/BookSlotInput'
+        - $ref: '#/components/schemas/RequestSlotsInput'
       discriminator:
         propertyName: kind
         mapping:
           text: '#/components/schemas/TextInput'
           slot_pick: '#/components/schemas/SlotPickInput'
           book_slot: '#/components/schemas/BookSlotInput'
+          request_slots: '#/components/schemas/RequestSlotsInput'
     VoiceUpload:
       type: object
       required: [client_id, audio, duration]
@@ -1297,6 +1332,14 @@ components:
       properties:
         type: { type: string, const: message.created }
         message: { $ref: '#/components/schemas/Message' }
+    StreamResetEvent:
+      type: object
+      description: |
+        `event: reset` — присланный `Last-Event-ID` старше журнала потока (журнал хранится
+        24 ч): досылать нечего, клиент перечитывает историю. `id` кадра — текущая позиция.
+      required: [type]
+      properties:
+        type: { type: string, const: reset }
     MessageUpdatedEvent:
       type: object
       description: "`event: message.updated` — изменилось сообщение (статус заявки в карточке, выбор, прогресс поручения)."
@@ -1308,11 +1351,13 @@ components:
       oneOf:
         - $ref: '#/components/schemas/MessageCreatedEvent'
         - $ref: '#/components/schemas/MessageUpdatedEvent'
+        - $ref: '#/components/schemas/StreamResetEvent'
       discriminator:
         propertyName: type
         mapping:
           message.created: '#/components/schemas/MessageCreatedEvent'
           message.updated: '#/components/schemas/MessageUpdatedEvent'
+          reset: '#/components/schemas/StreamResetEvent'
     MasterMessageEvent:
       type: object
       description: "`event: message.created` / `message.updated`; `conversation_id = null` — лента поручений."

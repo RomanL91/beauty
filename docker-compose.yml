@@ -1,4 +1,4 @@
-# Локальное окружение: PostgreSQL, RabbitMQ, четыре процесса приложения и web (nginx с двумя PWA).
+# Локальное окружение: PostgreSQL, RabbitMQ, процессы приложения и web (nginx с двумя PWA).
 x-app: &app
   build: .
   env_file: .env
@@ -65,6 +65,11 @@ services:
   scheduler:
     <<: *app
     command: ["scheduler"]
+
+  # Консьюмеры событий: администратор записи и карточки заявок в переписке.
+  worker:
+    <<: *app
+    command: ["worker"]
 
   # PWA клиента (http://<slug>.localhost:8080) и мастера (http://master.localhost:8080).
   web:

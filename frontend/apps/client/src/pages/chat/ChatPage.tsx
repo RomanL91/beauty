@@ -213,9 +213,12 @@ function useBookingIntent(chat: ReturnType<typeof useClientConversation>, master
       const label = `Хочу записаться: ${service.title.toLowerCase()}, ${formatDayShort(intent.start, master.timezone).toLowerCase()} в ${formatTime(intent.start, master.timezone)}`;
       chat.bookSlot(service.id, intent.start, label);
     } else if (service) {
-      chat.sendText(`Хочу записаться: ${service.title.toLowerCase()}. Какое время свободно?`);
+      chat.requestSlots(
+        `Хочу записаться: ${service.title.toLowerCase()}. Какое время свободно?`,
+        service.id,
+      );
     } else {
-      chat.sendText('Хочу записаться. Какое время свободно?');
+      chat.requestSlots('Хочу записаться. Какое время свободно?', null);
     }
     void navigate('/chat', { replace: true });
   }, [ready, params, master, chat, navigate]);
