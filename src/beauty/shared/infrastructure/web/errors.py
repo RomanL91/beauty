@@ -34,6 +34,7 @@ _DEFAULT_STATUSES: Mapping[str, int] = {
     "invariant_violation": 422,
     "domain_error": 422,
     "application_error": 400,
+    "invalid_session": 401,
 }
 
 

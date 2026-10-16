@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from collections.abc import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncSessionTransaction, async_sessionmaker
 
 from beauty.shared.application.uow import UnitOfWork
+from beauty.shared.domain.events import DomainEvent
 from beauty.shared.infrastructure.db.errors import DatabaseErrorTranslator
 from beauty.shared.infrastructure.db.scope import TransactionScope
 from beauty.shared.infrastructure.db.tracker import AggregateTracker
@@ -75,7 +77,9 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         session = self.session
         try:
             await session.flush()
-            await self._outbox_writer.write(session, self._tracker.collect_events())
+            events = self._tracker.collect_events()
+            await self._before_outbox(session, events)
+            await self._outbox_writer.write(session, events)
             if self._owns_session:
                 await session.commit()
             elif self._savepoint is not None:
@@ -86,6 +90,9 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
                 raise
             raise translated from error
         self._completed = True
+
+    async def _before_outbox(self, session: AsyncSession, events: Sequence[DomainEvent]) -> None:
+        """Хук: записать производные данные событий (журналы) той же транзакцией."""
 
     async def rollback(self) -> None:
         """Откатить незавершённую работу."""

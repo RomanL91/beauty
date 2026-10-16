@@ -1,17 +1,30 @@
-"""Командная строка: ``beauty api | bot | relay | scheduler | seed-demo``."""
+"""Командная строка: ``beauty api | bot | relay | scheduler | worker | seed-demo | appointment``."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import signal
 from collections.abc import Callable, Mapping
+from uuid import UUID
 
 from beauty.bootstrap.container import ApplicationContainer
 from beauty.bootstrap.demo import DemoMasterSeeder
+from beauty.contexts.booking.application.commands import (
+    AppointmentPayload,
+    ConfirmAppointment,
+    DeclineAppointment,
+)
 from beauty.entrypoints.api import ApiServerWorker
-from beauty.entrypoints.workers import OutboxRelayWorker, SchedulerWorker, TelegramBotWorker, Worker
+from beauty.entrypoints.workers import (
+    EventConsumersWorker,
+    OutboxRelayWorker,
+    SchedulerWorker,
+    TelegramBotWorker,
+    Worker,
+)
 from beauty.shared.infrastructure.config import Settings
 
 
@@ -23,6 +36,7 @@ class ProcessLauncher:
         "bot": TelegramBotWorker,
         "relay": OutboxRelayWorker,
         "scheduler": SchedulerWorker,
+        "worker": EventConsumersWorker,
     }
 
     def __init__(self, settings: Settings) -> None:
@@ -41,6 +55,23 @@ class ProcessLauncher:
     async def _seed_demo(container: ApplicationContainer) -> None:
         try:
             await DemoMasterSeeder(container.mediator).seed()
+        finally:
+            await container.aclose()
+
+    def decide_appointment(self, action: str, appointment_id: UUID) -> None:
+        """Подтвердить или отклонить заявку от имени мастера (до кабинета мастера)."""
+        container = ApplicationContainer(self._settings, process_name="beauty-cli")
+        payload = asyncio.run(self._decide(container, action, appointment_id))
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+    @staticmethod
+    async def _decide(
+        container: ApplicationContainer, action: str, appointment_id: UUID
+    ) -> AppointmentPayload:
+        try:
+            if action == "confirm":
+                return await container.mediator.send(ConfirmAppointment(appointment_id))
+            return await container.mediator.send(DeclineAppointment(appointment_id))
         finally:
             await container.aclose()
 
@@ -65,12 +96,20 @@ def main() -> None:
     settings = Settings()
     launcher = ProcessLauncher(settings)
     parser = argparse.ArgumentParser(prog="beauty", description="Процессы сервиса Beauty")
-    parser.add_argument("role", choices=(*launcher.roles(), "seed-demo"))
-    role = parser.parse_args().role
-    if role == "seed-demo":
+    commands = parser.add_subparsers(dest="command", required=True)
+    for role in launcher.roles():
+        commands.add_parser(role, help=f"процесс {role}")
+    commands.add_parser("seed-demo", help="создать или обновить демо-мастера")
+    appointment = commands.add_parser("appointment", help="решение мастера по заявке (до кабинета)")
+    appointment.add_argument("action", choices=("confirm", "decline"))
+    appointment.add_argument("appointment_id", type=UUID)
+    arguments = parser.parse_args()
+    if arguments.command == "seed-demo":
         launcher.seed_demo()
+    elif arguments.command == "appointment":
+        launcher.decide_appointment(arguments.action, arguments.appointment_id)
     else:
-        launcher.launch(role)
+        launcher.launch(arguments.command)
 
 
 if __name__ == "__main__":

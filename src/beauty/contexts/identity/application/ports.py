@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
+from beauty.contexts.identity.application.dto import ClientContactView
 from beauty.contexts.identity.domain.value_objects import AuthNonce
 
 
@@ -58,3 +59,11 @@ class ChallengeStatusReader(ABC):
     @abstractmethod
     async def read(self, challenge_id: UUID) -> ChallengeStatusRecord | None:
         """Прочитать статус входа."""
+
+
+class ClientContactReader(ABC):
+    """Контакты клиентов (SQL → DTO)."""
+
+    @abstractmethod
+    async def read(self, account_id: UUID) -> ClientContactView | None:
+        """Контакт клиента или ``None``."""

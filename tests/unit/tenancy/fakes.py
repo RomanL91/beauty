@@ -13,6 +13,7 @@ from beauty.contexts.tenancy.application.ports import (
     BusyTimeSource,
     MasterDirectory,
     MasterPageReader,
+    MasterRef,
 )
 from beauty.contexts.tenancy.application.uow import TenancyUnitOfWork
 from beauty.contexts.tenancy.domain.master import Master
@@ -85,15 +86,15 @@ class StoreReaders(MasterPageReader, AvailabilityReader, MasterDirectory):
         """Связать с хранилищем."""
         self._store = store
 
-    def _published(self, slug: str) -> Master | None:
+    def _published(self, ref: MasterRef) -> Master | None:
         for master in self._store.masters.values():
-            if master.slug.value == slug and master.is_published:
+            if ref in (master.id, master.slug.value) and master.is_published:
                 return master
         return None
 
-    async def read(self, slug: str) -> MasterPageView | None:  # type: ignore[override]
+    async def read(self, master_ref: MasterRef) -> MasterPageView | None:  # type: ignore[override]
         """Страница (для MasterPageReader)."""
-        master = self._published(slug)
+        master = self._published(master_ref)
         if master is None:
             return None
         return MasterPageView(
@@ -117,9 +118,9 @@ class StoreReaders(MasterPageReader, AvailabilityReader, MasterDirectory):
             change_deadline_hours=master.booking_rules.change_deadline_hours,
         )
 
-    async def availability(self, slug: str) -> AvailabilityRecord | None:
+    async def availability(self, master_ref: MasterRef) -> AvailabilityRecord | None:
         """Снимок доступности."""
-        master = self._published(slug)
+        master = self._published(master_ref)
         if master is None:
             return None
         return AvailabilityRecord(
@@ -152,9 +153,9 @@ class AvailabilityAdapter(AvailabilityReader):
         """Обернуть читателей."""
         self._readers = readers
 
-    async def read(self, slug: str) -> AvailabilityRecord | None:
+    async def read(self, master: MasterRef) -> AvailabilityRecord | None:
         """Снимок."""
-        return await self._readers.availability(slug)
+        return await self._readers.availability(master)
 
 
 class FixedBusy(BusyTimeSource):

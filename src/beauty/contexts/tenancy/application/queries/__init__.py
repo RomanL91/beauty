@@ -1,6 +1,11 @@
 """Запросы контекста Tenancy."""
 
-from beauty.contexts.tenancy.application.queries.free_slots import ListFreeSlots, ListFreeSlotsHandler
+from beauty.contexts.tenancy.application.queries.free_slots import (
+    CheckBookableSlot,
+    CheckBookableSlotHandler,
+    ListFreeSlots,
+    ListFreeSlotsHandler,
+)
 from beauty.contexts.tenancy.application.queries.master_page import (
     FindMasterId,
     FindMasterIdHandler,
@@ -11,6 +16,8 @@ from beauty.contexts.tenancy.application.queries.master_page import (
 )
 
 __all__ = [
+    "CheckBookableSlot",
+    "CheckBookableSlotHandler",
     "FindMasterId",
     "FindMasterIdHandler",
     "GetMasterPage",

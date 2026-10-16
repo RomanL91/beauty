@@ -1,4 +1,4 @@
-"""Долгоживущие процессы: бот, outbox relay, планировщик задач."""
+"""Долгоживущие процессы: бот, outbox relay, планировщик задач, консьюмеры событий."""
 
 from __future__ import annotations
 
@@ -12,10 +12,13 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
 from beauty.bootstrap.container import ApplicationContainer
+from beauty.shared.infrastructure.inbox.guard import InboxGuard, InboxIdempotentHandler
+from beauty.shared.infrastructure.messaging.consumer import RabbitConsumer
 from beauty.shared.infrastructure.outbox.listener import PostgresNotificationListener
 from beauty.shared.infrastructure.outbox.relay import OutboxRelay
 from beauty.shared.infrastructure.outbox.table import OUTBOX_NOTIFY_CHANNEL
 from beauty.shared.infrastructure.scheduling.poller import ScheduledJobPoller
+from beauty.shared.infrastructure.scheduling.scheduler import JobScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +98,45 @@ class SchedulerWorker(Worker):
             max_attempts=settings.max_attempts,
         )
         try:
+            await self._ensure_startup_jobs()
             await poller.run(stop)
         finally:
+            await container.aclose()
+
+    async def _ensure_startup_jobs(self) -> None:
+        """Поставить периодические задачи (повторная постановка идемпотентна)."""
+        container = self._container
+        async with container.session_factory() as session, session.begin():
+            scheduler = JobScheduler(session, container.id_generator)
+            for request in container.startup_jobs():
+                await scheduler.schedule(request)
+
+
+class EventConsumersWorker(Worker):
+    """Консьюмеры интеграционных событий контекстов (inbox, повторы, DLQ)."""
+
+    async def run(self, stop: asyncio.Event) -> None:
+        """Потреблять очереди до остановки."""
+        container = self._container
+        guard = InboxGuard()
+        consumers = [
+            RabbitConsumer(
+                container.rabbit,
+                container.topology,
+                subscription.spec,
+                InboxIdempotentHandler(
+                    subscription.handler, container.transaction_scope, guard, subscription.spec.name
+                ),
+                container.envelope_codec,
+                prefetch=container.settings.rabbit.prefetch,
+            )
+            for subscription in container.event_subscriptions()
+        ]
+        try:
+            for consumer in consumers:
+                await consumer.start()
+            await stop.wait()
+        finally:
+            for consumer in consumers:
+                await consumer.stop()
             await container.aclose()

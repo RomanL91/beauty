@@ -82,6 +82,7 @@ class HttpSettings(BaseModel):
     api_prefix: str = "/api/v1"
     cors_origin_regex: str = r"^https://([a-z0-9-]+\.)?beautiful\.kz$"
     sse_poll_interval: float = 5.0
+    sse_max_duration: float = 600.0
 
 
 class Settings(BaseSettings):

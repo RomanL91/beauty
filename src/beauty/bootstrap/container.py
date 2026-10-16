@@ -13,6 +13,15 @@ from functools import cached_property
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from beauty.bootstrap.adapters import (
+    BookedTime,
+    BookingFrontDesk,
+    IdentityClientDirectory,
+    TenancyMasterCatalog,
+    TenancySlotPolicy,
+)
+from beauty.contexts.booking.module import BookingDependencies, BookingModule
+from beauty.contexts.conversations.module import ConversationsDependencies, ConversationsModule
 from beauty.contexts.identity.module import IdentityDependencies, IdentityModule
 from beauty.contexts.tenancy.module import TenancyDependencies, TenancyModule
 from beauty.shared.application.mediator import Mediator
@@ -25,10 +34,16 @@ from beauty.shared.infrastructure.db.scope import TransactionScope
 from beauty.shared.infrastructure.messaging.codec import EnvelopeCodec
 from beauty.shared.infrastructure.messaging.connection import RabbitConnection
 from beauty.shared.infrastructure.messaging.publisher import RabbitEventPublisher
+from beauty.shared.infrastructure.messaging.subscription import EventSubscription
 from beauty.shared.infrastructure.messaging.topology import TopologyDeclarer
 from beauty.shared.infrastructure.outbox.writer import OutboxWriter
+from beauty.shared.infrastructure.realtime.bridge import TopicResolver
 from beauty.shared.infrastructure.realtime.hub import RealtimeHub
 from beauty.shared.infrastructure.scheduling.registry import JobHandlerRegistry
+from beauty.shared.infrastructure.scheduling.scheduler import JobRequest
+from beauty.shared.infrastructure.storage.local import LocalFileStorage
+from beauty.shared.infrastructure.storage.signing import SignedMediaUrls
+from beauty.shared.infrastructure.web.auth import BearerAuth
 from beauty.shared.infrastructure.web.errors import HttpErrorMapper
 
 
@@ -76,6 +91,8 @@ class ApplicationContainer:
         mediator = Mediator(middlewares=(LoggingMiddleware(), ConcurrencyRetryMiddleware()))
         self.identity.register(mediator, self.http_errors)
         self.tenancy.register(mediator, self.http_errors)
+        self.booking.register(mediator, self.http_errors)
+        self.conversations.register(mediator, self.http_errors)
         return mediator
 
     @cached_property
@@ -110,8 +127,41 @@ class ApplicationContainer:
 
     @cached_property
     def job_handlers(self) -> JobHandlerRegistry:
-        """Реестр обработчиков отложенных задач (контексты добавят свои)."""
-        return JobHandlerRegistry()
+        """Реестр обработчиков отложенных задач всех контекстов."""
+        registry = JobHandlerRegistry()
+        self.booking.register_jobs(registry, self.mediator)
+        self.conversations.register_jobs(registry)
+        return registry
+
+    def startup_jobs(self) -> tuple[JobRequest, ...]:
+        """Периодические задачи, которые планировщик ставит при старте."""
+        return self.conversations.startup_jobs()
+
+    def event_subscriptions(self) -> tuple[EventSubscription, ...]:
+        """Консьюмеры интеграционных событий всех контекстов."""
+        return self.conversations.subscriptions(self.mediator)
+
+    def realtime_resolvers(self) -> tuple[TopicResolver, ...]:
+        """Realtime-топики всех контекстов (для моста в процессе API)."""
+        return (*self.identity.realtime_resolvers(), *self.conversations.realtime_resolvers())
+
+    @cached_property
+    def file_storage(self) -> LocalFileStorage:
+        """Файловое хранилище (голосовые)."""
+        return LocalFileStorage(self.settings.storage.root, self.id_generator)
+
+    @cached_property
+    def media_urls(self) -> SignedMediaUrls:
+        """Подписанные ссылки на файлы."""
+        return SignedMediaUrls(
+            self.settings.auth.jwt_secret.get_secret_value(), self.settings.http.api_prefix, self.clock
+        )
+
+    @cached_property
+    def client_auth(self) -> BearerAuth:
+        """Аутентификация клиента по access-токену Identity."""
+        verifier = self.identity.access_token_verifier
+        return BearerAuth(lambda token: verifier.verify(token).account_id)
 
     @cached_property
     def identity(self) -> IdentityModule:
@@ -138,6 +188,40 @@ class ApplicationContainer:
                 outbox_writer=self.outbox_writer,
                 clock=self.clock,
                 id_generator=self.id_generator,
+                busy_time=BookedTime(lambda: self.mediator),
+            )
+        )
+
+    @cached_property
+    def booking(self) -> BookingModule:
+        """Модуль Booking."""
+        return BookingModule(
+            BookingDependencies(
+                session_factory=self.session_factory,
+                outbox_writer=self.outbox_writer,
+                clock=self.clock,
+                id_generator=self.id_generator,
+                slot_policy=TenancySlotPolicy(lambda: self.mediator),
+                clients=IdentityClientDirectory(lambda: self.mediator),
+            )
+        )
+
+    @cached_property
+    def conversations(self) -> ConversationsModule:
+        """Модуль Conversations."""
+        return ConversationsModule(
+            ConversationsDependencies(
+                session_factory=self.session_factory,
+                outbox_writer=self.outbox_writer,
+                clock=self.clock,
+                id_generator=self.id_generator,
+                hub=self.realtime_hub,
+                storage=self.file_storage,
+                media=self.media_urls,
+                catalog=TenancyMasterCatalog(lambda: self.mediator),
+                booking=BookingFrontDesk(lambda: self.mediator),
+                poll_interval=self.settings.http.sse_poll_interval,
+                stream_max_duration=self.settings.http.sse_max_duration,
             )
         )
 

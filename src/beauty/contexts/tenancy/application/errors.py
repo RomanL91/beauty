@@ -27,3 +27,9 @@ class InvalidSlotWindowError(ApplicationError):
     """Некорректные границы поиска окон."""
 
     code = "invalid_slot_window"
+
+
+class SlotUnavailableError(ConflictError):
+    """Это время недоступно для записи (занято, вне расписания или правил)."""
+
+    code = "slot_unavailable"

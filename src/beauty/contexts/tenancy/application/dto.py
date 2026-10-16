@@ -54,3 +54,16 @@ class SlotView:
     start: datetime
     end: datetime
     service_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class BookableSlotView:
+    """Проверенное окно для заявки: снимок услуги и правил мастера."""
+
+    master_id: UUID
+    service: ServiceView
+    start: datetime
+    end: datetime
+    timezone: str
+    confirm_within_hours: int
+    change_deadline_hours: int

@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from beauty.contexts.tenancy.application.dto import MasterPageView, PhotoView, ServiceView
@@ -22,6 +22,7 @@ from beauty.contexts.tenancy.application.ports import (
     BookableService,
     MasterDirectory,
     MasterPageReader,
+    MasterRef,
 )
 from beauty.contexts.tenancy.domain.errors import InvalidMasterSlug
 from beauty.contexts.tenancy.domain.slots import Availability
@@ -35,6 +36,18 @@ def _slug(raw: str) -> MasterSlug | None:
         return MasterSlug(raw)
     except InvalidMasterSlug:
         return None
+
+
+def _published(master: MasterRef) -> ColumnElement[bool] | None:
+    """Условие «опубликованный мастер с этим slug или id»; ``None`` — заведомо не найдётся."""
+    if isinstance(master, UUID):
+        key: ColumnElement[bool] = masters.c.id == master
+    else:
+        valid = _slug(master)
+        if valid is None:
+            return None
+        key = masters.c.slug == valid
+    return key & (masters.c.status == MasterStatus.PUBLISHED)
 
 
 class _Reader:
@@ -62,12 +75,12 @@ class _Reader:
 class SqlMasterPageReader(_Reader, MasterPageReader):
     """Страница опубликованного мастера."""
 
-    async def read(self, slug: str) -> MasterPageView | None:
+    async def read(self, master: MasterRef) -> MasterPageView | None:
         """Профиль, активные услуги, фото и правила."""
-        valid = _slug(slug)
-        if valid is None:
+        condition = _published(master)
+        if condition is None:
             return None
-        statement = select(masters).where(masters.c.slug == valid, masters.c.status == MasterStatus.PUBLISHED)
+        statement = select(masters).where(condition)
         async with self._session_factory() as session:
             row = (await session.execute(statement)).one_or_none()
             if row is None:
@@ -103,10 +116,10 @@ class SqlMasterPageReader(_Reader, MasterPageReader):
 class SqlAvailabilityReader(_Reader, AvailabilityReader):
     """Снимок доступности опубликованного мастера."""
 
-    async def read(self, slug: str) -> AvailabilityRecord | None:
+    async def read(self, master: MasterRef) -> AvailabilityRecord | None:
         """Пояс, расписание, выходные, правила и длительности услуг."""
-        valid = _slug(slug)
-        if valid is None:
+        condition = _published(master)
+        if condition is None:
             return None
         statement = select(
             masters.c.id,
@@ -118,7 +131,7 @@ class SqlAvailabilityReader(_Reader, AvailabilityReader):
             masters.c.min_notice_minutes,
             masters.c.horizon_days,
             masters.c.slot_step_minutes,
-        ).where(masters.c.slug == valid, masters.c.status == MasterStatus.PUBLISHED)
+        ).where(condition)
         async with self._session_factory() as session:
             row = (await session.execute(statement)).one_or_none()
             if row is None:

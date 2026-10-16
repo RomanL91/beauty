@@ -10,12 +10,15 @@ from uuid import UUID
 from beauty.contexts.tenancy.application.dto import MasterPageView
 from beauty.contexts.tenancy.domain.slots import Availability, TimeInterval
 
+type MasterRef = str | UUID
+"""Ссылка на мастера: адрес страницы (slug) или id."""
+
 
 class MasterPageReader(ABC):
     """Публичная страница мастера (SQL → DTO, без агрегата)."""
 
     @abstractmethod
-    async def read(self, slug: str) -> MasterPageView | None:
+    async def read(self, master: MasterRef) -> MasterPageView | None:
         """Страница опубликованного мастера или ``None``."""
 
 
@@ -40,7 +43,7 @@ class AvailabilityReader(ABC):
     """Снимок доступности мастера."""
 
     @abstractmethod
-    async def read(self, slug: str) -> AvailabilityRecord | None:
+    async def read(self, master: MasterRef) -> AvailabilityRecord | None:
         """Снимок опубликованного мастера или ``None``."""
 
 

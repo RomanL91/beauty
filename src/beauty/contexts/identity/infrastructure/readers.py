@@ -7,8 +7,13 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from beauty.contexts.identity.application.ports import ChallengeStatusReader, ChallengeStatusRecord
-from beauty.contexts.identity.infrastructure.tables import auth_challenges
+from beauty.contexts.identity.application.dto import ClientContactView
+from beauty.contexts.identity.application.ports import (
+    ChallengeStatusReader,
+    ChallengeStatusRecord,
+    ClientContactReader,
+)
+from beauty.contexts.identity.infrastructure.tables import auth_challenges, client_accounts
 
 
 class SqlChallengeStatusReader(ChallengeStatusReader):
@@ -40,3 +45,18 @@ class SqlChallengeStatusReader(ChallengeStatusReader):
             expires_at=row.expires_at,
             browser_secret_digest=row.browser_secret_digest.digest,
         )
+
+
+class SqlClientContactReader(ClientContactReader):
+    """Телефон клиента по первичному ключу."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        """Получить фабрику сессий."""
+        self._session_factory = session_factory
+
+    async def read(self, account_id: UUID) -> ClientContactView | None:
+        """Прочитать контакт."""
+        statement = select(client_accounts.c.phone).where(client_accounts.c.id == account_id)
+        async with self._session_factory() as session:
+            phone = (await session.execute(statement)).scalar_one_or_none()
+        return None if phone is None else ClientContactView(account_id=account_id, phone=phone.value)

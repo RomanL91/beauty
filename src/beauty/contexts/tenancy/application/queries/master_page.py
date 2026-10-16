@@ -7,15 +7,15 @@ from uuid import UUID
 
 from beauty.contexts.tenancy.application.dto import MasterPageView
 from beauty.contexts.tenancy.application.errors import MasterNotFoundError
-from beauty.contexts.tenancy.application.ports import MasterDirectory, MasterPageReader
+from beauty.contexts.tenancy.application.ports import MasterDirectory, MasterPageReader, MasterRef
 from beauty.shared.application.cqrs import Handler, Query
 
 
 @dataclass(frozen=True, slots=True)
 class GetMasterPage(Query[MasterPageView]):
-    """Страница опубликованного мастера по адресу."""
+    """Страница опубликованного мастера по адресу (или id — для других контекстов)."""
 
-    slug: str
+    master: MasterRef
 
 
 class GetMasterPageHandler(Handler[GetMasterPage, MasterPageView]):
@@ -31,7 +31,7 @@ class GetMasterPageHandler(Handler[GetMasterPage, MasterPageView]):
 
     async def handle(self, message: GetMasterPage) -> MasterPageView:
         """Вернуть страницу."""
-        page = await self._reader.read(message.slug)
+        page = await self._reader.read(message.master)
         if page is None:
             raise MasterNotFoundError()
         return page

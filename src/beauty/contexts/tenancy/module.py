@@ -33,6 +33,8 @@ from beauty.contexts.tenancy.application.commands import (
 )
 from beauty.contexts.tenancy.application.ports import BusyTimeSource
 from beauty.contexts.tenancy.application.queries import (
+    CheckBookableSlot,
+    CheckBookableSlotHandler,
     FindMasterId,
     FindMasterIdHandler,
     GetMasterPage,
@@ -64,6 +66,7 @@ _HTTP_STATUSES: dict[str, int] = {
     "slug_taken": 409,
     "master_not_publishable": 409,
     "service_limit_reached": 409,
+    "slot_unavailable": 409,
     "invalid_slot_window": 422,
     "invalid_slug": 422,
     "invalid_profile": 422,
@@ -123,6 +126,12 @@ class TenancyModule:
         mediator.register(
             ListFreeSlots,
             lambda: ListFreeSlotsHandler(self._availability_reader, self._busy, self._finder, clock),
+        )
+        mediator.register(
+            CheckBookableSlot,
+            lambda: CheckBookableSlotHandler(
+                self._page_reader, self._availability_reader, self._busy, self._finder, clock
+            ),
         )
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
