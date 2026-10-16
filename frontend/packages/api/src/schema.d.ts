@@ -492,7 +492,12 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** SSE-поток кабинета мастера */
+    /**
+     * SSE-поток кабинета мастера
+     * @description Живой поток без журнала: кадры — с момента подключения. При переподключении с
+     *     `Last-Event-ID` первым приходит `event: reset` (`StreamResetEvent`): кабинет
+     *     перечитывает график и чаты.
+     */
     get: operations['streamMasterEvents'];
     put?: never;
     post?: never;
@@ -584,7 +589,8 @@ export interface components {
        *     `invalid_slot_window` (422), `conversation_not_found` (404), `appointment_not_found` (404),
        *     `offer_not_found` (404), `offer_already_used` (409), `slot_not_offered` (422),
        *     `slot_unavailable` / `slot_taken` (409), `change_deadline_passed` (409),
-       *     `appointment_closed` (409), `invalid_voice` (422), `voice_too_large` (413).
+       *     `appointment_closed` (409), `invalid_voice` (422), `voice_too_large` (413),
+       *     `not_a_master` (403), `appointment_not_pending` (409), `request_expired` (409).
        */
       code?: string;
       /** @description Ошибки полей для 422. */
@@ -1166,7 +1172,8 @@ export interface components {
     MasterEvent:
       | components['schemas']['MasterMessageEvent']
       | components['schemas']['AppointmentUpdatedEvent']
-      | components['schemas']['ConversationUpdatedEvent'];
+      | components['schemas']['ConversationUpdatedEvent']
+      | components['schemas']['StreamResetEvent'];
     PushPayload: {
       /** @enum {string} */
       kind:
@@ -1648,6 +1655,7 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
     };
   };
   getMySchedule: {
@@ -1671,6 +1679,7 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
     };
   };
   confirmAppointment: {
@@ -1694,6 +1703,7 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
       409: components['responses']['Problem'];
     };
   };
@@ -1726,6 +1736,7 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
       409: components['responses']['Problem'];
     };
   };
@@ -1752,6 +1763,7 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
     };
   };
   getMyConversationDetail: {
@@ -1775,6 +1787,7 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
       404: components['responses']['Problem'];
     };
   };
@@ -1803,6 +1816,7 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
       404: components['responses']['Problem'];
     };
   };
@@ -1831,6 +1845,7 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
       404: components['responses']['Problem'];
     };
   };
@@ -1859,6 +1874,7 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
       404: components['responses']['Problem'];
     };
   };

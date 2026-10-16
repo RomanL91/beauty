@@ -20,8 +20,20 @@ export class MasterEventHub {
     return () => set.delete(listener);
   }
 
+  readonly #resetListeners = new Set<() => void>();
+
+  /** Поток начат заново (`reset`): ленты перечитывают историю. */
+  onReset(listener: () => void): () => void {
+    this.#resetListeners.add(listener);
+    return () => this.#resetListeners.delete(listener);
+  }
+
   /** Передать событие подписчикам. */
   dispatch(event: MasterEvent): void {
+    if (event.type === 'reset') {
+      for (const listener of this.#resetListeners) listener();
+      return;
+    }
     if (event.type !== 'message.created' && event.type !== 'message.updated') return;
     const kind = event.type === 'message.created' ? 'created' : 'updated';
     for (const listener of this.#listeners.get(event.conversation_id) ?? [])

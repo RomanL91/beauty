@@ -14,13 +14,15 @@ export function useDay(date: string) {
   });
 }
 
-/** Свой профиль мастера. */
-export function useProfile() {
+/** Свой профиль мастера (403 `not_a_master` — вход не владельцем страницы). */
+export function useProfile(enabled = true) {
   const { schedule } = useContainer();
   return useQuery({
     queryKey: ['profile'],
     queryFn: () => schedule.getProfile(),
     staleTime: 10 * 60_000,
+    enabled,
+    retry: (count, error) => !(error instanceof ApiError && error.status === 403) && count < 2,
   });
 }
 

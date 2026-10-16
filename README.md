@@ -17,6 +17,8 @@
 * **контекст `conversations`** — переписка клиента с администратором мастера,
   поток SSE с досылкой по `Last-Event-ID`, администратор записи
   (`docs/tasks/backend-iteration-2-booking.md`);
+* **кабинет мастера** — вход владельца страницы, график дня, решения по заявкам,
+  чаты с клиентами и поток событий (`docs/tasks/backend-iteration-3-master-cabinet.md`);
 * **спайк Hermes** (`spikes/hermes`) — проверка runtime агента до разработки
   контекста `agent`.
 
@@ -54,7 +56,7 @@ src/beauty/
 └── entrypoints/                    # процессы: api, bot, relay, scheduler, worker; seed-demo, appointment
 migrations/                         # Alembic (async)
 spikes/hermes/                      # кит спайка Hermes (см. его README)
-tests/unit | tests/integration      # 215 тестов; интеграционные — на реальном PostgreSQL
+tests/unit | tests/integration      # 224 теста; интеграционные — на реальном PostgreSQL
 ```
 
 ## Вход клиента через Telegram
@@ -125,7 +127,8 @@ pip install -e '.[dev]'
 alembic upgrade head
 beauty seed-demo                # демо-мастер alisa (идемпотентно)
 beauty api | beauty bot | beauty relay | beauty scheduler | beauty worker
-beauty appointment confirm|decline <id>   # решение мастера по заявке (до кабинета мастера)
+beauty master assign-owner alisa +77011234567   # открыть кабинет мастера этому номеру Telegram
+beauty appointment confirm|decline <id>         # решение по заявке из консоли (оператор)
 ```
 
 ## Проверки
@@ -155,10 +158,12 @@ BEAUTY_TEST_DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/postgres p
 
 ## Дальше
 
-1. Прогнать спайк Hermes (`spikes/hermes/README.md`): по его итогам фиксируем
-   адаптер `AgentRuntime` (один экземпляр или пул с шардированием мастеров).
-2. ~~Контекст `tenancy`~~ — сделан (страница мастера и окна на реальном API).
-3. ~~Запись и переписка клиента~~ — сделаны (клиентский PWA целиком на реальном API).
-4. ИИ-агент на событии `conversations.client.message_posted`: свободный текст и
-   голосовые (расшифровка), передача диалога мастеру.
-5. Роль мастера и его кабинет (график, чаты, подтверждение заявок вместо CLI), push.
+1. ~~Контекст `tenancy`~~ — сделан (страница мастера и окна на реальном API).
+2. ~~Запись и переписка клиента~~ — сделаны (клиентский PWA целиком на реальном API).
+3. ~~Кабинет мастера~~ — сделан (график, заявки, чаты, поток событий на реальном API).
+4. ИИ-агент на Hermes + MCP (решение владельца, см. итоги спайка
+   `spikes/hermes/README.md`): событие `conversations.client.message_posted`, свободный
+   текст и голосовые (расшифровка), поручения мастера (группа `assistant`), передача
+   диалога мастеру. Доработки по спайку: короткие id тикетов, пул экземпляров, меньше
+   вызовов LLM на ход.
+5. Push-уведомления (Web Push, VAPID), напоминания о визите.

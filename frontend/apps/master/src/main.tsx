@@ -20,8 +20,6 @@ async function bootstrap(): Promise<void> {
   }
   const container = createMasterContainer(env, new HttpCore(fetch ? { fetch } : {}));
   registerPwa({ enabled: import.meta.env.PROD });
-  // Итерация 1: сессия мастера — заглушка, открывается сразу (до первых запросов).
-  await container.auth.restoreSession();
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <App container={container} />
