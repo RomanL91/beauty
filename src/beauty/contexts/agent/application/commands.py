@@ -56,18 +56,18 @@ class ProvisionAgentHandler(Handler[ProvisionAgent, str]):
 
     async def handle(self, message: ProvisionAgent) -> str:
         """Создать недостающие профили."""
+        # Читаем внутри UoW: выход без commit — rollback, и загруженный профиль после него не читается.
         async with self._uow_factory() as uow:
             existing = await uow.profiles.get(message.master_id)
-        if existing is not None and existing.has_office:
-            return existing.profile_name
+            existing_name = existing.profile_name if existing is not None else None
+            if existing is not None and existing.has_office:
+                return existing.profile_name
         master = await self._masters.brief(message.master_id)
         if master is None:
             raise AgentNotProvisionedError("Мастер не найден")
-        name = (
-            existing.profile_name if existing is not None else f"{PROFILE_PREFIX}{message.master_id.hex[:12]}"
-        )
+        name = existing_name or f"{PROFILE_PREFIX}{message.master_id.hex[:12]}"
         front = None
-        if existing is None:
+        if existing_name is None:
             front = await self._provisioner.create(name, master.name, AgentFace.FRONT_DESK)
         office = await self._provisioner.create(f"{name}{OFFICE_SUFFIX}", master.name, AgentFace.BACK_OFFICE)
         now = self._clock.now()

@@ -26,9 +26,21 @@ from mcp.server.mcpserver import MCPServer
 from beauty.bootstrap.adapters import AgentConversations, AgentMasters
 from beauty.bootstrap.container import ApplicationContainer
 from beauty.bootstrap.demo import DemoMasterSeeder
-from beauty.contexts.agent.application.commands import AnswerClient, AnswerClientHandler
-from beauty.contexts.agent.application.ports import AgentRuntime, RunOutcome, RunRequest
+from beauty.contexts.agent.application.commands import (
+    AnswerClient,
+    AnswerClientHandler,
+    ProvisionAgent,
+    ProvisionAgentHandler,
+)
+from beauty.contexts.agent.application.ports import (
+    AgentRuntime,
+    ProfileProvisioner,
+    ProvisionedProfile,
+    RunOutcome,
+    RunRequest,
+)
 from beauty.contexts.agent.domain.profile import AgentProfile
+from beauty.contexts.agent.domain.ticket import AgentFace
 from beauty.contexts.agent.infrastructure.uow import SqlAlchemyAgentUnitOfWork
 from beauty.entrypoints.api import ApiApplicationFactory
 from tests.integration.contract import assert_matches_schema
@@ -245,3 +257,30 @@ async def test_mcp_rejects_foreign_or_bad_credentials(
         assert (await call("find_free_slots", arguments))["ok"] is True
         refused = await call("cancel_appointment", {"ticket": ticket, "appointment_id": str(uuid4())})
         assert refused["ok"] is False
+
+
+class RecordingProvisioner(ProfileProvisioner):
+    """Профили «создаются» без Hermes; имена запоминаются."""
+
+    def __init__(self) -> None:
+        self.created: list[str] = []
+
+    async def create(self, profile_name: str, master_name: str, face: AgentFace) -> ProvisionedProfile:
+        self.created.append(profile_name)
+        return ProvisionedProfile(f"runs-{profile_name}", f"token-{profile_name}-" + "x" * 24)
+
+
+async def test_provision_adds_office_to_existing_profile(
+    container: ApplicationContainer, alisa: AgentProfile
+) -> None:
+    """Профиль ресепшна из итерации 4: повторный provision добавляет только кабинет, третий — ничего."""
+    provisioner = RecordingProvisioner()
+    handler = ProvisionAgentHandler(
+        lambda: SqlAlchemyAgentUnitOfWork(container.session_factory, container.outbox_writer),
+        provisioner,
+        AgentMasters(lambda: container.mediator),
+        container.clock,
+    )
+    assert await handler.handle(ProvisionAgent(alisa.master_id)) == "m-alisa"
+    assert await handler.handle(ProvisionAgent(alisa.master_id)) == "m-alisa"
+    assert provisioner.created == ["m-alisa-office"]
