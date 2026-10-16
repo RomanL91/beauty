@@ -94,6 +94,7 @@ async def clean_database(container: ApplicationContainer) -> None:
                 "TRUNCATE identity.client_sessions, identity.auth_challenges, identity.client_accounts, "
                 "tenancy.master_services, tenancy.masters, booking.appointments, "
                 "conversations.feed_events, conversations.messages, conversations.conversations, "
-                "agent.tickets, agent.profiles, infra.outbox, infra.inbox, infra.scheduled_jobs CASCADE"
+                "agent.tickets, agent.profiles, agent.office_messages, notifications.push_subscriptions, "
+                "infra.outbox, infra.inbox, infra.scheduled_jobs CASCADE"
             )
         )

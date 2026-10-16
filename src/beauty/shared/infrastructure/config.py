@@ -74,6 +74,19 @@ class StorageSettings(BaseModel):
     root: str = "./var/files"
 
 
+class PushSettings(BaseModel):
+    """Web Push: ключи VAPID (``beauty push keys``) и контакт отправителя.
+
+    Без закрытого ключа уведомления не отправляются (только в журнал). Открытый ключ
+    нужен и фронтенду при сборке (``VITE_VAPID_PUBLIC_KEY``).
+    """
+
+    vapid_public_key: str = ""
+    vapid_private_key: SecretStr = SecretStr("")
+    subject: str = "mailto:admin@beautiful.kz"
+    ttl: int = 86_400
+
+
 class AgentSettings(BaseModel):
     """ИИ-администратор: runtime Hermes и MCP-сервер ``beauty-tools``."""
 
@@ -126,3 +139,4 @@ class Settings(BaseSettings):
     storage: StorageSettings = StorageSettings()
     http: HttpSettings = HttpSettings()
     agent: AgentSettings = AgentSettings()
+    push: PushSettings = PushSettings()

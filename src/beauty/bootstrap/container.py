@@ -24,6 +24,7 @@ from beauty.bootstrap.adapters import (
     BookingFrontDesk,
     ConversationsDirectory,
     IdentityClientDirectory,
+    NotificationsDirectory,
     OwnedMasters,
     TenancyCalendar,
     TenancyMasterCatalog,
@@ -37,6 +38,9 @@ from beauty.contexts.agent.module import AgentDependencies, AgentModule
 from beauty.contexts.booking.module import BookingDependencies, BookingModule
 from beauty.contexts.conversations.module import ConversationsDependencies, ConversationsModule
 from beauty.contexts.identity.module import IdentityDependencies, IdentityModule
+from beauty.contexts.notifications.application.ports import PushSender
+from beauty.contexts.notifications.infrastructure.webpush import DisabledPushSender, VapidKeys, WebPushSender
+from beauty.contexts.notifications.module import NotificationsDependencies, NotificationsModule
 from beauty.contexts.tenancy.module import TenancyDependencies, TenancyModule
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.application.middleware import ConcurrencyRetryMiddleware, LoggingMiddleware
@@ -108,6 +112,7 @@ class ApplicationContainer:
         self.booking.register(mediator, self.http_errors)
         self.conversations.register(mediator, self.http_errors)
         self.agent.register(mediator, self.http_errors)
+        self.notifications.register(mediator, self.http_errors)
         return mediator
 
     @cached_property
@@ -154,7 +159,11 @@ class ApplicationContainer:
 
     def event_subscriptions(self) -> tuple[EventSubscription, ...]:
         """Консьюмеры интеграционных событий всех контекстов."""
-        return (*self.conversations.subscriptions(self.mediator), *self.agent.subscriptions(self.mediator))
+        return (
+            *self.conversations.subscriptions(self.mediator),
+            *self.agent.subscriptions(self.mediator),
+            *self.notifications.subscriptions(self.mediator),
+        )
 
     def realtime_resolvers(self) -> tuple[TopicResolver, ...]:
         """Realtime-топики всех контекстов (для моста в процессе API)."""
@@ -310,10 +319,41 @@ class ApplicationContainer:
             )
         )
 
+    @cached_property
+    def push_http(self) -> httpx.AsyncClient:
+        """HTTP-клиент к push-сервисам браузеров."""
+        return httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0))
+
+    @cached_property
+    def push_sender(self) -> PushSender:
+        """Web Push с ключами VAPID или выключенный (ключей нет)."""
+        settings = self.settings.push
+        private = settings.vapid_private_key.get_secret_value()
+        if not private or not settings.vapid_public_key:
+            return DisabledPushSender()
+        keys = VapidKeys(private, settings.vapid_public_key)
+        return WebPushSender(self.push_http, keys, settings.subject, settings.ttl)
+
+    @cached_property
+    def notifications(self) -> NotificationsModule:
+        """Модуль Notifications."""
+        return NotificationsModule(
+            NotificationsDependencies(
+                session_factory=self.session_factory,
+                outbox_writer=self.outbox_writer,
+                clock=self.clock,
+                ids=self.id_generator,
+                sender=self.push_sender,
+                directory=NotificationsDirectory(lambda: self.mediator),
+            )
+        )
+
     async def aclose(self) -> None:
         """Закрыть внешние ресурсы, которые успели открыться."""
         if "agent_http" in self.__dict__:
             await self.agent_http.aclose()
+        if "push_http" in self.__dict__:
+            await self.push_http.aclose()
         if "rabbit" in self.__dict__:
             await self.rabbit.close()
         if "engine" in self.__dict__:

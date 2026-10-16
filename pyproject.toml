@@ -19,6 +19,8 @@ dependencies = [
     "httpx>=0.28",
     "mcp>=2.0",
     "pyyaml>=6.0",
+    "http-ece>=1.2",
+    "py-vapid>=1.9",
 ]
 
 [project.optional-dependencies]
@@ -89,5 +91,5 @@ warn_unreachable = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["aio_pika.*", "aiormq.*", "asyncpg.*"]
+module = ["aio_pika.*", "aiormq.*", "asyncpg.*", "http_ece.*", "py_vapid.*"]
 ignore_missing_imports = true

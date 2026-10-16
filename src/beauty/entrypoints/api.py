@@ -51,6 +51,9 @@ class ApiApplicationFactory:
             container.booking.cabinet_router(container.mediator, container.master_auth),
             container.conversations.cabinet_router(container.mediator, container.master_auth),
             container.agent.office_router(container.mediator, container.master_auth),
+            container.notifications.api_router(
+                container.mediator, container.client_auth, container.master_auth
+            ),
             container.booking.api_router(container.mediator, container.client_auth),
             container.conversations.api_router(container.mediator, container.client_auth),
             MediaController(container.file_storage, container.media_urls).router(),

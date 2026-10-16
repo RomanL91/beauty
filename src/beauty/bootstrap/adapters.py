@@ -59,16 +59,19 @@ from beauty.contexts.conversations.application.ports import (
 from beauty.contexts.conversations.application.queries import (
     FindConversationIds,
     GetConversationState,
+    GetConversationSummary,
     ListInbox,
 )
 from beauty.contexts.conversations.domain.content import OfferedSlot
 from beauty.contexts.identity.application.queries import ClientNotFoundError, GetClientContact
+from beauty.contexts.notifications.application import ports as notification_ports
 from beauty.contexts.tenancy.application import errors as tenancy_errors
 from beauty.contexts.tenancy.application.commands import ChangeDayOff
 from beauty.contexts.tenancy.application.ports import BusyTimeSource
 from beauty.contexts.tenancy.application.queries import (
     CheckBookableSlot,
     FindMasterByOwner,
+    FindMasterId,
     GetMasterPage,
     GetWorkingCalendar,
     ListFreeSlots,
@@ -412,3 +415,31 @@ class AgentCabinet(agent_ports.Cabinet):
             await self._mediator().send(PostOnMasterBehalf(master_id, client_id, text))
         except ConversationNotFoundError as error:
             raise agent_ports.ClientNotFoundError() from error
+
+
+class NotificationsDirectory(notification_ports.Directory):
+    """Notifications → Tenancy и Conversations: имена для текстов уведомлений."""
+
+    def __init__(self, mediator: MediatorProvider) -> None:
+        """Получить медиатор (лениво)."""
+        self._mediator = mediator
+
+    async def master(self, master_id: UUID) -> notification_ports.MasterCard | None:
+        """Мастер (и черновик)."""
+        try:
+            page = await self._mediator().send(GetMasterPage(master_id, published_only=False))
+        except tenancy_errors.MasterNotFoundError:
+            return None
+        return notification_ports.MasterCard(page.name_nominative, page.timezone)
+
+    async def master_by_slug(self, slug: str) -> UUID | None:
+        """Мастер по адресу страницы."""
+        return await self._mediator().send(FindMasterId(slug))
+
+    async def client_name(self, master_id: UUID, conversation_id: UUID) -> str | None:
+        """Клиент глазами мастера."""
+        try:
+            summary = await self._mediator().send(GetConversationSummary(master_id, conversation_id))
+        except ConversationNotFoundError:
+            return None
+        return str(summary.display_name)

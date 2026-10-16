@@ -20,6 +20,7 @@ from beauty.contexts.booking.application.commands import (
     ConfirmAppointment,
     DeclineAppointment,
 )
+from beauty.contexts.notifications.infrastructure.webpush import VapidKeys
 from beauty.contexts.tenancy.application.commands import AssignOwner
 from beauty.contexts.tenancy.application.queries import FindMasterId
 from beauty.entrypoints.api import ApiServerWorker
@@ -160,11 +161,18 @@ def main() -> None:
     agent = commands.add_parser("agent", help="ИИ-администратор: шаблон Hermes, профили мастеров")
     agent.add_argument("action", choices=("bootstrap", "provision", "enable", "disable"))
     agent.add_argument("slug", nargs="?", help="адрес страницы мастера (кроме bootstrap)")
+    push = commands.add_parser("push", help="Web Push")
+    push.add_argument("action", choices=("keys",), help="keys — новая пара ключей VAPID для .env")
     arguments = parser.parse_args()
     if arguments.command == "seed-demo":
         launcher.seed_demo(arguments.owner_phone)
     elif arguments.command == "agent":
         launcher.agent(arguments.action, arguments.slug)
+    elif arguments.command == "push":
+        keys = VapidKeys.generate()
+        print(f"BEAUTY_PUSH__VAPID_PUBLIC_KEY={keys.public_key}")
+        print(f"BEAUTY_PUSH__VAPID_PRIVATE_KEY={keys.private_key}")
+        print(f"VITE_VAPID_PUBLIC_KEY={keys.public_key}")
     elif arguments.command == "master":
         launcher.assign_owner(arguments.slug, arguments.phone)
     elif arguments.command == "appointment":
