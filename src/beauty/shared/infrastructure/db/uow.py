@@ -99,6 +99,10 @@ class SqlAlchemyUnitOfWork(UnitOfWork):
         if self._completed or self._session is None:
             return
         if self._owns_session:
+            # Сначала отцепить объекты: откат «протухает» всё, что в сессии, и агрегат,
+            # прочитанный в блоке без commit, после выхода было бы не прочитать
+            # (DetachedInstanceError). Отцепленные сохраняют загруженное состояние.
+            self._session.expunge_all()
             await self._session.rollback()
         elif self._savepoint is not None and self._savepoint.is_active:
             await self._savepoint.rollback()

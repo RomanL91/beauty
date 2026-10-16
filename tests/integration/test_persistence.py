@@ -70,6 +70,16 @@ async def test_uncommitted_work_is_rolled_back(container: ApplicationContainer) 
     assert await scalar(container, select(func.count()).select_from(outbox_table)) == 0
 
 
+async def test_aggregate_read_without_commit_stays_readable(container: ApplicationContainer) -> None:
+    """Агрегат, прочитанный в блоке без commit, читается и после выхода (откат его не «протухает»)."""
+    started = await BotSimulator(container.mediator).start_and_confirm(telegram_user=1002)
+    async with make_uow(container) as uow:
+        challenge = await uow.challenges.get(started.challenge_id)
+    assert challenge is not None
+    assert challenge.id == started.challenge_id
+    assert challenge.expires_at > container.clock.now() - timedelta(days=1)
+
+
 async def test_optimistic_locking_detects_lost_update(container: ApplicationContainer) -> None:
     """Две транзакции меняют один агрегат: вторая получает конфликт, а не затирает первую."""
     bot = BotSimulator(container.mediator)
