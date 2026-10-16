@@ -11,6 +11,7 @@ import {
   HttpInboxGateway,
   HttpMasterEventsGateway,
   HttpMasterGateway,
+  HttpMasterSettingsGateway,
   HttpScheduleGateway,
   StubMasterAuthGateway,
   type ChallengeStatus,
@@ -270,5 +271,75 @@ describe('кабинет мастера', () => {
     );
     stop();
     expect(done).toMatchObject({ title: 'Готово' });
+  });
+});
+
+describe('настройки страницы мастера', () => {
+  it('профиль, услуга, график, выходной и правила видны на странице', async () => {
+    const settings = new HttpMasterSettingsGateway(await signedIn());
+    const page = new HttpMasterGateway(new HttpCore({ origin: ORIGIN }));
+    const before = await settings.get();
+    expect(before).toMatchObject({ status: 'published', publish_blockers: [] });
+
+    await settings.updateProfile({
+      ...before.page,
+      about: 'Новый текст о себе',
+    });
+    expect((await page.getPage(DEMO_SLUG)).about).toBe('Новый текст о себе');
+
+    const added = await settings.addService({
+      title: 'Массаж лица',
+      duration_min: 45,
+      price: { amount: 1_000_000, currency: 'KZT' },
+    });
+    const service = added.page.services.find((s) => s.title === 'Массаж лица');
+    expect(service?.price?.amount).toBe(1_000_000);
+    await expect(
+      settings.addService({ title: 'x', duration_min: 7, price: null }),
+    ).rejects.toMatchObject({ status: 422, code: 'invalid_service_duration' });
+    const archived = await settings.archiveService(service!.id);
+    expect(archived.page.services.some((s) => s.id === service!.id)).toBe(false);
+
+    await expect(
+      settings.setWorkingHours([
+        {
+          weekday: 0,
+          intervals: [
+            { start: '10:00', end: '14:00' },
+            { start: '13:00', end: '15:00' },
+          ],
+        },
+      ]),
+    ).rejects.toMatchObject({ code: 'invalid_schedule' });
+    const tomorrow = localDate(1);
+    const off = await settings.setDaysOff([tomorrow, localDate(-3)]);
+    expect(off.days_off).toEqual([tomorrow]);
+    const slots = await page.listSlots(DEMO_SLUG, { limit: 50 });
+    expect(slots.some((s) => s.start.startsWith(tomorrow))).toBe(false);
+    await settings.setDaysOff([]);
+
+    const rules = { ...before.booking_rules, confirm_within_hours: 4 };
+    expect((await settings.setBookingRules(rules)).page.booking_rules.confirm_within_hours).toBe(4);
+    await settings.setBookingRules(before.booking_rules);
+  });
+
+  it('фото и аватар, скрыть и открыть страницу', async () => {
+    const settings = new HttpMasterSettingsGateway(await signedIn());
+    const png = new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' });
+    const withPhoto = await settings.addPhoto(png, 'Чистка');
+    const photo = withPhoto.page.photos.at(-1)!;
+    expect(photo.alt).toBe('Чистка');
+    await expect(settings.addPhoto(new Blob(['hi'], { type: 'text/plain' }))).rejects.toMatchObject(
+      { status: 422, code: 'invalid_photo' },
+    );
+    expect((await settings.removePhoto(photo.id)).page.photos).not.toContainEqual(photo);
+    expect((await settings.setAvatar(png)).page.avatar_url).toBeTruthy();
+    expect((await settings.removeAvatar()).page.avatar_url).toBeNull();
+
+    const page = new HttpMasterGateway(new HttpCore({ origin: ORIGIN }));
+    expect((await settings.unpublish()).status).toBe('draft');
+    await expect(page.getPage(DEMO_SLUG)).rejects.toMatchObject({ status: 404 });
+    expect((await settings.publish()).status).toBe('published');
+    await expect(page.getPage(DEMO_SLUG)).resolves.toMatchObject({ slug: DEMO_SLUG });
   });
 });

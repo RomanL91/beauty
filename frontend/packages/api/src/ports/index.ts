@@ -7,3 +7,4 @@ export type * from './inbox-gateway';
 export type * from './assistant-gateway';
 export type * from './master-events-gateway';
 export type * from './push-gateway';
+export type * from './master-settings-gateway';

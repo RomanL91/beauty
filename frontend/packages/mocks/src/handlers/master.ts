@@ -109,6 +109,8 @@ export function masterHandlers(db: MockDb) {
       },
     ),
 
+    ...settingsHandlers(db),
+
     http.get(
       '/me/events',
       ({ request, response }) =>
@@ -156,6 +158,127 @@ export function assistantHandlers(db: MockDb) {
       await delay(200);
       const body = await request.json();
       return run(() => response(200).json(db.chooseOption(params.choice_id, body.option_id)));
+    }),
+  ];
+}
+
+/** Настройки страницы: каждое изменение отвечает настройками целиком. */
+function settingsHandlers(db: MockDb) {
+  const settings = db.settings;
+  const image = async (request: Request): Promise<{ file: Blob; alt: string } | null> => {
+    const form = await request.formData().catch(() => null);
+    const file = form?.get('file');
+    if (!(file instanceof Blob)) return null;
+    const alt = form?.get('alt');
+    return { file, alt: typeof alt === 'string' ? alt : '' };
+  };
+  const noImage = () => problem(422, 'invalid_photo', 'Нужен файл в поле file');
+
+  return [
+    http.get('/me/settings', async ({ request, response }) => {
+      await delay(200);
+      return requireBearer(request) ?? response(200).json(settings.view());
+    }),
+
+    http.put('/me/profile', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      const body = await request.json();
+      return run(() => response(200).json(settings.updateProfile(body)));
+    }),
+
+    http.post('/me/services', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      const body = await request.json();
+      return run(() => response(201).json(settings.addService(body)));
+    }),
+
+    http.put('/me/services/{service_id}', async ({ request, params, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      const body = await request.json();
+      return run(() => response(200).json(settings.updateService(params.service_id, body)));
+    }),
+
+    http.delete('/me/services/{service_id}', async ({ request, params, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      return run(() => response(200).json(settings.archiveService(params.service_id)));
+    }),
+
+    http.put('/me/working-hours', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      const body = await request.json();
+      return run(() => response(200).json(settings.setWorkingHours(body.days)));
+    }),
+
+    http.put('/me/days-off', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      const body = await request.json();
+      return run(() => response(200).json(settings.setDaysOff(body.days)));
+    }),
+
+    http.put('/me/booking-rules', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      const body = await request.json();
+      return run(() => response(200).json(settings.setBookingRules(body)));
+    }),
+
+    http.post('/me/photos', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(400);
+      const upload = await image(request);
+      if (!upload) return noImage();
+      return run(() => response(201).json(settings.addPhoto(upload.file, upload.alt)));
+    }),
+
+    http.delete('/me/photos/{photo_id}', async ({ request, params, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      return run(() => response(200).json(settings.removePhoto(params.photo_id)));
+    }),
+
+    http.put('/me/avatar', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(400);
+      const upload = await image(request);
+      if (!upload) return noImage();
+      return run(() => response(200).json(settings.setAvatar(upload.file)));
+    }),
+
+    http.delete('/me/avatar', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      return response(200).json(settings.setAvatar(null));
+    }),
+
+    http.post('/me/publish', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      return run(() => response(200).json(settings.publish()));
+    }),
+
+    http.post('/me/unpublish', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      return response(200).json(settings.unpublish());
     }),
   ];
 }

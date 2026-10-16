@@ -25,6 +25,8 @@ export default defineConfig({
     trace: 'retain-on-failure',
     launchOptions: {
       ...(executablePath && { executablePath }),
+      // Системный язык браузера — русский: поля времени в 24-часовом формате, как у мастеров.
+      env: { ...process.env, LANG: 'ru_RU.UTF-8', LANGUAGE: 'ru' },
       args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
     },
   },

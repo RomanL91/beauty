@@ -29,16 +29,16 @@ import {
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 import { EventLog } from './event-log';
+import { MockProblem } from './errors';
+import { MockSettings } from './settings';
 import { uuidv7 } from './ids';
 import { CLIENT_CONVERSATION_ID, clientChatSeed } from './fixtures/client-chat';
 import {
   CONVERSATIONS,
-  WORKING_HOURS,
   appointmentsSeed,
   assistantSeed,
   daryaDialogSeed,
   inboxSeed,
-  isDayOff,
   otherDialogsSeed,
   type BreakEntry,
 } from './fixtures/master-cabinet';
@@ -52,6 +52,8 @@ export interface KeyValueStore {
   set(key: string, value: string): void;
   remove(key: string): void;
 }
+
+export { MockProblem };
 
 /** Хранилище в памяти. */
 export function memoryStore(): KeyValueStore {
@@ -86,17 +88,6 @@ const SESSION_KEY = 'beauty-mock-session';
 const CHALLENGE_TTL_MS = 5 * 60_000;
 const CLIENT_ACCOUNT_ID = '0192a0c0-0000-7000-8000-00000000c11e';
 
-/** Ошибка сценария → problem+json в обработчике. */
-export class MockProblem extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    readonly title: string,
-  ) {
-    super(title);
-  }
-}
-
 /**
  * Состояние моков и сценарии «бэкенда»: вход, агент клиента, кабинет мастера.
  *
@@ -105,6 +96,7 @@ export class MockProblem extends Error {
  */
 export class MockDb {
   readonly page = masterPage();
+  readonly settings = new MockSettings(this.page, (file) => this.#storeUpload(file));
   readonly clientLog = new EventLog();
   readonly masterLog = new EventLog();
 
@@ -228,7 +220,8 @@ export class MockDb {
   // ───────────────────────── страница мастера ─────────────────────────
 
   getPage(slug: string): ReturnType<typeof masterPage> {
-    if (slug !== DEMO_SLUG) throw new MockProblem(404, 'master_not_found', 'Мастер не найден');
+    if (slug !== DEMO_SLUG || !this.settings.published)
+      throw new MockProblem(404, 'master_not_found', 'Мастер не найден');
     return this.page;
   }
 
@@ -256,7 +249,7 @@ export class MockDb {
     const slots: Slot[] = [];
     for (let day = 0; day < 21 && slots.length < (query.limit ?? 20); day += 1) {
       const date = localDate(day);
-      if (isDayOff(date)) continue;
+      if (this.settings.isDayOff(date)) continue;
       const times =
         day === 0 ? patterns[0]! : patterns[(weekday(date) % (patterns.length - 1)) + 1]!;
       for (const hm of times) {
@@ -531,9 +524,9 @@ export class MockDb {
     const monday = addDays(date, -weekday(date));
     const week = Array.from({ length: 7 }, (_, i) => {
       const d = addDays(monday, i);
-      return { date: d, day_off: isDayOff(d) };
+      return { date: d, day_off: this.settings.isDayOff(d) };
     });
-    if (isDayOff(date)) {
+    if (this.settings.isDayOff(date)) {
       return {
         date,
         week,
@@ -562,14 +555,15 @@ export class MockDb {
     ].sort((a, b) => Date.parse(startOf(a)) - Date.parse(startOf(b)));
 
     const items: ScheduleItem[] = [];
-    let cursor = at(date, WORKING_HOURS.start);
+    const hours = this.settings.hoursOn(date);
+    let cursor = at(date, hours[0]?.start ?? '10:00');
     for (const item of busy) {
       if (Date.parse(startOf(item)) > Date.parse(cursor))
         items.push({ kind: 'free', start: cursor, end: startOf(item) });
       items.push(item);
       if (Date.parse(endOf(item)) > Date.parse(cursor)) cursor = endOf(item);
     }
-    const close = at(date, WORKING_HOURS.end);
+    const close = at(date, hours.at(-1)?.end ?? '19:00');
     if (Date.parse(close) > Date.parse(cursor))
       items.push({ kind: 'free', start: cursor, end: close });
 

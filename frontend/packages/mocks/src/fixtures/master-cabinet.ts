@@ -124,9 +124,6 @@ export function appointmentsSeed(): { appointments: Appointment[]; breaks: Break
   return { appointments, breaks };
 }
 
-/** Выходной (воскресенье). */
-export const isDayOff = (date: string): boolean => weekday(date) === 6;
-
 /** Список чатов из макета «Все чаты». */
 export function inboxSeed(): ConversationSummary[] {
   return [

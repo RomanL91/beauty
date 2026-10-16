@@ -22,6 +22,13 @@ export type Service = Schemas['Service'];
 export type BookingRules = Schemas['BookingRules'];
 export type MasterPage = Schemas['MasterPage'];
 export type NameForms = Schemas['NameForms'];
+export type Photo = Schemas['Photo'];
+export type MasterSettings = Schemas['MasterSettings'];
+export type WorkingDay = Schemas['WorkingDay'];
+export type TimeInterval = Schemas['TimeInterval'];
+export type BookingRulesSettings = Schemas['BookingRulesSettings'];
+export type ProfileInput = Schemas['ProfileInput'];
+export type ServiceInput = Schemas['ServiceInput'];
 export type Slot = Schemas['Slot'];
 
 export type ClientRef = Schemas['ClientRef'];

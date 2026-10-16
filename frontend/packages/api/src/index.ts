@@ -33,6 +33,7 @@ export { HttpInboxGateway } from './adapters/http-inbox-gateway';
 export { HttpAssistantGateway } from './adapters/http-assistant-gateway';
 export { HttpMasterEventsGateway } from './adapters/http-master-events-gateway';
 export { HttpPushGateway } from './adapters/http-push-gateway';
+export { HttpMasterSettingsGateway } from './adapters/http-master-settings-gateway';
 export {
   EMPTY_FEED,
   feedReducer,
