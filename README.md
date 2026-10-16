@@ -21,7 +21,9 @@
   чаты с клиентами и поток событий (`docs/tasks/backend-iteration-3-master-cabinet.md`);
 * **контекст `agent`** — ИИ-администратор на Hermes + MCP: отвечает клиенту,
   консультирует по услугам, ищет окна, записывает и отменяет, передаёт диалог мастеру
-  (`docs/tasks/backend-iteration-4-agent.md`);
+  (`docs/tasks/backend-iteration-4-agent.md`), а в кабинете выполняет поручения мастера —
+  график, заявки, отмены, выходные, сообщения клиентам, вопросы мастеру карточкой выбора
+  (`docs/tasks/backend-iteration-5-assistant.md`);
 * **спайк Hermes** (`spikes/hermes`) — проверка runtime агента до разработки
   контекста `agent`.
 
@@ -55,13 +57,13 @@ src/beauty/
 │   └── module.py
 ├── contexts/booking/               # Appointment, EXCLUDE USING gist, таймеры, /appointments
 ├── contexts/conversations/         # Conversation + Message, журнал ленты, SSE, администратор записи
-├── contexts/agent/                 # профиль Hermes мастера, тикеты ходов, ход ресепшна, MCP beauty-tools
+├── contexts/agent/                 # профили Hermes (ресепшн, кабинет), тикеты, ходы, лента поручений, MCP
 ├── bootstrap/                      # корень композиции (Pure DI), адаптеры между контекстами, демо-данные
 └── entrypoints/                    # процессы: api, bot, relay, scheduler, worker, mcp; seed-demo, appointment, agent
 migrations/                         # Alembic (async)
 spikes/hermes/                      # кит спайка Hermes (см. его README)
 devtools/fake_llm.py                # сценарная OpenAI-совместимая «модель» для прогона агента без ключа LLM
-tests/unit | tests/integration      # 236 тестов; интеграционные — на реальном PostgreSQL
+tests/unit | tests/integration      # 254 теста; интеграционные — на реальном PostgreSQL
 ```
 
 ## Вход клиента через Telegram
@@ -126,7 +128,9 @@ docker compose up --build       # postgres, rabbitmq, migrate, seed, api, bot, r
 Фронтенд (два PWA, контракт API, моки) — `frontend/README.md`.
 
 ИИ-администратор (профиль compose `agent`): Hermes, MCP-сервер `beauty-tools` и разовый
-`agent-setup` — шаблон профиля Hermes и профиль демо-мастера alisa.
+`agent-setup` — шаблоны профилей Hermes и профили демо-мастера alisa. У мастера два
+профиля: ресепшн (`m-<id>`, клиенты, MCP `/mcp`) и кабинет (`m-<id>-office`, поручения
+мастера, MCP `/office/mcp`) — агент ресепшна не видит инструментов мастера.
 
 ```bash
 # в .env: BEAUTY_AGENT__RUNTIME=hermes, HERMES_DEFAULT_API_KEY=$(openssl rand -hex 32)
@@ -140,6 +144,10 @@ docker compose run --rm agent-setup "beauty agent bootstrap"         # смен�
 Runs API Hermes (`/p/<профиль>/v1/runs`) → инструменты `beauty-tools` по MCP (токен профиля
 + короткий тикет хода) → ответ ИИ в чате. Не вышло (модель молчит, таймаут) — диалог
 уходит мастеру с заметкой, клиенту лишнего не пишем.
+
+Поручение: мастер пишет на экране «Поручения» → `worker` (`agent.back_office`) → профиль
+кабинета → инструменты `/office/mcp` → отчёт в ленте поручений. Неоднозначное или
+необратимое агент сначала спрашивает карточкой выбора; ответ мастера — следующий ход.
 
 Без Docker:
 
@@ -179,6 +187,8 @@ BEAUTY_TEST_DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/postgres p
   `Last-Event-ID` и `reset`; голосовые по подписанным ссылкам; исключающее ограничение;
 * ИИ-администратор: MCP по HTTP настоящим MCP-клиентом (токен профиля, заголовок
   профиля, тикет), запись через инструмент, передача мастеру, `agent_note` не уходит клиенту;
+* кабинет: поручения через API и поток кабинета, ход по MCP кабинета (подтверждение, выходной,
+  сообщение клиенту), вопрос мастеру и ход по его выбору, токен ресепшна не пускает в кабинет;
 * ответы API и ошибки (problem+json) — по схемам из `contracts/openapi/beauty.yaml`.
 
 ## Дальше
@@ -190,8 +200,8 @@ BEAUTY_TEST_DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/postgres p
 3. ~~Кабинет мастера~~ — сделан (график, заявки, чаты, поток событий на реальном API).
 4. ~~ИИ-администратор ресепшна на Hermes + MCP~~ — сделан (ответы, запись, отмена,
    передача мастеру; короткие тикеты, каталог в инструкциях, ответ итоговым текстом).
-5. **Поручения мастера ИИ-администратору** (группа `assistant`, экран «Поручения») —
-   `docs/tasks/backend-iteration-5-assistant.md`.
+5. ~~Поручения мастера ИИ-администратору~~ — сделаны (экран «Поручения» на реальном API:
+   график, заявки, отмены, выходные, сообщения клиентам, вопросы карточкой выбора).
 6. Push-уведомления (Web Push, VAPID) и напоминания о визите.
 7. Самостоятельная настройка мастера: профиль, услуги, график (нужны макеты и контракт).
 8. Расшифровка голосовых (клиента и мастера).
