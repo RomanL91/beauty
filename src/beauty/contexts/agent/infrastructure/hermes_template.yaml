@@ -1,0 +1,49 @@
+# Дополнения к config.yaml профиля-шаблона beauty-template (вливаются командой
+# `beauty agent bootstrap`). Профили мастеров клонируются из шаблона.
+
+# Агент, с которым пишут клиенты, не должен иметь shell, файлов и браузера.
+# Оставляем память, поиск по прошлым сессиям и наш MCP.
+platform_toolsets:
+  api_server:
+    - memory
+    - session_search
+    - mcp-beauty
+
+# Второй рубеж: эти тулсеты выключены совсем, даже если платформа сменится.
+agent:
+  disabled_toolsets:
+    - terminal
+    - file
+    - browser
+    - code_execution
+    - delegation
+    - cronjob
+    - computer_use
+    - kanban
+    - catalog
+    - connections
+    - web
+
+# Инструменты MCP — прямо в списке инструментов модели, без моста tool_search/tool_describe/
+# tool_call: каждый шаг моста — лишний вызов LLM на ход (итоги спайка: латентность хода).
+tools:
+  tool_search:
+    enabled: "off"
+
+mcp_servers:
+  beauty:
+    # ${VAR} подставляются из .env ИМЕННО этого профиля (у каждого мастера свой токен).
+    url: "${BEAUTY_MCP_URL}"
+    headers:
+      Authorization: "Bearer ${BEAUTY_MCP_TOKEN}"
+    # Hermes подставит имя профиля — MCP сверит его с токеном.
+    identity_header:
+      name: "X-Hermes-Profile"
+      value_from: "profile"
+    timeout: 30
+    connect_timeout: 15
+    tools:
+      prompts: false
+      resources: false
+    sampling:
+      enabled: false

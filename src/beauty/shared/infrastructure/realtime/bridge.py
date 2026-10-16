@@ -46,9 +46,8 @@ class RealtimeBridge(IntegrationEventHandler):
         return tuple(dict.fromkeys(key for resolver in self._resolvers for key in resolver.binding_keys))
 
     async def handle(self, envelope: EventEnvelope) -> None:
-        """Найти резолвер и опубликовать сообщение в хаб."""
+        """Опубликовать сообщение каждого подходящего резолвера (одно событие — несколько топиков)."""
         for resolver in self._resolvers:
             if resolver.supports(envelope):
                 topic, message = resolver.resolve(envelope)
                 self._hub.publish(topic, message)
-                return

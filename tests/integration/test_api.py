@@ -15,6 +15,7 @@ from sqlalchemy import text
 from beauty.bootstrap.container import ApplicationContainer
 from beauty.contexts.identity.infrastructure.realtime import ChallengeTopic
 from beauty.entrypoints.api import ApiApplicationFactory
+from tests.integration.contract import assert_matches_schema
 from tests.integration.helpers import BotSimulator
 
 pytestmark = pytest.mark.integration
@@ -118,7 +119,9 @@ async def test_stolen_refresh_token_revokes_session(app: FastAPI, container: App
             thief.cookies.set("bk_refresh", stolen, domain="api.beautiful.kz", path=f"{PREFIX}/session")
             response = await thief.post(f"{PREFIX}/session/refresh")
             assert response.status_code == 401
-            assert response.json()["error"]["code"] == "session_reuse_detected"
+            assert response.headers["content-type"] == "application/problem+json"
+            assert response.json()["code"] == "session_reuse_detected"
+            assert_matches_schema(response.json(), "Problem")
         assert (await owner.post(f"{PREFIX}/session/refresh")).status_code == 401
 
 

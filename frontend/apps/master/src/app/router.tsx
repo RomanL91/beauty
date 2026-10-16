@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
-import { AssistantPage } from '../pages/assistant/AssistantPage';
+import { AssistantRoute } from '../pages/assistant/AssistantRoute';
+import { LoginPage } from '../pages/login/LoginPage';
 import { ChatsPage } from '../pages/chats/ChatsPage';
 import { DialogPage } from '../pages/dialog/DialogPage';
 import { PlaceholderPage } from '../pages/placeholder/PlaceholderPage';
@@ -10,6 +11,7 @@ import { RouteError } from './RouteError';
 
 /** Маршруты кабинета (см. README макетов). */
 export const routes: RouteObject[] = [
+  { path: 'login', element: <LoginPage />, errorElement: <RouteError /> },
   {
     element: <RootLayout />,
     errorElement: <RouteError />,
@@ -18,7 +20,7 @@ export const routes: RouteObject[] = [
       { path: 'schedule/:date?', element: <SchedulePage /> },
       { path: 'chats', element: <ChatsPage /> },
       { path: 'chats/:id', element: <DialogPage /> },
-      { path: 'assistant', element: <AssistantPage /> },
+      { path: 'assistant', element: <AssistantRoute /> },
       {
         path: 'clients',
         element: (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loginReducer, type LoginState } from './use-telegram-login';
+import { loginReducer, type LoginState } from './login-state';
 
 const challenge = {
   challenge_id: 'c',

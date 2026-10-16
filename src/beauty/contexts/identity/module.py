@@ -29,12 +29,17 @@ from beauty.contexts.identity.application.commands import (
     StartTelegramAuth,
     StartTelegramAuthHandler,
 )
-from beauty.contexts.identity.application.queries import GetChallengeStatus, GetChallengeStatusHandler
+from beauty.contexts.identity.application.queries import (
+    GetChallengeStatus,
+    GetChallengeStatusHandler,
+    GetClientContact,
+    GetClientContactHandler,
+)
 from beauty.contexts.identity.application.services.account_resolution import AccountResolver
 from beauty.contexts.identity.application.services.confirmation import ConfirmationPolicyFactory
 from beauty.contexts.identity.domain.services import ConfirmationCodeGenerator
 from beauty.contexts.identity.infrastructure.mapping import IdentityOrmMapper
-from beauty.contexts.identity.infrastructure.readers import SqlChallengeStatusReader
+from beauty.contexts.identity.infrastructure.readers import SqlChallengeStatusReader, SqlClientContactReader
 from beauty.contexts.identity.infrastructure.realtime import AuthChallengeTopicResolver
 from beauty.contexts.identity.infrastructure.telegram import TelegramDeepLinkBuilder
 from beauty.contexts.identity.infrastructure.tokens import (
@@ -74,6 +79,7 @@ _HTTP_STATUSES: dict[str, int] = {
     "contact_not_owned": 422,
     "invalid_phone": 422,
     "invalid_nonce": 422,
+    "client_not_found": 404,
 }
 
 
@@ -112,6 +118,7 @@ class IdentityModule:
         )
         self._resolver = AccountResolver(dependencies.id_generator)
         self._status_reader = SqlChallengeStatusReader(dependencies.session_factory)
+        self._contact_reader = SqlClientContactReader(dependencies.session_factory)
 
     def register(self, mediator: Mediator, http_errors: HttpErrorMapper) -> None:
         """Зарегистрировать обработчики и коды ошибок."""
@@ -157,6 +164,7 @@ class IdentityModule:
         mediator.register(
             GetChallengeStatus, lambda: GetChallengeStatusHandler(self._status_reader, deps.clock)
         )
+        mediator.register(GetClientContact, lambda: GetClientContactHandler(self._contact_reader))
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
 

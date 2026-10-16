@@ -53,6 +53,9 @@ importers:
       '@beauty/pwa':
         specifier: workspace:*
         version: link:../../packages/pwa
+      '@beauty/telegram-login':
+        specifier: workspace:*
+        version: link:../../packages/telegram-login
       '@beauty/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -117,6 +120,9 @@ importers:
       '@beauty/pwa':
         specifier: workspace:*
         version: link:../../packages/pwa
+      '@beauty/telegram-login':
+        specifier: workspace:*
+        version: link:../../packages/telegram-login
       '@beauty/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -240,6 +246,25 @@ importers:
       workbox-strategies:
         specifier: 7.4.1
         version: 7.4.1
+    devDependencies:
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      react:
+        specifier: 19.3.1
+        version: 19.3.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/telegram-login:
+    dependencies:
+      '@beauty/api':
+        specifier: workspace:*
+        version: link:../api
+      '@beauty/ui':
+        specifier: workspace:*
+        version: link:../ui
     devDependencies:
       '@types/react':
         specifier: 19.3.0

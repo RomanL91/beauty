@@ -1,5 +1,6 @@
 import {
   HttpAssistantGateway,
+  HttpAuthGateway,
   HttpCore,
   HttpInboxGateway,
   HttpMasterEventsGateway,
@@ -20,7 +21,7 @@ import type { AppEnv } from '../shared/config/env';
 export interface MasterContainer {
   readonly env: AppEnv;
   readonly session: SessionStore;
-  /** Итерация 1: заглушка входа (см. StubMasterAuthGateway). */
+  /** Вход через Telegram; в моках и e2e — заглушка (см. `AppEnv.stubAuth`). */
   readonly auth: AuthGateway;
   readonly schedule: ScheduleGateway;
   readonly inbox: InboxGateway;
@@ -34,7 +35,7 @@ export function createMasterContainer(env: AppEnv, core = new HttpCore()): Maste
   return {
     env,
     session: core.session,
-    auth: new StubMasterAuthGateway(core),
+    auth: env.stubAuth ? new StubMasterAuthGateway(core) : new HttpAuthGateway(core),
     schedule: new HttpScheduleGateway(core),
     inbox: new HttpInboxGateway(core),
     assistant: new HttpAssistantGateway(core),

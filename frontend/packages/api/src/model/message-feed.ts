@@ -8,7 +8,8 @@ export type OutgoingDraft =
   | { readonly kind: 'text'; readonly text: string }
   | { readonly kind: 'voice'; readonly audio: Blob; readonly duration: number }
   | { readonly kind: 'slot_pick'; readonly offerId: string; readonly start: string }
-  | { readonly kind: 'book_slot'; readonly serviceId: string; readonly start: string };
+  | { readonly kind: 'book_slot'; readonly serviceId: string; readonly start: string }
+  | { readonly kind: 'request_slots'; readonly text: string; readonly serviceId: string | null };
 
 /** Элемент ленты: сообщение сервера или локальное (ещё не подтверждённое). */
 export interface FeedItem {

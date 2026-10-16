@@ -6,11 +6,11 @@ info:
   description: |
     Источник правды для фронтенда и бэкенда.
 
-    * Раздел **auth** описывает уже реализованный код
-      (`src/beauty/contexts/identity/presentation/api`). Его ошибки пока отдаются
-      в формате `ErrorEnvelope` (`{"error": {"code", "message"}}`).
-    * Остальные разделы — новые: бэкенд реализует их позже, фронтенд работает
-      по ним через MSW. Ошибки — RFC 9457 `application/problem+json`.
+    * Реализовано бэкендом: **auth** (`contexts/identity`), **public**
+      (`contexts/tenancy`), **client** и **master** (`contexts/conversations`,
+      `contexts/booking`). Разделы **assistant** и **push** фронтенд пока получает от моков.
+    * Ошибки всех эндпоинтов — RFC 9457 `application/problem+json` с расширением
+      `code` (машиночитаемый код; тексты `detail` могут меняться).
 
     Все пути — относительно `/api/v1`. Время — RFC 3339 с часовым поясом,
     идентификаторы — UUIDv7. Access-токен передаётся заголовком
@@ -33,7 +33,11 @@ tags:
   - name: client
     description: Переписка и записи клиента.
   - name: master
-    description: Кабинет мастера.
+    description: |
+      Кабинет мастера. Доступ — access-токен учётной записи, к которой привязана
+      страница мастера (телефон владельца); иначе 403 `not_a_master`.
+  - name: assistant
+    description: Поручения мастера ИИ-агенту (кабинет; появятся вместе с агентом).
   - name: push
     description: Подписки Web Push.
 security:
@@ -74,7 +78,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ChallengeStatusResponse' }
         '404':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
   /auth/telegram/challenges/{challenge_id}/events:
     parameters:
       - $ref: '#/components/parameters/ChallengeId'
@@ -95,7 +99,7 @@ paths:
             text/event-stream:
               schema: { $ref: '#/components/schemas/ChallengeStatusEvent' }
         '404':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
   /auth/telegram/challenges/{challenge_id}/session:
     parameters:
       - $ref: '#/components/parameters/ChallengeId'
@@ -117,11 +121,11 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SessionResponse' }
         '404':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
         '409':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
         '410':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
   /auth/session/refresh:
     post:
       tags: [auth]
@@ -139,7 +143,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SessionResponse' }
         '401':
-          $ref: '#/components/responses/AuthError'
+          $ref: '#/components/responses/Problem'
   /auth/session/logout:
     post:
       tags: [auth]
@@ -161,7 +165,11 @@ paths:
       security: []
       responses:
         '200':
-          description: Профиль, услуги и правила записи.
+          description: Профиль, услуги и правила записи (только опубликованная страница).
+          headers:
+            Cache-Control:
+              description: '`public, max-age=60`'
+              schema: { type: string }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MasterPage' }
@@ -174,7 +182,11 @@ paths:
       tags: [public]
       operationId: listMasterSlots
       summary: Свободные окна
-      description: Без `service` — ближайшие окна для любой услуги (по самой короткой).
+      description: |
+        Окна, **начинающиеся** в `[from, to)`. Без `service` — по самой короткой активной
+        услуге (её id — в `service_id`). Окно поиска дополнительно ограничено правилами
+        мастера: не раньше «сейчас + минимальный интервал» и не дальше горизонта записи.
+        Время в ответе — в часовом поясе мастера. Ответ не кэшируется.
       security: []
       parameters:
         - name: service
@@ -182,9 +194,11 @@ paths:
           schema: { type: string, format: uuid }
         - name: from
           in: query
+          description: Начало окна поиска (RFC 3339 с поясом); по умолчанию — сейчас.
           schema: { type: string, format: date-time }
         - name: to
           in: query
+          description: Конец окна поиска (не включая); по умолчанию — горизонт записи.
           schema: { type: string, format: date-time }
         - name: limit
           in: query
@@ -202,6 +216,8 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/Slot' }
         '404':
+          $ref: '#/components/responses/Problem'
+        '422':
           $ref: '#/components/responses/Problem'
 
   /conversations/me:
@@ -241,6 +257,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ClientConversation' }
         '401':
+          $ref: '#/components/responses/Problem'
+        '404':
           $ref: '#/components/responses/Problem'
   /conversations/{conversation_id}/messages:
     parameters:
@@ -319,6 +337,10 @@ paths:
       tags: [client]
       operationId: cancelAppointment
       summary: Отменить запись
+      description: |
+        Неподтверждённую заявку можно отозвать до начала визита, подтверждённую запись —
+        не позднее `booking_rules.change_deadline_hours` (иначе 409 `change_deadline_passed`).
+        Чужая запись — 404.
       requestBody:
         content:
           application/json:
@@ -334,7 +356,11 @@ paths:
               schema: { $ref: '#/components/schemas/Appointment' }
         '401':
           $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
         '409':
+          $ref: '#/components/responses/Problem'
+        '422':
           $ref: '#/components/responses/Problem'
   /appointments/{appointment_id}/reschedule:
     parameters:
@@ -343,7 +369,10 @@ paths:
       tags: [client]
       operationId: rescheduleAppointment
       summary: Перенести запись
-      description: Новая заявка на указанное время; старая освобождается после подтверждения.
+      description: |
+        Новая заявка на указанное время (в переписке появится её карточка); прежняя запись
+        остаётся в силе и освобождается, только когда мастер подтвердит перенос. Время,
+        пересекающееся с прежней записью, — 409 `slot_taken`.
       requestBody:
         required: true
         content:
@@ -361,7 +390,11 @@ paths:
               schema: { $ref: '#/components/schemas/Appointment' }
         '401':
           $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
         '409':
+          $ref: '#/components/responses/Problem'
+        '422':
           $ref: '#/components/responses/Problem'
 
   /me:
@@ -377,6 +410,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/MasterPage' }
         '401':
+          $ref: '#/components/responses/Problem'
+        '403':
           $ref: '#/components/responses/Problem'
   /me/schedule:
     get:
@@ -396,6 +431,8 @@ paths:
               schema: { $ref: '#/components/schemas/DaySchedule' }
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
   /me/appointments/{appointment_id}/confirm:
     parameters:
       - $ref: '#/components/parameters/AppointmentId'
@@ -410,6 +447,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Appointment' }
         '401':
+          $ref: '#/components/responses/Problem'
+        '403':
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
@@ -437,6 +476,8 @@ paths:
               schema: { $ref: '#/components/schemas/Appointment' }
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
   /me/conversations:
@@ -460,6 +501,8 @@ paths:
               schema: { $ref: '#/components/schemas/ConversationList' }
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
   /me/conversations/{conversation_id}:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
@@ -474,6 +517,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ConversationSummary' }
         '401':
+          $ref: '#/components/responses/Problem'
+        '403':
           $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
@@ -495,6 +540,8 @@ paths:
               schema: { $ref: '#/components/schemas/MessagePage' }
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
     post:
@@ -514,6 +561,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/MasterSendResult' }
         '401':
+          $ref: '#/components/responses/Problem'
+        '403':
           $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
@@ -537,11 +586,13 @@ paths:
               schema: { $ref: '#/components/schemas/HandlerState' }
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
   /me/assistant/messages:
     get:
-      tags: [master]
+      tags: [assistant]
       operationId: listAssistantMessages
       summary: Лента поручений
       parameters:
@@ -556,7 +607,7 @@ paths:
         '401':
           $ref: '#/components/responses/Problem'
     post:
-      tags: [master]
+      tags: [assistant]
       operationId: sendAssistantMessage
       summary: Дать поручение
       requestBody:
@@ -585,7 +636,7 @@ paths:
         required: true
         schema: { type: string, format: uuid }
     post:
-      tags: [master]
+      tags: [assistant]
       operationId: answerAssistantChoice
       summary: Выбрать вариант
       requestBody:
@@ -612,6 +663,10 @@ paths:
       tags: [master]
       operationId: streamMasterEvents
       summary: SSE-поток кабинета мастера
+      description: |
+        Живой поток без журнала: кадры — с момента подключения. При переподключении с
+        `Last-Event-ID` первым приходит `event: reset` (`StreamResetEvent`): кабинет
+        перечитывает график и чаты.
       parameters:
         - $ref: '#/components/parameters/LastEventId'
       responses:
@@ -735,11 +790,6 @@ components:
       schema: { type: string }
 
   responses:
-    AuthError:
-      description: Ошибка входа/сессии (текущий формат identity).
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
     Problem:
       description: Ошибка (RFC 9457).
       content:
@@ -747,22 +797,6 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
-    ErrorEnvelope:
-      type: object
-      description: Формат ошибок, реализованный в identity сейчас.
-      required: [error]
-      properties:
-        error:
-          type: object
-          required: [code, message]
-          properties:
-            code:
-              type: string
-              description: |
-                Например: `challenge_not_found` (404), `browser_secret_mismatch` (404),
-                `challenge_expired` (410), `invalid_challenge_state` (409),
-                `invalid_session` (401), `session_reuse_detected` (401), `session_inactive` (401).
-            message: { type: string }
     Problem:
       type: object
       description: RFC 9457 Problem Details.
@@ -775,7 +809,15 @@ components:
         instance: { type: string, format: uri-reference }
         code:
           type: string
-          description: Машиночитаемый код ошибки (как в identity).
+          description: |
+            Машиночитаемый код ошибки. Например: `validation_error` (422),
+            `challenge_not_found` (404), `challenge_expired` (410), `invalid_session` (401),
+            `session_reuse_detected` (401), `master_not_found` (404), `service_not_found` (404),
+            `invalid_slot_window` (422), `conversation_not_found` (404), `appointment_not_found` (404),
+            `offer_not_found` (404), `offer_already_used` (409), `slot_not_offered` (422),
+            `slot_unavailable` / `slot_taken` (409), `change_deadline_passed` (409),
+            `appointment_closed` (409), `invalid_voice` (422), `voice_too_large` (413),
+            `not_a_master` (403), `appointment_not_pending` (409), `request_expired` (409).
         errors:
           type: array
           description: Ошибки полей для 422.
@@ -1149,17 +1191,31 @@ components:
         kind: { type: string, const: book_slot }
         service_id: { type: string, format: uuid }
         start: { type: string, format: date-time }
+    RequestSlotsInput:
+      type: object
+      description: |
+        «Хочу записаться — какое время свободно?» (со страницы мастера, услуга выбрана
+        или нет). В ленте — `text` клиента, администратор ответит `slot_offer` на
+        ближайший день с окнами (без услуги — по самой короткой).
+      required: [client_id, kind, text]
+      properties:
+        client_id: { type: string, format: uuid }
+        kind: { type: string, const: request_slots }
+        text: { type: string, minLength: 1, maxLength: 500 }
+        service_id: { type: string, format: uuid }
     ClientMessageInput:
       oneOf:
         - $ref: '#/components/schemas/TextInput'
         - $ref: '#/components/schemas/SlotPickInput'
         - $ref: '#/components/schemas/BookSlotInput'
+        - $ref: '#/components/schemas/RequestSlotsInput'
       discriminator:
         propertyName: kind
         mapping:
           text: '#/components/schemas/TextInput'
           slot_pick: '#/components/schemas/SlotPickInput'
           book_slot: '#/components/schemas/BookSlotInput'
+          request_slots: '#/components/schemas/RequestSlotsInput'
     VoiceUpload:
       type: object
       required: [client_id, audio, duration]
@@ -1303,6 +1359,14 @@ components:
       properties:
         type: { type: string, const: message.created }
         message: { $ref: '#/components/schemas/Message' }
+    StreamResetEvent:
+      type: object
+      description: |
+        `event: reset` — присланный `Last-Event-ID` старше журнала потока (журнал хранится
+        24 ч): досылать нечего, клиент перечитывает историю. `id` кадра — текущая позиция.
+      required: [type]
+      properties:
+        type: { type: string, const: reset }
     MessageUpdatedEvent:
       type: object
       description: "`event: message.updated` — изменилось сообщение (статус заявки в карточке, выбор, прогресс поручения)."
@@ -1314,11 +1378,13 @@ components:
       oneOf:
         - $ref: '#/components/schemas/MessageCreatedEvent'
         - $ref: '#/components/schemas/MessageUpdatedEvent'
+        - $ref: '#/components/schemas/StreamResetEvent'
       discriminator:
         propertyName: type
         mapping:
           message.created: '#/components/schemas/MessageCreatedEvent'
           message.updated: '#/components/schemas/MessageUpdatedEvent'
+          reset: '#/components/schemas/StreamResetEvent'
     MasterMessageEvent:
       type: object
       description: "`event: message.created` / `message.updated`; `conversation_id = null` — лента поручений."
@@ -1349,6 +1415,7 @@ components:
         - $ref: '#/components/schemas/MasterMessageEvent'
         - $ref: '#/components/schemas/AppointmentUpdatedEvent'
         - $ref: '#/components/schemas/ConversationUpdatedEvent'
+        - $ref: '#/components/schemas/StreamResetEvent'
     PushPayload:
       type: object
       required: [kind, title, body, url]

@@ -44,6 +44,7 @@ export function useClientConversation() {
   const [older, setOlder] = useState<'idle' | 'loading' | 'error'>('idle');
   /** Окна, выбранные, но ещё не подтверждённые сервером: offerId → start. */
   const [picked, setPicked] = useState<ReadonlyMap<string, string>>(new Map());
+  const [reload, setReload] = useState(0);
   const feedRef = useRef(feed);
   useLayoutEffect(() => {
     feedRef.current = feed;
@@ -52,17 +53,22 @@ export function useClientConversation() {
   useEffect(() => {
     if (!conversationId) return undefined;
     return conversations.subscribe(conversationId, {
-      onEvent: (event) =>
+      onEvent: (event) => {
+        // Журнал потока устарел: досылки не будет — перечитываем историю.
+        if (event.type === 'reset') {
+          setReload((n) => n + 1);
+          return;
+        }
         dispatch({
           type: event.type === 'message.created' ? 'remote/created' : 'remote/updated',
           message: event.message,
-        }),
+        });
+      },
       onStateChange: setStream,
     });
   }, [conversations, conversationId]);
 
-  // Первая страница истории; `reload` — повтор после ошибки.
-  const [reload, setReload] = useState(0);
+  // Первая страница истории; `reload` — повтор после ошибки или `reset` потока.
   useEffect(() => {
     if (!conversationId) return undefined;
     let cancelled = false;
@@ -191,6 +197,15 @@ export function useClientConversation() {
     [enqueue],
   );
 
+  /** «Какое время свободно?» — администратор ответит окнами (без услуги — по самой короткой). */
+  const requestSlots = useCallback(
+    (text: string, serviceId: string | null) => {
+      const clientId = newClientId();
+      enqueue({ kind: 'request_slots', text, serviceId }, local(clientId, { kind: 'text', text }));
+    },
+    [enqueue],
+  );
+
   /** Повторить неотправленное. */
   const retry = useCallback(
     (clientId: string) => {
@@ -224,6 +239,7 @@ export function useClientConversation() {
     sendVoice,
     pickSlot,
     bookSlot,
+    requestSlots,
     retry,
     applyUpdate,
   };
@@ -249,6 +265,13 @@ function toInput(
         client_id: clientId,
         service_id: draft.serviceId,
         start: draft.start,
+      };
+    case 'request_slots':
+      return {
+        kind: 'request_slots',
+        client_id: clientId,
+        text: draft.text,
+        ...(draft.serviceId !== null && { service_id: draft.serviceId }),
       };
   }
 }

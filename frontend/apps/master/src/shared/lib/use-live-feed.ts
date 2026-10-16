@@ -9,7 +9,7 @@ import {
   type OutgoingDraft,
 } from '@beauty/api';
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
-import { useFeedEvents } from './events';
+import { useEventHub, useFeedEvents } from './events';
 
 const PAGE_SIZE = 30;
 
@@ -45,6 +45,9 @@ export function useLiveFeed(source: LiveFeedSource) {
   useFeedEvents(source.channel, (message, kind) =>
     dispatch({ type: kind === 'created' ? 'remote/created' : 'remote/updated', message }),
   );
+
+  const hub = useEventHub();
+  useEffect(() => hub.onReset(() => setReload((n) => n + 1)), [hub]);
 
   const { load } = source;
   useEffect(() => {

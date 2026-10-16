@@ -77,3 +77,11 @@ class ChallengeStatusView:
     challenge_id: UUID
     status: str
     expires_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ClientContactView:
+    """Контакт клиента: id учётной записи и телефон в E.164."""
+
+    account_id: UUID
+    phone: str

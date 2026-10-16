@@ -12,6 +12,7 @@ COPY packages/api/package.json packages/api/
 COPY packages/mocks/package.json packages/mocks/
 COPY packages/ui/package.json packages/ui/
 COPY packages/pwa/package.json packages/pwa/
+COPY packages/telegram-login/package.json packages/telegram-login/
 COPY e2e/package.json e2e/
 RUN pnpm install --frozen-lockfile
 

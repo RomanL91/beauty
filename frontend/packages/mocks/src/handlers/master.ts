@@ -109,6 +109,17 @@ export function masterHandlers(db: MockDb) {
       },
     ),
 
+    http.get(
+      '/me/events',
+      ({ request, response }) =>
+        requireBearer(request) ?? response.untyped(streamFromLog(db.masterLog, request)),
+    ),
+  ];
+}
+
+/** Поручения агенту (группа `assistant`): ответы приходят через мок-поток `/me/events`. */
+export function assistantHandlers(db: MockDb) {
+  return [
     http.get('/me/assistant/messages', async ({ request, query, response }) => {
       await delay(200);
       return (
@@ -146,11 +157,5 @@ export function masterHandlers(db: MockDb) {
       const body = await request.json();
       return run(() => response(200).json(db.chooseOption(params.choice_id, body.option_id)));
     }),
-
-    http.get(
-      '/me/events',
-      ({ request, response }) =>
-        requireBearer(request) ?? response.untyped(streamFromLog(db.masterLog, request)),
-    ),
   ];
 }

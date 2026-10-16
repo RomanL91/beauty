@@ -1,7 +1,11 @@
-"""Помощники интеграционных тестов: прохождение входа через медиатор."""
+"""Помощники интеграционных тестов: вход через медиатор, доставка событий без брокера."""
 
 from __future__ import annotations
 
+import httpx
+from sqlalchemy import func, select, update
+
+from beauty.bootstrap.container import ApplicationContainer
 from beauty.contexts.identity.application.commands import (
     ClaimChallenge,
     CompleteChallengeWithContact,
@@ -10,6 +14,10 @@ from beauty.contexts.identity.application.commands import (
 )
 from beauty.contexts.identity.application.dto import StartedChallenge
 from beauty.shared.application.mediator import Mediator
+from beauty.shared.infrastructure.inbox.guard import InboxGuard, InboxIdempotentHandler
+from beauty.shared.infrastructure.outbox.envelope import EventEnvelope
+from beauty.shared.infrastructure.outbox.table import outbox_table
+from beauty.shared.infrastructure.realtime.bridge import RealtimeBridge
 
 
 class BotSimulator:
@@ -39,3 +47,78 @@ class BotSimulator:
         started = await self._mediator.send(StartTelegramAuth())
         await self.confirm(started.deep_link, started.confirmation_code, telegram_user)
         return started
+
+
+class EventPump:
+    """Relay и консьюмеры без брокера: события outbox → обработчики подписок и realtime-хаб.
+
+    Обработчики обёрнуты в inbox, как в процессе ``worker``; события, порождённые
+    обработчиками, доставляются в следующих раундах.
+    """
+
+    def __init__(self, container: ApplicationContainer) -> None:
+        """Собрать подписки контейнера."""
+        self._container = container
+        guard = InboxGuard()
+        self._handlers = [
+            (
+                subscription.spec.binding_keys,
+                InboxIdempotentHandler(
+                    subscription.handler, container.transaction_scope, guard, subscription.spec.name
+                ),
+            )
+            for subscription in container.event_subscriptions()
+        ]
+        self._bridge = RealtimeBridge(container.realtime_hub, container.realtime_resolvers())
+        self.delivered: list[str] = []
+
+    async def drain(self, rounds: int = 10) -> list[str]:
+        """Доставлять, пока outbox не опустеет; вернуть ключи доставленных событий."""
+        for _ in range(rounds):
+            async with self._container.engine.begin() as connection:
+                rows = (
+                    await connection.execute(
+                        select(outbox_table)
+                        .where(outbox_table.c.published_at.is_(None))
+                        .order_by(outbox_table.c.id)
+                    )
+                ).all()
+                await connection.execute(
+                    update(outbox_table)
+                    .where(outbox_table.c.id.in_([row.id for row in rows]))
+                    .values(published_at=func.now())
+                )
+            if not rows:
+                return self.delivered
+            for row in rows:
+                envelope = EventEnvelope(
+                    message_id=row.id,
+                    routing_key=row.routing_key,
+                    event_type=row.event_type,
+                    event_version=row.event_version,
+                    occurred_at=row.occurred_at,
+                    payload=row.payload,
+                )
+                self.delivered.append(envelope.routing_key)
+                for keys, handler in self._handlers:
+                    if any(_matches(key, envelope.routing_key) for key in keys):
+                        await handler.handle(envelope)
+                await self._bridge.handle(envelope)
+        raise AssertionError("События продолжают порождаться — вероятен цикл")
+
+
+def _matches(pattern: str, key: str) -> bool:
+    """Шаблон topic-exchange (``*`` — одно слово; ``#`` в тестах не нужен)."""
+    words, parts = pattern.split("."), key.split(".")
+    return len(words) == len(parts) and all(w in ("*", p) for w, p in zip(words, parts, strict=True))
+
+
+async def login(client: httpx.AsyncClient, mediator: Mediator, telegram_user: int, phone: str) -> str:
+    """Войти через Telegram (бот — командами) и вернуть access-токен."""
+    started = (await client.post("/api/v1/auth/telegram/challenges")).json()
+    bot = BotSimulator(mediator)
+    await bot.confirm(started["deep_link"], started["confirmation_code"], telegram_user)
+    await bot.share_contact(telegram_user, phone)
+    session = await client.post(f"/api/v1/auth/telegram/challenges/{started['challenge_id']}/session")
+    token: str = session.json()["access_token"]
+    return token

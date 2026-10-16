@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from uuid import UUID
 
 from sqlalchemy.dialects.postgresql import insert
@@ -55,4 +56,35 @@ class InboxIdempotentHandler(IntegrationEventHandler):
         async with self._scope.begin() as session:
             if not await self._guard.claim(session, self._consumer, envelope.message_id):
                 return
+            await self._inner.handle(envelope)
+
+
+class InboxClaimFirstHandler(IntegrationEventHandler):
+    """Inbox без общей транзакции: отметка о доставке — до обработки (at-most-once).
+
+    Для долгих обработчиков, которые ходят во внешние системы (ход ИИ-агента до минуты):
+    держать транзакцию открытой всё это время нельзя, а промежуточные записи (тикет хода)
+    должны быть видны другим процессам сразу. Повторная доставка уже отмеченного события
+    не обрабатывается; если процесс упадёт посреди обработки, событие не повторится —
+    обработчик сам должен оставлять безопасное состояние (вопрос клиента ждёт мастера).
+    """
+
+    def __init__(
+        self,
+        inner: IntegrationEventHandler,
+        session_factory: Callable[[], AsyncSession],
+        guard: InboxGuard,
+        consumer: str,
+    ) -> None:
+        """Обернуть обработчик."""
+        self._inner = inner
+        self._session_factory = session_factory
+        self._guard = guard
+        self._consumer = consumer
+
+    async def handle(self, envelope: EventEnvelope) -> None:
+        """Отметить и обработать."""
+        async with self._session_factory() as session, session.begin():
+            claimed = await self._guard.claim(session, self._consumer, envelope.message_id)
+        if claimed:
             await self._inner.handle(envelope)

@@ -14,6 +14,7 @@ from beauty.bootstrap.container import ApplicationContainer
 from beauty.entrypoints.realtime import RealtimeBridgeService
 from beauty.entrypoints.workers import Worker
 from beauty.shared.infrastructure.realtime.bridge import RealtimeBridge
+from beauty.shared.infrastructure.web.media import MediaController
 
 
 class ApiApplicationFactory:
@@ -44,6 +45,16 @@ class ApiApplicationFactory:
         )
         container.http_errors.install(app)
         app.include_router(container.identity.api_router(container.mediator), prefix=settings.http.api_prefix)
+        app.include_router(container.tenancy.api_router(container.mediator), prefix=settings.http.api_prefix)
+        for router in (
+            container.tenancy.cabinet_router(container.mediator, container.master_auth),
+            container.booking.cabinet_router(container.mediator, container.master_auth),
+            container.conversations.cabinet_router(container.mediator, container.master_auth),
+            container.booking.api_router(container.mediator, container.client_auth),
+            container.conversations.api_router(container.mediator, container.client_auth),
+            MediaController(container.file_storage, container.media_urls).router(),
+        ):
+            app.include_router(router, prefix=settings.http.api_prefix)
         app.add_api_route("/health", self._health, methods=["GET"], include_in_schema=False)
         return app
 
@@ -53,7 +64,7 @@ class ApiApplicationFactory:
         container = self._container
         bridge_service: RealtimeBridgeService | None = None
         if self._enable_realtime_bridge:
-            bridge = RealtimeBridge(container.realtime_hub, container.identity.realtime_resolvers())
+            bridge = RealtimeBridge(container.realtime_hub, container.realtime_resolvers())
             bridge_service = RealtimeBridgeService(
                 container.rabbit, container.topology, container.envelope_codec, bridge
             )

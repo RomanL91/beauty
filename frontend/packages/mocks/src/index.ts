@@ -8,7 +8,7 @@ import type { RequestHandler } from 'msw';
 import { MockDb, type MockDbOptions } from './db';
 import { authHandlers } from './handlers/auth';
 import { clientHandlers } from './handlers/client';
-import { masterHandlers } from './handlers/master';
+import { assistantHandlers, masterHandlers } from './handlers/master';
 import { publicHandlers } from './handlers/public';
 import { pushHandlers } from './handlers/push';
 
@@ -20,10 +20,17 @@ export { CLIENTS } from './fixtures/people';
 export { uuidv7 } from './ids';
 
 /** Группы эндпоинтов контракта (теги OpenAPI). */
-export type EndpointGroup = 'auth' | 'public' | 'client' | 'master' | 'push';
+export type EndpointGroup = 'auth' | 'public' | 'client' | 'master' | 'assistant' | 'push';
 
 /** Все группы. */
-export const ALL_GROUPS: readonly EndpointGroup[] = ['auth', 'public', 'client', 'master', 'push'];
+export const ALL_GROUPS: readonly EndpointGroup[] = [
+  'auth',
+  'public',
+  'client',
+  'master',
+  'assistant',
+  'push',
+];
 
 /** Какие группы уже реализованы бэкендом — их не мокаем, запросы уходят в сеть. */
 export interface MockScope {
@@ -41,6 +48,7 @@ export function createHandlers(
     ...(mocked('public') ? publicHandlers(db) : []),
     ...(mocked('client') ? clientHandlers(db) : []),
     ...(mocked('master') ? masterHandlers(db) : []),
+    ...(mocked('assistant') ? assistantHandlers(db) : []),
     ...(mocked('push') ? pushHandlers() : []),
   ];
 }

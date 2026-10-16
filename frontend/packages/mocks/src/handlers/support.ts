@@ -18,14 +18,6 @@ export function problem(status: number, code: string, title: string): HttpRespon
   ) as unknown as HttpResponse<never>;
 }
 
-/** Ответ в текущем формате identity. */
-export function authError(status: number, code: string, message: string): HttpResponse<never> {
-  return HttpResponse.json(
-    { error: { code, message } },
-    { status },
-  ) as unknown as HttpResponse<never>;
-}
-
 /** Без `Authorization: Bearer …` — 401. */
 export function requireBearer(request: Request): HttpResponse<never> | null {
   const header = request.headers.get('Authorization') ?? '';
@@ -34,19 +26,12 @@ export function requireBearer(request: Request): HttpResponse<never> | null {
     : problem(401, 'unauthorized', 'Нужно войти');
 }
 
-/** Выполнить сценарий, превратив `MockProblem` в problem+json. */
-export function run<T>(
-  scenario: () => T,
-  format: 'problem' | 'auth' = 'problem',
-): T | HttpResponse<never> {
+/** Выполнить сценарий, превратив `MockProblem` в problem+json (как сервер). */
+export function run<T>(scenario: () => T): T | HttpResponse<never> {
   try {
     return scenario();
   } catch (error) {
-    if (error instanceof MockProblem) {
-      return format === 'auth'
-        ? authError(error.status, error.code, error.title)
-        : problem(error.status, error.code, error.title);
-    }
+    if (error instanceof MockProblem) return problem(error.status, error.code, error.title);
     throw error;
   }
 }

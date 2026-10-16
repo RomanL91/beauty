@@ -38,6 +38,11 @@ export function EventsBridge() {
               void queryClient.invalidateQueries({ queryKey: scheduleKeys.all });
               break;
             }
+            case 'reset':
+              // Пропущенное за время обрыва не досылается: перечитываем всё.
+              void queryClient.invalidateQueries();
+              hub.dispatch(event);
+              break;
             case 'conversation.updated':
               queryClient.setQueryData(
                 inboxKeys.conversation(event.conversation.id),

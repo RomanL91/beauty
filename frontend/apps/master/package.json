@@ -13,6 +13,7 @@
     "@beauty/api": "workspace:*",
     "@beauty/mocks": "workspace:*",
     "@beauty/pwa": "workspace:*",
+    "@beauty/telegram-login": "workspace:*",
     "@beauty/ui": "workspace:*",
     "@tanstack/react-query": "5.104.3",
     "react": "19.3.1",
