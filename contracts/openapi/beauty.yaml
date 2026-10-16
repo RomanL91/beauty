@@ -8,7 +8,8 @@ info:
 
     * Реализовано бэкендом: **auth** (`contexts/identity`), **public**
       (`contexts/tenancy`), **client** и **master** (`contexts/conversations`,
-      `contexts/booking`). Разделы **assistant** и **push** фронтенд пока получает от моков.
+      `contexts/booking`), **assistant** (`contexts/agent`). Раздел **push** фронтенд пока
+      получает от моков.
     * Ошибки всех эндпоинтов — RFC 9457 `application/problem+json` с расширением
       `code` (машиночитаемый код; тексты `detail` могут меняться).
 

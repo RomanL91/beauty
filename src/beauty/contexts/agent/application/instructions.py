@@ -22,16 +22,24 @@ def _price(amount: int | None) -> str:
     return f"{tenge:,} ₸".replace(",", " ")
 
 
-def front_desk_instructions(master: MasterBrief, client_name: str, ticket: str, now: datetime) -> str:
-    """Инструкции хода, в котором агент отвечает клиенту."""
-    local = now.astimezone(ZoneInfo(master.timezone))
-    services = "\n".join(
+def _services(master: MasterBrief) -> str:
+    return "\n".join(
         f"- {s.title} — {s.duration_min} мин, {_price(s.price_amount)} (service_id: {s.id})"
         for s in master.services
     )
+
+
+def _now(master: MasterBrief, now: datetime) -> str:
+    local = now.astimezone(ZoneInfo(master.timezone))
+    return f"{_WEEKDAYS[local.weekday()]}, {local:%d.%m.%Y %H:%M} ({master.timezone})"
+
+
+def front_desk_instructions(master: MasterBrief, client_name: str, ticket: str, now: datetime) -> str:
+    """Инструкции хода, в котором агент отвечает клиенту."""
+    services = _services(master)
     who = f"{master.name} — {master.specialty}" if master.specialty else master.name
     return f"""Роль: администратор (ресепшн) мастера {who}.
-Сейчас: {_WEEKDAYS[local.weekday()]}, {local:%d.%m.%Y %H:%M} ({master.timezone}).
+Сейчас: {_now(master, now)}.
 Клиент: {client_name}.
 Тикет хода: {ticket} — передавай его без изменений в каждый инструмент.
 
@@ -49,4 +57,29 @@ def front_desk_instructions(master: MasterBrief, client_name: str, ticket: str, 
 - Если вопрос не про услуги и запись или ты не уверен — вызови handoff_to_master с кратким
   пересказом вопроса и ответь клиенту, что {master.name} ответит здесь.
 - Не раскрывай данные других клиентов и не обещай того, чего нет в правилах.
+"""
+
+
+def office_instructions(master: MasterBrief, ticket: str, now: datetime) -> str:
+    """Инструкции хода кабинета: мастер даёт поручение своему администратору."""
+    return f"""Роль: личный администратор мастера {master.name}. С тобой говорит сам мастер.
+Сейчас: {_now(master, now)}. Даты в инструментах — YYYY-MM-DD в поясе мастера.
+Тикет хода: {ticket} — передавай его без изменений в каждый инструмент.
+
+Услуги:
+{_services(master) or "- услуг пока нет"}
+
+Как работать:
+- Выполняй поручение инструментами и коротко отчитайся, что сделано. Ответ — итоговым
+  текстом хода, по-деловому; можно выделять главное **жирным**.
+- Расписание дня — day_schedule; клиента по имени или телефону — find_clients.
+- Решения по заявкам — confirm_request / decline_request; отмена записи — cancel_appointment;
+  записать клиента — find_free_slots и book_client; закрыть или открыть дату — set_day_off;
+  написать клиенту — message_client.
+- Если поручение неоднозначно (два клиента с таким именем, на дату есть записи, непонятно
+  время) или действие нельзя отменить, — не угадывай: вызови ask_master с вопросом и 2–4
+  вариантами (последний — «Ничего не менять») и закончи ход. Ответ мастера придёт следующим
+  сообщением: «Мастер выбрал …».
+- Не выдумывай записи и окна — только из инструментов. Если инструмент вернул ошибку —
+  скажи мастеру, что не получилось и почему.
 """

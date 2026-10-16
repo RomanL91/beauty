@@ -1,0 +1,220 @@
+"""Лента поручений: поручение мастера, выбор варианта, чтение ленты и ход кабинета."""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import timedelta
+from typing import Any
+from uuid import UUID
+from zoneinfo import ZoneInfo
+
+from beauty.contexts.agent.application.instructions import office_instructions
+from beauty.contexts.agent.application.ports import AgentRuntime, MasterBriefs, RunRequest
+from beauty.contexts.agent.application.uow import AgentUnitOfWork
+from beauty.contexts.agent.domain.errors import UnknownChoiceOption
+from beauty.contexts.agent.domain.office import (
+    OfficeContent,
+    OfficeMessage,
+    OfficeSystem,
+    OfficeText,
+    OfficeTone,
+    OfficeVoice,
+)
+from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
+from beauty.shared.application.cqrs import Command, Handler, Query
+from beauty.shared.domain.clock import Clock
+from beauty.shared.domain.ids import IdGenerator
+
+logger = logging.getLogger(__name__)
+
+type Snapshot = dict[str, Any]
+
+NOT_CONNECTED = "ИИ-администратор пока не подключён — поручение выполнить некому."
+VOICE_REPLY = "Голосовые поручения я пока не разбираю — напишите, пожалуйста, текстом."
+FAILURE_REPLY = "Не получилось выполнить поручение — попробуйте ещё раз или сделайте это в графике."
+
+
+@dataclass(frozen=True, slots=True)
+class GiveOfficeTask(Command[Snapshot]):
+    """Мастер дал поручение текстом (``text``) или голосом (``voice`` — ключ файла и секунды)."""
+
+    master_id: UUID
+    client_message_id: UUID
+    text: str | None = None
+    voice: tuple[str, float] | None = None
+
+
+class GiveOfficeTaskHandler(Handler[GiveOfficeTask, Snapshot]):
+    """Идемпотентно по ``client_message_id``: повтор отправки возвращает то же сообщение."""
+
+    def __init__(self, uow: AgentUnitOfWork, clock: Clock, ids: IdGenerator) -> None:
+        """Получить зависимости."""
+        self._uow = uow
+        self._clock = clock
+        self._ids = ids
+
+    async def handle(self, message: GiveOfficeTask) -> Snapshot:
+        """Записать поручение."""
+        content: OfficeText | OfficeVoice
+        if message.voice is not None:
+            content = OfficeVoice(*message.voice)
+        else:
+            content = OfficeText((message.text or "").strip())
+        async with self._uow as uow:
+            existing = await uow.office.by_client_id(message.master_id, message.client_message_id)
+            if existing is not None:
+                return existing.snapshot()
+            task = OfficeMessage.from_master(
+                message_id=self._ids.new(),
+                master_id=message.master_id,
+                client_message_id=message.client_message_id,
+                content=content,
+                now=self._clock.now(),
+            )
+            uow.office.add(task)
+            await uow.commit()
+        return task.snapshot()
+
+
+@dataclass(frozen=True, slots=True)
+class AnswerOfficeChoice(Command[Snapshot]):
+    """Мастер выбрал вариант в карточке агента (``choice_id`` — id сообщения-карточки)."""
+
+    master_id: UUID
+    choice_id: UUID
+    option_id: str
+
+
+class AnswerOfficeChoiceHandler(Handler[AnswerOfficeChoice, Snapshot]):
+    """Выбор; повтор того же варианта — no-op, другой — 409."""
+
+    def __init__(self, uow: AgentUnitOfWork, clock: Clock) -> None:
+        """Получить зависимости."""
+        self._uow = uow
+        self._clock = clock
+
+    async def handle(self, message: AnswerOfficeChoice) -> Snapshot:
+        """Отметить выбор."""
+        async with self._uow as uow:
+            card = await uow.office.get(message.master_id, message.choice_id)
+            if card is None:
+                raise UnknownChoiceOption()
+            if card.choose(message.option_id, self._clock.now()):
+                await uow.commit()
+            return card.snapshot()  # внутри: без коммита выход откатывает и «протухает» агрегат
+
+
+@dataclass(frozen=True, slots=True)
+class OfficePage:
+    """Страница ленты поручений."""
+
+    items: tuple[Snapshot, ...]
+    has_more: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ListOfficeMessages(Query[OfficePage]):
+    """Лента поручений мастера по возрастанию времени."""
+
+    master_id: UUID
+    before: UUID | None = None
+    limit: int = 30
+
+
+class ListOfficeMessagesHandler(Handler[ListOfficeMessages, OfficePage]):
+    """Чтение ленты."""
+
+    def __init__(self, uow: AgentUnitOfWork) -> None:
+        """Получить Unit of Work."""
+        self._uow = uow
+
+    async def handle(self, message: ListOfficeMessages) -> OfficePage:
+        """Страница."""
+        async with self._uow as uow:
+            found, has_more = await uow.office.page(message.master_id, message.before, message.limit)
+            return OfficePage(tuple(m.snapshot() for m in found), has_more)
+
+
+@dataclass(frozen=True, slots=True)
+class RunOfficeTurn(Command[None]):
+    """Ход кабинета: поручение (``input=None`` — голосовое) или ответ мастера на вопрос."""
+
+    master_id: UUID
+    input: str | None
+    idempotency_key: str
+
+
+class RunOfficeTurnHandler(Handler[RunOfficeTurn, None]):
+    """Тикет → инструкции → ход в профиле кабинета → ответ в ленту.
+
+    Если ход задал мастеру вопрос (``ask_master``), ответом служит карточка — итоговый
+    текст хода в ленту не идёт. Неудачный ход — служебная строка мастеру.
+    """
+
+    def __init__(
+        self,
+        uow_factory: Callable[[], AgentUnitOfWork],
+        runtime: AgentRuntime,
+        masters: MasterBriefs,
+        clock: Clock,
+        ids: IdGenerator,
+        ticket_ttl: timedelta,
+    ) -> None:
+        """Получить зависимости (тикет, ход и ответ — разные транзакции)."""
+        self._uow_factory = uow_factory
+        self._runtime = runtime
+        self._masters = masters
+        self._clock = clock
+        self._ids = ids
+        self._ticket_ttl = ticket_ttl
+
+    async def handle(self, message: RunOfficeTurn) -> None:
+        """Сделать ход."""
+        async with self._uow_factory() as uow:
+            profile = await uow.profiles.get(message.master_id)
+            seat = profile.seat(AgentFace.BACK_OFFICE) if profile is not None and profile.enabled else None
+        if not self._runtime.enabled or seat is None:
+            await self._post(message.master_id, OfficeSystem(NOT_CONNECTED, OfficeTone.WARNING))
+            return
+        if message.input is None:
+            await self._post(message.master_id, OfficeText(VOICE_REPLY))
+            return
+        now = self._clock.now()
+        ticket = RunTicket.issue_office(master_id=message.master_id, now=now, ttl=self._ticket_ttl)
+        async with self._uow_factory() as uow:
+            uow.tickets.add(ticket)
+            await uow.commit()
+        master = await self._masters.brief(message.master_id)
+        if master is None:
+            return
+        day = now.astimezone(ZoneInfo(master.timezone)).date()
+        outcome = await self._runtime.run(
+            RunRequest(
+                profile_name=seat[0],
+                api_key=seat[1],
+                session_id=f"office-{message.master_id}-{day.isoformat()}",
+                input=message.input,
+                instructions=office_instructions(master, ticket.id, now),
+                idempotency_key=message.idempotency_key,
+            )
+        )
+        if not outcome.ok:
+            logger.warning("Ход кабинета %s: %s", seat[0], outcome.status)
+            await self._post(message.master_id, OfficeSystem(FAILURE_REPLY, OfficeTone.WARNING))
+            return
+        async with self._uow_factory() as uow:
+            stored = await uow.tickets.get(ticket.id)
+            asked = stored is not None and stored.asked_master
+        if not asked:
+            await self._post(message.master_id, OfficeText(outcome.output.strip()))
+
+    async def _post(self, master_id: UUID, content: OfficeContent) -> None:
+        async with self._uow_factory() as uow:
+            uow.office.add(
+                OfficeMessage.from_agent(
+                    message_id=self._ids.new(), master_id=master_id, content=content, now=self._clock.now()
+                )
+            )
+            await uow.commit()

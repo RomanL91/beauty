@@ -100,6 +100,30 @@ class CancelAppointmentHandler(_Decision, Handler[CancelAppointment, Appointment
 
 
 @dataclass(frozen=True, slots=True)
+class CancelAppointmentByMaster(Command[AppointmentPayload]):
+    """Мастер отменяет заявку или подтверждённую запись (кабинет, поручение агенту)."""
+
+    appointment_id: UUID
+    master_id: UUID
+    offer_alternatives: bool = True
+
+
+class CancelAppointmentByMasterHandler(_Decision, Handler[CancelAppointmentByMaster, AppointmentPayload]):
+    """Отмена мастером (вместе с неподтверждёнными переносами)."""
+
+    async def handle(self, message: CancelAppointmentByMaster) -> AppointmentPayload:
+        """Отменить."""
+        async with self._uow as uow:
+            appointment = await load(uow, message.appointment_id, master_id=message.master_id)
+            now = self._clock.now()
+            if appointment.cancel_by_master(now, offer_alternatives=message.offer_alternatives):
+                await uow.timers.cancel(appointment.id)
+                await withdraw_reschedules(uow, appointment, now)
+            await uow.commit()
+        return appointment.snapshot()
+
+
+@dataclass(frozen=True, slots=True)
 class ExpireAppointment(Command[None]):
     """Планировщик: срок ответа мастера истёк."""
 

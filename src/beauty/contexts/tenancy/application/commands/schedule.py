@@ -103,3 +103,37 @@ class SetDaysOffHandler(Handler[SetDaysOff, None]):
             today = now.astimezone(master.timezone.zone()).date()
             master.set_days_off(message.days, today, now)
             await uow.commit()
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeDayOff(Command[bool]):
+    """Закрыть (``off``) или открыть одну дату; вернуть, выходной ли она теперь."""
+
+    master_id: UUID
+    day: date
+    off: bool
+
+
+class ChangeDayOffHandler(Handler[ChangeDayOff, bool]):
+    """Одна дата — под блокировкой агрегата (без гонки «прочитал список — записал список»)."""
+
+    def __init__(self, uow: TenancyUnitOfWork, clock: Clock) -> None:
+        """Получить зависимости."""
+        self._uow = uow
+        self._clock = clock
+
+    async def handle(self, message: ChangeDayOff) -> bool:
+        """Изменить дату."""
+        now = self._clock.now()
+        async with self._uow as uow:
+            master = await load_master(uow, message.master_id)
+            today = now.astimezone(master.timezone.zone()).date()
+            days = set(master.days_off)
+            if message.off:
+                days.add(message.day)
+            else:
+                days.discard(message.day)
+            if days != set(master.days_off):
+                master.set_days_off(days, today, now)
+                await uow.commit()
+        return message.day in master.days_off

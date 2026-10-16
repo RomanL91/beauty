@@ -1,11 +1,11 @@
 """Профили Hermes: шаблон и клоны мастеров (из спайка ``spikes/hermes``).
 
-Шаблон ``beauty-template`` оператор готовит один раз (``beauty agent bootstrap``):
-модель и провайдер, ограничение тулсетов, MCP ``beauty`` с ``${BEAUTY_MCP_TOKEN}`` в
-заголовке. Профиль мастера — клон шаблона со своими секретами в ``.env``
-(ключ Runs API, MCP-токен) и SOUL.md с именем мастера. Hermes при клонировании не
-копирует ``API_SERVER_KEY``, поэтому мультиплексор ``/p/<профиль>/`` пускает только
-с ключом этого профиля.
+Шаблоны ``beauty-template`` (ресепшн) и ``beauty-office-template`` (кабинет) оператор
+готовит командой ``beauty agent bootstrap``: модель и провайдер, ограничение тулсетов, MCP
+``beauty`` с ``${BEAUTY_MCP_TOKEN}`` в заголовке. Профиль мастера — клон шаблона своей роли
+со своими секретами в ``.env`` (ключ Runs API, MCP-токен) и SOUL.md с именем мастера.
+Hermes при клонировании не копирует ``API_SERVER_KEY``, поэтому мультиплексор
+``/p/<профиль>/`` пускает только с ключом этого профиля.
 """
 
 from __future__ import annotations
@@ -24,11 +24,13 @@ from typing import Any
 import yaml
 
 from beauty.contexts.agent.application.ports import ProfileProvisioner, ProvisionedProfile
+from beauty.contexts.agent.domain.ticket import AgentFace
 
 logger = logging.getLogger(__name__)
 
 _ENV_LINE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=")
 TEMPLATE_OVERLAY = Path(__file__).with_name("hermes_template.yaml")
+OFFICE_TEMPLATE_OVERLAY = Path(__file__).with_name("hermes_office_template.yaml")
 
 SOUL_TEMPLATE = """# Администратор мастера {name}
 
@@ -43,6 +45,22 @@ SOUL_TEMPLATE = """# Администратор мастера {name}
 - Не раскрывай данные других клиентов.
 - Если не уверен — честно скажи и передай вопрос мастеру (handoff_to_master).
 """
+
+
+OFFICE_SOUL_TEMPLATE = """# Администратор мастера {name} — кабинет
+
+Ты — личный администратор частного мастера по имени {name}. С тобой говорит сам мастер:
+даёт поручения по графику, записям и клиентам, а ты выполняешь их инструментами beauty.
+
+## Правила
+- Отвечай итоговым текстом хода: коротко, по-деловому, что сделано и что нет.
+- В каждый вызов инструмента передавай тикет хода из инструкций без изменений.
+- Записи, окна и клиентов бери только из инструментов, не выдумывай.
+- Неоднозначное или необратимое поручение — сначала вопрос мастеру (ask_master).
+"""
+
+ROLE_OVERLAYS = {AgentFace.FRONT_DESK: TEMPLATE_OVERLAY, AgentFace.BACK_OFFICE: OFFICE_TEMPLATE_OVERLAY}
+ROLE_SOULS = {AgentFace.FRONT_DESK: SOUL_TEMPLATE, AgentFace.BACK_OFFICE: OFFICE_SOUL_TEMPLATE}
 
 
 class CommandRunner:
@@ -145,7 +163,7 @@ def merge_config(base: Mapping[str, Any], overlay: Mapping[str, Any]) -> dict[st
 
 
 class HermesTemplate:
-    """Профиль-шаблон: модель, тулсеты, MCP (идемпотентно)."""
+    """Профиль-шаблон роли: модель, тулсеты, MCP (идемпотентно)."""
 
     def __init__(
         self,
@@ -154,6 +172,7 @@ class HermesTemplate:
         model: Mapping[str, Any],
         env: Mapping[str, str],
         name: str = "beauty-template",
+        overlay: Path = TEMPLATE_OVERLAY,
     ) -> None:
         """Получить зависимости и параметры шаблона."""
         self._runner = runner
@@ -161,6 +180,7 @@ class HermesTemplate:
         self._model = model
         self._env = env
         self._name = name
+        self._overlay = overlay
 
     async def ensure(self) -> None:
         """Создать шаблон при необходимости и привести конфиг к нужному виду."""
@@ -181,31 +201,33 @@ class HermesTemplate:
             logger.info("Профиль %s приведён к шаблону", profile)
 
     def _apply(self, profile: str) -> None:
-        overlay = yaml.safe_load(TEMPLATE_OVERLAY.read_text(encoding="utf-8")) or {}
+        overlay = yaml.safe_load(self._overlay.read_text(encoding="utf-8")) or {}
         overlay = merge_config(overlay, {"model": dict(self._model)})
         self._files.write_config(profile, merge_config(self._files.read_config(profile), overlay))
         self._files.upsert_env(profile, self._env)
 
 
 class HermesProvisioner(ProfileProvisioner):
-    """Клон шаблона со своими секретами и SOUL.md мастера."""
+    """Клон шаблона роли со своими секретами и SOUL.md мастера."""
 
-    def __init__(self, runner: CommandRunner, files: ProfileFiles, template: str = "beauty-template") -> None:
-        """Получить зависимости."""
+    def __init__(
+        self, runner: CommandRunner, files: ProfileFiles, templates: Mapping[AgentFace, str]
+    ) -> None:
+        """Получить зависимости и имена шаблонов ролей."""
         self._runner = runner
         self._files = files
-        self._template = template
+        self._templates = dict(templates)
 
-    async def create(self, profile_name: str, master_name: str) -> ProvisionedProfile:
+    async def create(self, profile_name: str, master_name: str, face: AgentFace) -> ProvisionedProfile:
         """Создать профиль (существующий — обновить секреты и SOUL.md)."""
         if not self._files.exists(profile_name):
-            await self._runner.run("profile", "create", profile_name, "--clone-from", self._template)
+            await self._runner.run("profile", "create", profile_name, "--clone-from", self._templates[face])
         provisioned = ProvisionedProfile(secrets.token_urlsafe(32), secrets.token_urlsafe(32))
         self._files.upsert_env(
             profile_name,
             {"API_SERVER_KEY": provisioned.runs_api_key, "BEAUTY_MCP_TOKEN": provisioned.mcp_token},
         )
-        self._files.write_soul(profile_name, SOUL_TEMPLATE.format(name=master_name))
+        self._files.write_soul(profile_name, ROLE_SOULS[face].format(name=master_name))
         try:
             # Мультиплексор перечитает ключи профиля (иначе — при плановом скане, ≤ 30 с).
             await self._runner.run("-p", profile_name, "gateway", "restart")

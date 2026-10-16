@@ -3,6 +3,8 @@
 from beauty.contexts.booking.application.commands.base import AppointmentPayload
 from beauty.contexts.booking.application.commands.decisions import (
     CancelAppointment,
+    CancelAppointmentByMaster,
+    CancelAppointmentByMasterHandler,
     CancelAppointmentHandler,
     CompleteAppointment,
     CompleteAppointmentHandler,
@@ -23,6 +25,8 @@ from beauty.contexts.booking.application.commands.request import (
 __all__ = [
     "AppointmentPayload",
     "CancelAppointment",
+    "CancelAppointmentByMaster",
+    "CancelAppointmentByMasterHandler",
     "CancelAppointmentHandler",
     "CompleteAppointment",
     "CompleteAppointmentHandler",

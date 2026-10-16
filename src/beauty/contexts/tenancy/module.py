@@ -14,6 +14,8 @@ from beauty.contexts.tenancy.application.commands import (
     ArchiveServiceHandler,
     AssignOwner,
     AssignOwnerHandler,
+    ChangeDayOff,
+    ChangeDayOffHandler,
     PublishMaster,
     PublishMasterHandler,
     RegisterMaster,
@@ -127,6 +129,7 @@ class TenancyModule:
         mediator.register(SetWeeklySchedule, lambda: SetWeeklyScheduleHandler(self._uow(), clock))
         mediator.register(SetBookingRules, lambda: SetBookingRulesHandler(self._uow(), clock))
         mediator.register(SetDaysOff, lambda: SetDaysOffHandler(self._uow(), clock))
+        mediator.register(ChangeDayOff, lambda: ChangeDayOffHandler(self._uow(), clock))
         mediator.register(PublishMaster, lambda: PublishMasterHandler(self._uow(), clock))
         mediator.register(UnpublishMaster, lambda: UnpublishMasterHandler(self._uow(), clock))
         mediator.register(GetMasterPage, lambda: GetMasterPageHandler(self._page_reader))

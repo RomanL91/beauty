@@ -8,6 +8,7 @@ from uuid import UUID
 from beauty.contexts.conversations.domain.events import ConversationChanged, FeedAppended
 from beauty.shared.infrastructure.outbox.envelope import EventEnvelope
 from beauty.shared.infrastructure.realtime.bridge import TopicResolver
+from beauty.shared.infrastructure.realtime.cabinet import MasterTopic
 
 
 class FeedTopic:
@@ -38,15 +39,7 @@ class FeedTopicResolver(TopicResolver):
         return FeedTopic.of(str(envelope.payload["conversation_id"])), {"seq": int(envelope.payload["seq"])}
 
 
-class MasterTopic:
-    """Топик кабинета мастера."""
-
-    PREFIX = "conversations.master"
-
-    @classmethod
-    def of(cls, master_id: UUID | str) -> str:
-        """Топик мастера."""
-        return f"{cls.PREFIX}:{master_id}"
+__all__ = ["FeedTopic", "FeedTopicResolver", "MasterTopic", "MasterTopicResolver"]
 
 
 class MasterTopicResolver(TopicResolver):

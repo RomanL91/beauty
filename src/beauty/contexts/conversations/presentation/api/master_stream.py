@@ -10,9 +10,9 @@ from uuid import UUID
 
 from beauty.contexts.conversations.application.errors import ConversationNotFoundError
 from beauty.contexts.conversations.application.queries import GetConversationSummary, GetMasterMessage
-from beauty.contexts.conversations.infrastructure.realtime import MasterTopic
 from beauty.contexts.conversations.presentation.api.render import MessageRenderer, render_summary
 from beauty.shared.application.mediator import Mediator
+from beauty.shared.infrastructure.realtime.cabinet import FRAME_SIGNAL, MasterTopic
 from beauty.shared.infrastructure.realtime.hub import RealtimeHub
 from beauty.shared.infrastructure.web.sse import ServerSentEvent
 
@@ -72,31 +72,36 @@ class MasterEventsStream:
 
     async def _frame(self, signal: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
         kind = signal.get("kind")
+        if kind == FRAME_SIGNAL:  # готовый кадр другого контекста (лента поручений)
+            return str(signal["event"]), dict(signal["data"])
         if kind == "appointment":
             return "appointment.updated", {
                 "type": "appointment.updated",
                 "appointment": signal["appointment"],
             }
         if kind == "conversation":
-            try:
-                summary = await self._mediator.send(
-                    GetConversationSummary(self._master_id, UUID(signal["conversation_id"]))
-                )
-            except ConversationNotFoundError:
-                return None
-            return "conversation.updated", {
-                "type": "conversation.updated",
-                "conversation": render_summary(summary),
-            }
+            return await self._conversation_frame(UUID(signal["conversation_id"]))
         if kind == "message":
-            found = await self._mediator.send(GetMasterMessage(self._master_id, UUID(signal["message_id"])))
-            if found is None:
-                return None
-            conversation_id, message = found
-            change = str(signal["change"])
-            return change, {
-                "type": change,
-                "conversation_id": str(conversation_id),
-                "message": self._renderer.render(message),
-            }
+            return await self._message_frame(str(signal["change"]), UUID(signal["message_id"]))
         return None
+
+    async def _conversation_frame(self, conversation_id: UUID) -> tuple[str, dict[str, Any]] | None:
+        try:
+            summary = await self._mediator.send(GetConversationSummary(self._master_id, conversation_id))
+        except ConversationNotFoundError:
+            return None
+        return "conversation.updated", {
+            "type": "conversation.updated",
+            "conversation": render_summary(summary),
+        }
+
+    async def _message_frame(self, change: str, message_id: UUID) -> tuple[str, dict[str, Any]] | None:
+        found = await self._mediator.send(GetMasterMessage(self._master_id, message_id))
+        if found is None:
+            return None
+        conversation_id, message = found
+        return change, {
+            "type": change,
+            "conversation_id": str(conversation_id),
+            "message": self._renderer.render(message),
+        }

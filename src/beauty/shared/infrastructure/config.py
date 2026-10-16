@@ -83,8 +83,10 @@ class AgentSettings(BaseModel):
     profiles_root: str = "/hermes/profiles"
     profiles_owner: str | None = "10000:10000"
     template_profile: str = "beauty-template"
-    # Как MCP-сервер виден из контейнера Hermes.
+    office_template_profile: str = "beauty-office-template"
+    # Как MCP-сервер виден из контейнера Hermes: инструменты ресепшна и кабинета.
     mcp_url: str = "http://mcp:8765/mcp"
+    office_mcp_url: str = "http://mcp:8765/office/mcp"
     mcp_host: str = "0.0.0.0"
     mcp_port: int = 8765
     model: str = "google/gemini-2.5-flash"

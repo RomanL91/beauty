@@ -22,6 +22,8 @@ from beauty.contexts.conversations.application.commands import (
     PostClientMessageHandler,
     PostMasterMessage,
     PostMasterMessageHandler,
+    PostOnMasterBehalf,
+    PostOnMasterBehalfHandler,
     SetConversationHandler,
     SetConversationHandlerHandler,
     SyncAppointment,
@@ -147,6 +149,7 @@ class ConversationsModule:
         mediator.register(GetConversationState, lambda: GetConversationStateHandler(self._reader))
         mediator.register(PostAgentReply, lambda: PostAgentReplyHandler(self._uow(), clock, ids))
         mediator.register(HandOffToMaster, lambda: HandOffToMasterHandler(self._uow(), clock, ids))
+        mediator.register(PostOnMasterBehalf, lambda: PostOnMasterBehalfHandler(self._uow(), clock, ids))
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
 

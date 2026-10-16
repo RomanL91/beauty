@@ -7,12 +7,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from datetime import date, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from beauty.contexts.agent.application import ports as agent_ports
-from beauty.contexts.booking.application.commands import CancelAppointment, RequestAppointment
+from beauty.contexts.booking.application.commands import (
+    CancelAppointment,
+    CancelAppointmentByMaster,
+    ConfirmAppointment,
+    DeclineAppointment,
+    RequestAppointment,
+)
 from beauty.contexts.booking.application.errors import AppointmentNotFoundError, SlotUnavailableError
 from beauty.contexts.booking.application.ports import (
     BookableSlot,
@@ -21,12 +28,26 @@ from beauty.contexts.booking.application.ports import (
     ConversationDirectory,
     SlotPolicy,
 )
-from beauty.contexts.booking.application.queries import ListBusyIntervals, ListClientAppointments
+from beauty.contexts.booking.application.queries import (
+    GetDaySchedule,
+    ListBusyIntervals,
+    ListClientAppointments,
+)
 from beauty.contexts.booking.application.schedule import CalendarDay, WorkingCalendar
-from beauty.contexts.booking.domain.errors import AppointmentClosed, ChangeDeadlinePassed, InvalidTimeSlot
+from beauty.contexts.booking.domain.errors import (
+    AppointmentClosed,
+    AppointmentNotPending,
+    ChangeDeadlinePassed,
+    InvalidTimeSlot,
+    RequestExpired,
+)
 from beauty.contexts.booking.domain.value_objects import ServiceSnapshot
-from beauty.contexts.conversations.application.commands import HandOffToMaster, PostAgentReply
-from beauty.contexts.conversations.application.errors import SlotNotAvailableError
+from beauty.contexts.conversations.application.commands import (
+    HandOffToMaster,
+    PostAgentReply,
+    PostOnMasterBehalf,
+)
+from beauty.contexts.conversations.application.errors import ConversationNotFoundError, SlotNotAvailableError
 from beauty.contexts.conversations.application.ports import (
     BookingDesk,
     ClientContacts,
@@ -35,10 +56,15 @@ from beauty.contexts.conversations.application.ports import (
     RequestedAppointment,
     ServiceInfo,
 )
-from beauty.contexts.conversations.application.queries import FindConversationIds, GetConversationState
+from beauty.contexts.conversations.application.queries import (
+    FindConversationIds,
+    GetConversationState,
+    ListInbox,
+)
 from beauty.contexts.conversations.domain.content import OfferedSlot
 from beauty.contexts.identity.application.queries import ClientNotFoundError, GetClientContact
 from beauty.contexts.tenancy.application import errors as tenancy_errors
+from beauty.contexts.tenancy.application.commands import ChangeDayOff
 from beauty.contexts.tenancy.application.ports import BusyTimeSource
 from beauty.contexts.tenancy.application.queries import (
     CheckBookableSlot,
@@ -302,3 +328,87 @@ class AgentBooking(agent_ports.Booking):
             return await self._mediator().send(CancelAppointment(appointment_id, client_id))
         except (AppointmentNotFoundError, ChangeDeadlinePassed, AppointmentClosed) as error:
             raise agent_ports.ChangeRefusedError(str(error)) from error
+
+
+class AgentCabinet(agent_ports.Cabinet):
+    """Agent (кабинет) → Booking, Tenancy, Conversations: действия от имени мастера."""
+
+    _REFUSED = (
+        AppointmentNotFoundError,
+        AppointmentNotPending,
+        AppointmentClosed,
+        RequestExpired,
+    )
+
+    def __init__(self, mediator: MediatorProvider) -> None:
+        """Получить медиатор (лениво)."""
+        self._mediator = mediator
+
+    async def day(self, master_id: UUID, day: date) -> Mapping[str, Any]:
+        """График дня."""
+        return await self._mediator().send(GetDaySchedule(master_id, day))
+
+    async def clients(self, master_id: UUID, query: str) -> list[agent_ports.ClientBrief]:
+        """Клиенты — по перепискам мастера (поиск списка чатов)."""
+        inbox = await self._mediator().send(ListInbox(master_id, "all", query or None))
+        return [
+            agent_ports.ClientBrief(c.client_id, c.id, c.display_name, c.phone_masked, c.visit_number)
+            for c in inbox.items
+        ]
+
+    async def book(
+        self, master_id: UUID, client_id: UUID, service_id: UUID, start: datetime
+    ) -> agent_ports.AppointmentSnapshot:
+        """Заявка от имени мастера и сразу подтверждение."""
+        try:
+            requested = await self._mediator().send(
+                RequestAppointment(master_id, client_id, service_id, start)
+            )
+        except (
+            SlotUnavailableError,
+            InvalidTimeSlot,
+            tenancy_errors.ServiceNotFoundError,
+            tenancy_errors.InvalidSlotWindowError,
+        ) as error:
+            raise agent_ports.SlotUnavailableError(str(error)) from error
+        return await self.confirm(master_id, UUID(str(requested["id"])))
+
+    async def confirm(self, master_id: UUID, appointment_id: UUID) -> agent_ports.AppointmentSnapshot:
+        """Подтверждение заявки."""
+        try:
+            return await self._mediator().send(ConfirmAppointment(appointment_id, master_id))
+        except self._REFUSED as error:
+            raise agent_ports.ChangeRefusedError(str(error)) from error
+
+    async def decline(
+        self, master_id: UUID, appointment_id: UUID, *, offer_alternatives: bool
+    ) -> agent_ports.AppointmentSnapshot:
+        """Отклонение заявки."""
+        try:
+            return await self._mediator().send(
+                DeclineAppointment(appointment_id, master_id, offer_alternatives=offer_alternatives)
+            )
+        except self._REFUSED as error:
+            raise agent_ports.ChangeRefusedError(str(error)) from error
+
+    async def cancel(
+        self, master_id: UUID, appointment_id: UUID, *, offer_alternatives: bool
+    ) -> agent_ports.AppointmentSnapshot:
+        """Отмена мастером."""
+        try:
+            return await self._mediator().send(
+                CancelAppointmentByMaster(appointment_id, master_id, offer_alternatives=offer_alternatives)
+            )
+        except self._REFUSED as error:
+            raise agent_ports.ChangeRefusedError(str(error)) from error
+
+    async def set_day_off(self, master_id: UUID, day: date, *, off: bool) -> bool:
+        """Закрыть или открыть дату."""
+        return await self._mediator().send(ChangeDayOff(master_id, day, off))
+
+    async def message_client(self, master_id: UUID, client_id: UUID, text: str) -> None:
+        """Сообщение клиенту от имени администратора."""
+        try:
+            await self._mediator().send(PostOnMasterBehalf(master_id, client_id, text))
+        except ConversationNotFoundError as error:
+            raise agent_ports.ClientNotFoundError() from error

@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from beauty.contexts.booking.application.commands import (
     CancelAppointment,
+    CancelAppointmentByMaster,
+    CancelAppointmentByMasterHandler,
     CancelAppointmentHandler,
     CompleteAppointment,
     CompleteAppointmentHandler,
@@ -106,6 +108,9 @@ class BookingModule:
         mediator.register(ConfirmAppointment, lambda: ConfirmAppointmentHandler(self._uow(), clock))
         mediator.register(DeclineAppointment, lambda: DeclineAppointmentHandler(self._uow(), clock))
         mediator.register(CancelAppointment, lambda: CancelAppointmentHandler(self._uow(), clock))
+        mediator.register(
+            CancelAppointmentByMaster, lambda: CancelAppointmentByMasterHandler(self._uow(), clock)
+        )
         mediator.register(ExpireAppointment, lambda: ExpireAppointmentHandler(self._uow(), clock))
         mediator.register(CompleteAppointment, lambda: CompleteAppointmentHandler(self._uow(), clock))
         mediator.register(ListBusyIntervals, lambda: ListBusyIntervalsHandler(self._busy_reader))

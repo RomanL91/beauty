@@ -2,7 +2,6 @@
 
 # Без ``from __future__ import annotations``: FastAPI читает аннотации маршрутов-замыканий,
 # а алиас зависимости (``client``) — локальная переменная.
-from collections.abc import AsyncIterator
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -10,7 +9,6 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
-from starlette.datastructures import UploadFile
 
 from beauty.contexts.conversations.application.commands import (
     OpenConversation,
@@ -22,27 +20,13 @@ from beauty.contexts.conversations.domain.content import MAX_VOICE_SECONDS
 from beauty.contexts.conversations.presentation.api.render import MessageRenderer
 from beauty.contexts.conversations.presentation.api.schemas import CLIENT_INPUT
 from beauty.contexts.conversations.presentation.api.stream import ConversationFeedStream
-from beauty.shared.application.errors import ApplicationError
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.application.storage import FileStorage
 from beauty.shared.infrastructure.realtime.hub import RealtimeHub
 from beauty.shared.infrastructure.web.auth import BearerAuth
+from beauty.shared.infrastructure.web.voice import VoiceUploadReader
 
-MAX_VOICE_BYTES = 5 * 1024 * 1024
-VOICE_EXTENSIONS = {"audio/webm": ".webm", "audio/mp4": ".m4a", "audio/aac": ".m4a", "audio/ogg": ".ogg"}
 SSE_HEADERS = {"Cache-Control": "no-store", "X-Accel-Buffering": "no"}
-
-
-class InvalidVoiceError(ApplicationError):
-    """Нужны поля audio (webm, mp4 или ogg), client_id и duration до 120 с."""
-
-    code = "invalid_voice"
-
-
-class VoiceTooLargeError(ApplicationError):
-    """Голосовое больше 5 МБ."""
-
-    code = "voice_too_large"
 
 
 class ConversationsApiController:
@@ -62,7 +46,7 @@ class ConversationsApiController:
         self._mediator = mediator
         self._auth = auth
         self._hub = hub
-        self._storage = storage
+        self._voices = VoiceUploadReader(storage, MAX_VOICE_SECONDS)
         self._renderer = renderer
         self._poll_interval = poll_interval
         self._max_duration = max_duration
@@ -139,38 +123,10 @@ class ConversationsApiController:
         return PostClientMessage(conversation_id, client_id, parsed.client_id, parsed.body())
 
     async def _voice(self, request: Request, conversation_id: UUID, client_id: UUID) -> PostClientMessage:
-        async with request.form(max_files=1, max_fields=4) as form:
-            audio, raw_client_id, raw_duration = (
-                form.get("audio"),
-                form.get("client_id"),
-                form.get("duration"),
-            )
-            if not isinstance(audio, UploadFile) or not isinstance(raw_client_id, str):
-                raise InvalidVoiceError()
-            try:
-                client_message_id = UUID(raw_client_id)
-                duration = float(raw_duration) if isinstance(raw_duration, str) else 0.0
-            except ValueError as error:
-                raise InvalidVoiceError() from error
-            mime = (audio.content_type or "").split(";")[0].strip()
-            extension = VOICE_EXTENSIONS.get(mime)
-            if extension is None or not 0 < duration <= MAX_VOICE_SECONDS:
-                raise InvalidVoiceError()
-            if audio.size is not None and audio.size > MAX_VOICE_BYTES:
-                raise VoiceTooLargeError()
-            stored = await self._storage.save("voice", _chunks(audio), mime, extension)
+        voice = await self._voices.read(request)
         return PostClientMessage(
-            conversation_id, client_id, client_message_id, VoiceBody(stored.key, duration)
+            conversation_id, client_id, voice.client_message_id, VoiceBody(voice.audio_key, voice.duration)
         )
-
-
-async def _chunks(upload: UploadFile, size: int = 64 * 1024) -> AsyncIterator[bytes]:
-    total = 0
-    while chunk := await upload.read(size):
-        total += len(chunk)
-        if total > MAX_VOICE_BYTES:
-            raise VoiceTooLargeError()
-        yield chunk
 
 
 def _event_id(raw: str | None) -> int | None:

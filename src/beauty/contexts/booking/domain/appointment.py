@@ -164,6 +164,20 @@ class Appointment(AggregateRoot):
         self._cancel(CancelledBy.CLIENT, CancelReason.CLIENT_CANCELLED, now)
         return True
 
+    def cancel_by_master(self, now: datetime, *, offer_alternatives: bool = True) -> bool:
+        """Мастер отменил заявку или запись (до конца визита); уже отменённая — no-op.
+
+        ``offer_alternatives`` — администратор предложит клиенту другие окна.
+        """
+        if self.status is AppointmentStatus.CANCELLED:
+            return False
+        if not self.is_open or now >= self.slot.end:
+            raise AppointmentClosed()
+        self._cancel(
+            CancelledBy.MASTER, CancelReason.MASTER_CANCELLED, now, offer_alternatives=offer_alternatives
+        )
+        return True
+
     def ensure_changeable(self, now: datetime) -> None:
         """Клиент может менять запись: она открыта, и дедлайн не прошёл.
 

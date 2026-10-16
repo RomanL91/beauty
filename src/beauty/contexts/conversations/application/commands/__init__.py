@@ -5,6 +5,8 @@ from beauty.contexts.conversations.application.commands.agent import (
     HandOffToMasterHandler,
     PostAgentReply,
     PostAgentReplyHandler,
+    PostOnMasterBehalf,
+    PostOnMasterBehalfHandler,
 )
 from beauty.contexts.conversations.application.commands.assistant import AssistClient, AssistClientHandler
 from beauty.contexts.conversations.application.commands.cards import SyncAppointment, SyncAppointmentHandler
@@ -47,6 +49,8 @@ __all__ = [
     "PostClientMessageHandler",
     "PostMasterMessage",
     "PostMasterMessageHandler",
+    "PostOnMasterBehalf",
+    "PostOnMasterBehalfHandler",
     "RequestSlotsBody",
     "SetConversationHandler",
     "SetConversationHandlerHandler",
