@@ -1,7 +1,8 @@
 """Порты прикладного слоя Agent.
 
 Агент — клиент остальных контекстов: каталог мастера (Tenancy), переписка
-(Conversations), окна и записи (Booking). Адаптеры подключает корень композиции.
+(Conversations), окна и записи (Booking), а в кабинете — действия от имени мастера
+(``Cabinet``). Адаптеры подключает корень композиции.
 """
 
 from __future__ import annotations
@@ -9,9 +10,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID
+
+from beauty.contexts.agent.domain.ticket import AgentFace
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +121,63 @@ class Booking(ABC):
 
 
 @dataclass(frozen=True, slots=True)
+class ClientBrief:
+    """Клиент мастера (по его переписке)."""
+
+    client_id: UUID
+    conversation_id: UUID
+    display_name: str
+    phone_masked: str
+    visit_number: int
+
+
+class ClientNotFoundError(Exception):
+    """У мастера нет такого клиента (переписки с ним)."""
+
+
+class Cabinet(ABC):
+    """Действия от имени мастера (Booking, Tenancy, Conversations) — для агента кабинета."""
+
+    @abstractmethod
+    async def day(self, master_id: UUID, day: date) -> Mapping[str, Any]:
+        """График дня (``DaySchedule`` контракта)."""
+
+    @abstractmethod
+    async def clients(self, master_id: UUID, query: str) -> list[ClientBrief]:
+        """Клиенты мастера по имени или цифрам телефона."""
+
+    @abstractmethod
+    async def book(
+        self, master_id: UUID, client_id: UUID, service_id: UUID, start: datetime
+    ) -> AppointmentSnapshot:
+        """Записать клиента сразу подтверждённым или ``SlotUnavailableError``."""
+
+    @abstractmethod
+    async def confirm(self, master_id: UUID, appointment_id: UUID) -> AppointmentSnapshot:
+        """Подтвердить заявку или ``ChangeRefusedError``."""
+
+    @abstractmethod
+    async def decline(
+        self, master_id: UUID, appointment_id: UUID, *, offer_alternatives: bool
+    ) -> AppointmentSnapshot:
+        """Отклонить заявку или ``ChangeRefusedError``."""
+
+    @abstractmethod
+    async def cancel(
+        self, master_id: UUID, appointment_id: UUID, *, offer_alternatives: bool
+    ) -> AppointmentSnapshot:
+        """Отменить заявку или запись или ``ChangeRefusedError``."""
+
+    @abstractmethod
+    async def set_day_off(self, master_id: UUID, day: date, *, off: bool) -> bool:
+        """Закрыть или открыть дату; вернуть, выходной ли она теперь."""
+
+    @abstractmethod
+    async def message_client(self, master_id: UUID, client_id: UUID, text: str) -> None:
+        """Написать клиенту от имени администратора или ``ClientNotFoundError``."""
+
+
+@dataclass(frozen=True, slots=True)
 class RunRequest:
     """Ход агента."""
 
@@ -167,5 +227,5 @@ class ProfileProvisioner(ABC):
     """Создание профилей мастеров в runtime."""
 
     @abstractmethod
-    async def create(self, profile_name: str, master_name: str) -> ProvisionedProfile:
-        """Создать профиль (клон шаблона) со своими секретами и SOUL.md."""
+    async def create(self, profile_name: str, master_name: str, face: AgentFace) -> ProvisionedProfile:
+        """Создать профиль роли (клон её шаблона) со своими секретами и SOUL.md."""

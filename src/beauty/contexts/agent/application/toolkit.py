@@ -9,30 +9,68 @@ injection («запиши Оксану», «покажи чужие записи
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, time
 from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from beauty.contexts.agent.application.errors import UnknownProfileTokenError
+from beauty.contexts.agent.application.access import ToolAccess
 from beauty.contexts.agent.application.ports import (
     Booking,
     ChangeRefusedError,
     Conversations,
     MasterBriefs,
+    ServiceBrief,
     SlotUnavailableError,
 )
 from beauty.contexts.agent.application.uow import AgentUnitOfWork
 from beauty.contexts.agent.domain.errors import InvalidTicket
 from beauty.contexts.agent.domain.ticket import AgentFace
 from beauty.shared.domain.clock import Clock
-from beauty.shared.domain.secrets import HashedSecret
 
 logger = logging.getLogger(__name__)
 
 MAX_SLOTS = 8
+
+
+class SlotLookup:
+    """Свободные окна услуги для модели (общий инструмент ресепшна и кабинета)."""
+
+    def __init__(self, masters: MasterBriefs, booking: Booking) -> None:
+        """Получить зависимости."""
+        self._masters = masters
+        self._booking = booking
+
+    async def find(self, master_id: UUID, service_id: str, date: str | None) -> dict[str, Any]:
+        """Ближайшие окна услуги (с даты ``YYYY-MM-DD`` в поясе мастера)."""
+        master = await self._masters.brief(master_id)
+        service = known_service(master.services if master else (), service_id)
+        if master is None or service is None:
+            return {"ok": False, "error": "Нет такой услуги — возьми service_id из инструкций"}
+        zone = ZoneInfo(master.timezone)
+        since = None
+        if date:
+            try:
+                since = datetime.combine(datetime.fromisoformat(date).date(), time(), tzinfo=zone)
+            except ValueError:
+                return {"ok": False, "error": "Дата — в формате YYYY-MM-DD"}
+        slots = await self._booking.free_slots(master.id, service, since, MAX_SLOTS)
+        return {
+            "ok": True,
+            "service_id": str(service),
+            "slots": [{"start": s.start.isoformat(), "end": s.end.isoformat()} for s in slots],
+        }
+
+
+def known_service(services: Iterable[ServiceBrief], service_id: str) -> UUID | None:
+    """Услуга мастера по строке id от модели (чужая или мусор — ``None``)."""
+    try:
+        wanted = UUID(service_id)
+    except (ValueError, TypeError):
+        return None
+    return wanted if any(s.id == wanted for s in services) else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,51 +96,29 @@ class FrontDeskToolkit:
     ) -> None:
         """Получить зависимости."""
         self._uow_factory = uow_factory
+        self._access = ToolAccess(uow_factory, clock)
+        self._slots = SlotLookup(masters, booking)
         self._masters = masters
         self._booking = booking
         self._conversations = conversations
-        self._clock = clock
 
     async def authorize(self, token: str, profile_header: str | None, ticket_id: str) -> ToolCaller:
-        """Проверить токен профиля, заголовок профиля и тикет хода."""
-        async with self._uow_factory() as uow:
-            profile = await uow.profiles.by_token(HashedSecret.of(token)) if token else None
-            if profile is None or not profile.enabled:
-                raise UnknownProfileTokenError()
-            if profile_header is not None and profile_header != profile.profile_name:
-                raise UnknownProfileTokenError("Заголовок профиля не совпадает с токеном")
-            ticket = await uow.tickets.get(ticket_id.strip())
-            if ticket is None:
-                raise InvalidTicket()
-            ticket.check(profile.master_id, AgentFace.FRONT_DESK, self._clock.now())
-            return ToolCaller(profile.master_id, ticket.id, ticket.conversation_id, ticket.client_id)
+        """Проверить токен профиля ресепшна, заголовок профиля и тикет хода."""
+        grant = await self._access.grant(token, profile_header, ticket_id, AgentFace.FRONT_DESK)
+        if grant.conversation_id is None or grant.client_id is None:
+            raise InvalidTicket()
+        return ToolCaller(grant.master_id, grant.ticket_id, grant.conversation_id, grant.client_id)
 
     async def find_free_slots(
         self, caller: ToolCaller, service_id: str, date: str | None = None
     ) -> dict[str, Any]:
         """Ближайшие окна услуги (с даты ``YYYY-MM-DD`` в поясе мастера)."""
-        master = await self._masters.brief(caller.master_id)
-        service = self._service(master.services if master else (), service_id)
-        if master is None or service is None:
-            return {"ok": False, "error": "Нет такой услуги — возьми service_id из инструкций"}
-        zone = ZoneInfo(master.timezone)
-        since = None
-        if date:
-            try:
-                since = datetime.combine(datetime.fromisoformat(date).date(), time(), tzinfo=zone)
-            except ValueError:
-                return {"ok": False, "error": "Дата — в формате YYYY-MM-DD"}
-        slots = await self._booking.free_slots(master.id, service, since, MAX_SLOTS)
-        return {
-            "ok": True,
-            "service_id": str(service),
-            "slots": [{"start": s.start.isoformat(), "end": s.end.isoformat()} for s in slots],
-        }
+        return await self._slots.find(caller.master_id, service_id, date)
 
     async def book_appointment(self, caller: ToolCaller, service_id: str, start: str) -> dict[str, Any]:
         """Заявка клиента тикета на окно (мастер подтвердит)."""
         master = await self._masters.brief(caller.master_id)
-        service = self._service(master.services if master else (), service_id)
+        service = known_service(master.services if master else (), service_id)
         if master is None or service is None:
             return {"ok": False, "error": "Нет такой услуги — возьми service_id из инструкций"}
         try:
@@ -159,11 +175,3 @@ class FrontDeskToolkit:
                 ticket.hand_off()
                 await uow.commit()
         return {"ok": True, "note": "Мастер увидит вопрос; скажи клиенту, что мастер ответит здесь"}
-
-    @staticmethod
-    def _service(services: Any, service_id: str) -> UUID | None:
-        try:
-            wanted = UUID(service_id)
-        except (ValueError, TypeError):
-            return None
-        return wanted if any(s.id == wanted for s in services) else None

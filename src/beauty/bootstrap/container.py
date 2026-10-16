@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from beauty.bootstrap.adapters import (
     AgentBooking,
+    AgentCabinet,
     AgentConversations,
     AgentMasters,
     BookedTime,
@@ -29,6 +30,7 @@ from beauty.bootstrap.adapters import (
     TenancySlotPolicy,
 )
 from beauty.contexts.agent.application.ports import AgentRuntime
+from beauty.contexts.agent.domain.ticket import AgentFace
 from beauty.contexts.agent.infrastructure.hermes import CommandRunner, HermesProvisioner, ProfileFiles
 from beauty.contexts.agent.infrastructure.runtime import DisabledRuntime, HermesRuntime
 from beauty.contexts.agent.module import AgentDependencies, AgentModule
@@ -156,7 +158,11 @@ class ApplicationContainer:
 
     def realtime_resolvers(self) -> tuple[TopicResolver, ...]:
         """Realtime-топики всех контекстов (для моста в процессе API)."""
-        return (*self.identity.realtime_resolvers(), *self.conversations.realtime_resolvers())
+        return (
+            *self.identity.realtime_resolvers(),
+            *self.conversations.realtime_resolvers(),
+            *self.agent.topic_resolvers(),
+        )
 
     @cached_property
     def file_storage(self) -> LocalFileStorage:
@@ -278,7 +284,14 @@ class ApplicationContainer:
     def agent(self) -> AgentModule:
         """Модуль Agent."""
         settings = self.settings.agent
-        provisioner = HermesProvisioner(self.hermes_runner, self.hermes_files, settings.template_profile)
+        provisioner = HermesProvisioner(
+            self.hermes_runner,
+            self.hermes_files,
+            {
+                AgentFace.FRONT_DESK: settings.template_profile,
+                AgentFace.BACK_OFFICE: settings.office_template_profile,
+            },
+        )
         return AgentModule(
             AgentDependencies(
                 session_factory=self.session_factory,
@@ -289,6 +302,10 @@ class ApplicationContainer:
                 masters=AgentMasters(lambda: self.mediator),
                 conversations=AgentConversations(lambda: self.mediator),
                 booking=AgentBooking(lambda: self.mediator),
+                cabinet=AgentCabinet(lambda: self.mediator),
+                ids=self.id_generator,
+                storage=self.file_storage,
+                media=self.media_urls,
                 ticket_ttl=settings.ticket_ttl,
             )
         )

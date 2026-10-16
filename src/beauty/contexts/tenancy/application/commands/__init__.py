@@ -15,6 +15,8 @@ from beauty.contexts.tenancy.application.commands.publication import (
 )
 from beauty.contexts.tenancy.application.commands.registration import RegisterMaster, RegisterMasterHandler
 from beauty.contexts.tenancy.application.commands.schedule import (
+    ChangeDayOff,
+    ChangeDayOffHandler,
     SetBookingRules,
     SetBookingRulesHandler,
     SetDaysOff,
@@ -38,6 +40,8 @@ __all__ = [
     "ArchiveServiceHandler",
     "AssignOwner",
     "AssignOwnerHandler",
+    "ChangeDayOff",
+    "ChangeDayOffHandler",
     "PublishMaster",
     "PublishMasterHandler",
     "RegisterMaster",

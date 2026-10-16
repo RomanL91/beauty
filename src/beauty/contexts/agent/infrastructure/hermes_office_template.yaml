@@ -1,0 +1,48 @@
+# Дополнения к config.yaml профиля-шаблона кабинета beauty-office-template: агент, которому
+# поручения даёт сам мастер. MCP — эндпоинт инструментов мастера (BEAUTY_MCP_URL шаблона
+# кабинета указывает на /office/mcp). Память и поиск по сессиям оставлены: здесь только
+# мастер, а его предпочтения («по субботам не раньше 11») агенту полезно помнить.
+platform_toolsets:
+  api_server:
+    - memory
+    - session_search
+    - mcp-beauty
+
+# Второй рубеж: эти тулсеты выключены совсем, даже если платформа сменится.
+agent:
+  disabled_toolsets:
+    - terminal
+    - file
+    - browser
+    - code_execution
+    - delegation
+    - cronjob
+    - computer_use
+    - kanban
+    - catalog
+    - connections
+    - web
+
+# Инструменты MCP — прямо в списке инструментов модели, без моста tool_search/tool_describe/
+# tool_call: каждый шаг моста — лишний вызов LLM на ход (итоги спайка: латентность хода).
+tools:
+  tool_search:
+    enabled: "off"
+
+mcp_servers:
+  beauty:
+    # ${VAR} подставляются из .env ИМЕННО этого профиля (у каждого мастера свой токен).
+    url: "${BEAUTY_MCP_URL}"
+    headers:
+      Authorization: "Bearer ${BEAUTY_MCP_TOKEN}"
+    # Hermes подставит имя профиля — MCP сверит его с токеном.
+    identity_header:
+      name: "X-Hermes-Profile"
+      value_from: "profile"
+    timeout: 30
+    connect_timeout: 15
+    tools:
+      prompts: false
+      resources: false
+    sampling:
+      enabled: false

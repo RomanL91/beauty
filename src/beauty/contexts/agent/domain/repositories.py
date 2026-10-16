@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from uuid import UUID
 
+from beauty.contexts.agent.domain.office import OfficeMessage
 from beauty.contexts.agent.domain.profile import AgentProfile
 from beauty.contexts.agent.domain.ticket import RunTicket
 from beauty.shared.domain.secrets import HashedSecret
@@ -23,7 +24,7 @@ class AgentProfileRepository(ABC):
 
     @abstractmethod
     async def by_token(self, token: HashedSecret) -> AgentProfile | None:
-        """Профиль по MCP-токену."""
+        """Профиль по MCP-токену ресепшна или кабинета."""
 
 
 class RunTicketRepository(ABC):
@@ -36,3 +37,25 @@ class RunTicketRepository(ABC):
     @abstractmethod
     async def get(self, ticket_id: str) -> RunTicket | None:
         """Тикет по id."""
+
+
+class OfficeMessageRepository(ABC):
+    """Лента поручений."""
+
+    @abstractmethod
+    def add(self, message: OfficeMessage) -> None:
+        """Добавить."""
+
+    @abstractmethod
+    async def get(self, master_id: UUID, message_id: UUID) -> OfficeMessage | None:
+        """Сообщение ленты мастера (чужое — ``None``)."""
+
+    @abstractmethod
+    async def by_client_id(self, master_id: UUID, client_message_id: UUID) -> OfficeMessage | None:
+        """Поручение по id отправителя (повтор отправки)."""
+
+    @abstractmethod
+    async def page(
+        self, master_id: UUID, before: UUID | None, limit: int
+    ) -> tuple[list[OfficeMessage], bool]:
+        """Страница ленты по возрастанию времени и признак «есть раньше»."""

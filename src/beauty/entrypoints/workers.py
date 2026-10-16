@@ -157,13 +157,13 @@ class EventConsumersWorker(Worker):
 
 
 class McpServerWorker(Worker):
-    """MCP-сервер ``beauty-tools`` для Hermes (Streamable HTTP, путь ``/mcp``)."""
+    """MCP-сервер ``beauty-tools`` для Hermes (Streamable HTTP: ``/mcp`` и ``/office/mcp``)."""
 
     async def run(self, stop: asyncio.Event) -> None:
         """Обслуживать MCP до остановки."""
         container = self._container
         settings = container.settings.agent
-        app = container.agent.mcp_server().streamable_http_app(host=settings.mcp_host)
+        app = container.agent.mcp_application(settings.mcp_host)
         server = uvicorn.Server(
             uvicorn.Config(app, host=settings.mcp_host, port=settings.mcp_port, log_config=None)
         )

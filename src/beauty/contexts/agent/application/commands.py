@@ -19,57 +19,72 @@ from beauty.contexts.agent.application.ports import (
 )
 from beauty.contexts.agent.application.uow import AgentUnitOfWork
 from beauty.contexts.agent.domain.profile import AgentProfile
-from beauty.contexts.agent.domain.ticket import RunTicket
+from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
 from beauty.shared.application.cqrs import Command, Handler
 from beauty.shared.domain.clock import Clock
 
 logger = logging.getLogger(__name__)
 
 PROFILE_PREFIX = "m-"  # профили Hermes мастеров: m-<12 hex id мастера>
+OFFICE_SUFFIX = "-office"  # профиль кабинета: m-<…>-office
 VOICE_NOTE = "Клиент прислал голосовое — расшифровки пока нет, прослушайте его в чате."
 FAILURE_NOTE = "ИИ-администратор не смог ответить на сообщение клиента — ответьте, пожалуйста, сами."
 
 
 @dataclass(frozen=True, slots=True)
 class ProvisionAgent(Command[str]):
-    """Завести ИИ-администратора мастеру (профиль в runtime); вернуть имя профиля."""
+    """Завести мастеру ИИ-администратора (профили ресепшна и кабинета); вернуть имя профиля."""
 
     master_id: UUID
 
 
 class ProvisionAgentHandler(Handler[ProvisionAgent, str]):
-    """Идемпотентно: существующий профиль не пересоздаётся."""
+    """Идемпотентно: созданные профили не пересоздаются, недостающий профиль кабинета добавляется."""
 
     def __init__(
-        self, uow: AgentUnitOfWork, provisioner: ProfileProvisioner, masters: MasterBriefs, clock: Clock
+        self,
+        uow_factory: Callable[[], AgentUnitOfWork],
+        provisioner: ProfileProvisioner,
+        masters: MasterBriefs,
+        clock: Clock,
     ) -> None:
-        """Получить зависимости."""
-        self._uow = uow
+        """Получить зависимости (профиль в Hermes и запись о нём — разные шаги)."""
+        self._uow_factory = uow_factory
         self._provisioner = provisioner
         self._masters = masters
         self._clock = clock
 
     async def handle(self, message: ProvisionAgent) -> str:
-        """Создать профиль."""
-        async with self._uow as uow:
+        """Создать недостающие профили."""
+        async with self._uow_factory() as uow:
             existing = await uow.profiles.get(message.master_id)
-            if existing is not None:
-                return existing.profile_name
+        if existing is not None and existing.has_office:
+            return existing.profile_name
         master = await self._masters.brief(message.master_id)
         if master is None:
             raise AgentNotProvisionedError("Мастер не найден")
-        name = f"{PROFILE_PREFIX}{message.master_id.hex[:12]}"
-        secrets = await self._provisioner.create(name, master.name)
-        async with self._uow as uow:
-            uow.profiles.add(
-                AgentProfile.register(
+        name = (
+            existing.profile_name if existing is not None else f"{PROFILE_PREFIX}{message.master_id.hex[:12]}"
+        )
+        front = None
+        if existing is None:
+            front = await self._provisioner.create(name, master.name, AgentFace.FRONT_DESK)
+        office = await self._provisioner.create(f"{name}{OFFICE_SUFFIX}", master.name, AgentFace.BACK_OFFICE)
+        now = self._clock.now()
+        async with self._uow_factory() as uow:
+            profile = await uow.profiles.get(message.master_id)
+            if profile is None:
+                if front is None:
+                    raise AgentNotProvisionedError("Профиль ресепшна пропал во время провижининга")
+                profile = AgentProfile.register(
                     master_id=message.master_id,
                     profile_name=name,
-                    runs_api_key=secrets.runs_api_key,
-                    mcp_token=secrets.mcp_token,
-                    now=self._clock.now(),
+                    runs_api_key=front.runs_api_key,
+                    mcp_token=front.mcp_token,
+                    now=now,
                 )
-            )
+                uow.profiles.add(profile)
+            profile.attach_office(f"{name}{OFFICE_SUFFIX}", office.runs_api_key, office.mcp_token, now)
             await uow.commit()
         return name
 

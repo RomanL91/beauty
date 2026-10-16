@@ -10,7 +10,7 @@ from uuid import UUID
 
 from beauty.contexts.conversations.application.commands.base import post, revise
 from beauty.contexts.conversations.application.offers import SlotOfferComposer
-from beauty.contexts.conversations.application.phrases import day_label, time_label
+from beauty.contexts.conversations.application.phrases import day_label, day_phrase, time_label
 from beauty.contexts.conversations.application.ports import MasterCatalog
 from beauty.contexts.conversations.application.uow import ConversationsUnitOfWork
 from beauty.contexts.conversations.domain.content import (
@@ -25,13 +25,20 @@ from beauty.shared.application.cqrs import Command, Handler
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
 
+_CANCELLATION_NOTES = {
+    "expired": SystemContent(
+        "Заявка не подтверждена вовремя, окно освободилось — выберите другое время.", Tone.WARNING
+    ),
+    "client_cancelled": SystemContent("Запись отменена, окно освободилось.", Tone.INFO),
+}
+
 
 @dataclass(frozen=True, slots=True)
 class SyncAppointment(Command[None]):
     """Запись изменилась (событие Booking): обновить карточку и сообщить клиенту.
 
     ``status`` — новый статус, ``reason`` — причина отмены (``declined``, ``expired``,
-    ``client_cancelled``, ``rescheduled``).
+    ``client_cancelled``, ``rescheduled``, ``master_cancelled``).
     """
 
     master_id: UUID
@@ -99,7 +106,9 @@ class SyncAppointmentHandler(Handler[SyncAppointment, None]):
     async def _alternatives(self, message: SyncAppointment) -> MessageContent | None:
         """«Предложить другое»: окна той же услуги с дня отклонённой заявки."""
         if not (
-            message.status == "cancelled" and message.reason == "declined" and message.offer_alternatives
+            message.status == "cancelled"
+            and message.reason in ("declined", "master_cancelled")
+            and message.offer_alternatives
         ):
             return None
         service = message.appointment.get("service")
@@ -120,22 +129,26 @@ class SyncAppointmentHandler(Handler[SyncAppointment, None]):
         post(uow, conversation, reply, now)
 
     async def _note(self, message: SyncAppointment) -> SystemContent | None:
+        start = datetime.fromisoformat(str(message.appointment["start"]))
         if message.status == "confirmed":
-            start = datetime.fromisoformat(str(message.appointment["start"]))
             return SystemContent(
                 f"Запись подтверждена: {day_label(start.date())} в {time_label(start)}. Ждём вас!",
                 Tone.SUCCESS,
             )
         if message.status != "cancelled":
             return None
-        if message.reason == "declined":
+        if message.reason in ("declined", "master_cancelled"):
             master = await self._catalog.by_id(message.master_id)
             who = master.name if master is not None else "Мастер"
-            return SystemContent(f"{who} не сможет принять в это время — выберите другое окно.", Tone.WARNING)
-        if message.reason == "expired":
+            if message.reason == "declined":
+                return SystemContent(
+                    f"{who} не сможет принять в это время — выберите другое окно.", Tone.WARNING
+                )
+            today = self._clock.now().astimezone(start.tzinfo).date()
+            when = f"{day_phrase(start.date(), today)} в {time_label(start)}"
             return SystemContent(
-                "Заявка не подтверждена вовремя, окно освободилось — выберите другое время.", Tone.WARNING
+                f"{who} не сможет принять вас {when} — запись отменена. Выберите другое время.", Tone.WARNING
             )
-        if message.reason == "client_cancelled" and message.reschedule_of is None:
-            return SystemContent("Запись отменена, окно освободилось.", Tone.INFO)
-        return None
+        if message.reason == "client_cancelled" and message.reschedule_of is not None:
+            return None  # перенос: старую запись заменила новая
+        return _CANCELLATION_NOTES.get(message.reason or "")

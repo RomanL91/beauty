@@ -162,3 +162,32 @@ def test_masked_phone_for_foreign_numbers() -> None:
     client = ClientSnapshot.new_client("+998901234567", 2)
     assert client.phone_masked == "+99890 ••• 45 67"
     assert client.display_name == "Новый клиент · …45 67"
+
+
+def test_master_cancels_request_or_confirmed_appointment() -> None:
+    """Мастер отменяет заявку или подтверждённую запись — даже после дедлайна клиента."""
+    appointment = requested()
+    appointment.confirm(NOW)
+    appointment.pull_events()
+    late = START - timedelta(hours=1)  # клиенту менять уже поздно, мастеру — можно
+    assert appointment.cancel_by_master(late) is True
+    assert (appointment.cancelled_by, appointment.cancel_reason) == (
+        CancelledBy.MASTER,
+        CancelReason.MASTER_CANCELLED,
+    )
+    (event,) = appointment.pull_events()
+    assert isinstance(event, AppointmentCancelled)
+    assert (event.reason, event.offer_alternatives) == ("master_cancelled", True)
+    assert appointment.cancel_by_master(late) is False  # повтор — no-op
+
+    pending = requested()
+    assert pending.cancel_by_master(NOW, offer_alternatives=False) is True
+    assert pending.pull_events()[-1].offer_alternatives is False  # type: ignore[attr-defined]
+
+
+def test_master_cannot_cancel_past_visit() -> None:
+    """Визит прошёл — отменять нечего."""
+    appointment = requested()
+    appointment.confirm(NOW)
+    with pytest.raises(AppointmentClosed):
+        appointment.cancel_by_master(START + timedelta(hours=1))

@@ -35,6 +35,7 @@ class CancelReason(StrEnum):
 
     CLIENT_CANCELLED = "client_cancelled"
     DECLINED = "declined"
+    MASTER_CANCELLED = "master_cancelled"
     EXPIRED = "expired"
     RESCHEDULED = "rescheduled"
 

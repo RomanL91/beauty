@@ -23,6 +23,7 @@ class AgentFace(StrEnum):
     """Роль агента в ходе."""
 
     FRONT_DESK = "front_desk"
+    BACK_OFFICE = "back_office"
 
 
 class RunTicket(AggregateRoot):
@@ -35,8 +36,8 @@ class RunTicket(AggregateRoot):
         ticket_id: str,
         master_id: UUID,
         face: AgentFace,
-        conversation_id: UUID,
-        client_id: UUID,
+        conversation_id: UUID | None,
+        client_id: UUID | None,
         expires_at: datetime,
         created_at: datetime,
     ) -> None:
@@ -48,6 +49,7 @@ class RunTicket(AggregateRoot):
         self.client_id = client_id
         self.expires_at = expires_at
         self.handed_off = False
+        self.asked_master = False
         self.created_at = created_at
 
     @classmethod
@@ -61,8 +63,12 @@ class RunTicket(AggregateRoot):
         ttl: timedelta,
     ) -> RunTicket:
         """Новый тикет ресепшна: ``t-`` и 8 символов (≈ 40 бит случайности)."""
-        ticket_id = "t-" + "".join(secrets.choice(_ALPHABET) for _ in range(_LENGTH))
-        return cls(ticket_id, master_id, AgentFace.FRONT_DESK, conversation_id, client_id, now + ttl, now)
+        return cls(_new_id(), master_id, AgentFace.FRONT_DESK, conversation_id, client_id, now + ttl, now)
+
+    @classmethod
+    def issue_office(cls, *, master_id: UUID, now: datetime, ttl: timedelta) -> RunTicket:
+        """Новый тикет кабинета: агент действует от имени мастера, клиента у хода нет."""
+        return cls(_new_id(), master_id, AgentFace.BACK_OFFICE, None, None, now + ttl, now)
 
     def check(self, master_id: UUID, face: AgentFace, now: datetime) -> None:
         """Тикет годится этому мастеру и этой роли сейчас."""
@@ -72,3 +78,11 @@ class RunTicket(AggregateRoot):
     def hand_off(self) -> None:
         """Агент передал диалог мастеру в этом ходе."""
         self.handed_off = True
+
+    def ask_master(self) -> None:
+        """Агент кабинета задал мастеру вопрос с вариантами: ответ — карточка, не текст хода."""
+        self.asked_master = True
+
+
+def _new_id() -> str:
+    return "t-" + "".join(secrets.choice(_ALPHABET) for _ in range(_LENGTH))
