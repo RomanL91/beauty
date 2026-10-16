@@ -24,6 +24,8 @@
   (`docs/tasks/backend-iteration-4-agent.md`), а в кабинете выполняет поручения мастера —
   график, заявки, отмены, выходные, сообщения клиентам, вопросы мастеру карточкой выбора
   (`docs/tasks/backend-iteration-5-assistant.md`);
+* **контекст `notifications`** — push-уведомления (Web Push, VAPID) клиенту и мастеру и
+  напоминание о визите (`docs/tasks/backend-iteration-6-push.md`);
 * **спайк Hermes** (`spikes/hermes`) — проверка runtime агента до разработки
   контекста `agent`.
 
@@ -57,13 +59,14 @@ src/beauty/
 │   └── module.py
 ├── contexts/booking/               # Appointment, EXCLUDE USING gist, таймеры, /appointments
 ├── contexts/conversations/         # Conversation + Message, журнал ленты, SSE, администратор записи
+├── contexts/notifications/         # подписки устройств, Web Push (RFC 8291/8292), кому и что сообщить
 ├── contexts/agent/                 # профили Hermes (ресепшн, кабинет), тикеты, ходы, лента поручений, MCP
 ├── bootstrap/                      # корень композиции (Pure DI), адаптеры между контекстами, демо-данные
 └── entrypoints/                    # процессы: api, bot, relay, scheduler, worker, mcp; seed-demo, appointment, agent
 migrations/                         # Alembic (async)
 spikes/hermes/                      # кит спайка Hermes (см. его README)
 devtools/fake_llm.py                # сценарная OpenAI-совместимая «модель» для прогона агента без ключа LLM
-tests/unit | tests/integration      # 254 теста; интеграционные — на реальном PostgreSQL
+tests/unit | tests/integration      # 267 тестов; интеграционные — на реальном PostgreSQL
 ```
 
 ## Вход клиента через Telegram
@@ -127,6 +130,11 @@ docker compose up --build       # postgres, rabbitmq, migrate, seed, api, bot, r
 
 Фронтенд (два PWA, контракт API, моки) — `frontend/README.md`.
 
+Push-уведомления: `docker compose run --rm api push keys` печатает ключи VAPID — три строки
+в `.env`, затем `docker compose up -d --build` (открытый ключ попадает в сборку PWA). Push
+работает в безопасном контексте: https или `*.localhost`; по http через `nip.io` браузер
+подписку не даст.
+
 ИИ-администратор (профиль compose `agent`): Hermes, MCP-сервер `beauty-tools` и разовый
 `agent-setup` — шаблоны профилей Hermes и профили демо-мастера alisa. У мастера два
 профиля: ресепшн (`m-<id>`, клиенты, MCP `/mcp`) и кабинет (`m-<id>-office`, поручения
@@ -187,6 +195,9 @@ BEAUTY_TEST_DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/postgres p
   `Last-Event-ID` и `reset`; голосовые по подписанным ссылкам; исключающее ограничение;
 * ИИ-администратор: MCP по HTTP настоящим MCP-клиентом (токен профиля, заголовок
   профиля, тикет), запись через инструмент, передача мастеру, `agent_note` не уходит клиенту;
+* push: подписки (повтор, чужая, кабинет без прав), уведомления по заявке, подтверждению,
+  напоминанию (задача планировщика), передаче вопроса и ответу мастера, удаление исчезнувших
+  устройств; шифрование проверяется расшифровкой ключом «браузера»;
 * кабинет: поручения через API и поток кабинета, ход по MCP кабинета (подтверждение, выходной,
   сообщение клиенту), вопрос мастеру и ход по его выбору, токен ресепшна не пускает в кабинет;
 * ответы API и ошибки (problem+json) — по схемам из `contracts/openapi/beauty.yaml`.
@@ -202,7 +213,8 @@ BEAUTY_TEST_DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/postgres p
    передача мастеру; короткие тикеты, каталог в инструкциях, ответ итоговым текстом).
 5. ~~Поручения мастера ИИ-администратору~~ — сделаны (экран «Поручения» на реальном API:
    график, заявки, отмены, выходные, сообщения клиентам, вопросы карточкой выбора).
-6. Push-уведомления (Web Push, VAPID) и напоминания о визите.
+6. ~~Push-уведомления и напоминание о визите~~ — сделаны (заявки, подтверждения, отказы,
+   сообщения, вопросы агента, ответы на поручения; напоминание за сутки или за 2 ч).
 7. Самостоятельная настройка мастера: профиль, услуги, график (нужны макеты и контракт).
 8. Расшифровка голосовых (клиента и мастера).
 9. Подготовка к продакшену: деплой и TLS `*.beautiful.kz`, бэкапы, мониторинг (в том
