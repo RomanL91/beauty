@@ -20,6 +20,7 @@ from beauty.contexts.tenancy.application.queries.master_page import (
     ListServiceTitles,
     ListServiceTitlesHandler,
 )
+from beauty.contexts.tenancy.application.queries.settings import GetMasterSettings, GetMasterSettingsHandler
 
 __all__ = [
     "CheckBookableSlot",
@@ -30,6 +31,8 @@ __all__ = [
     "FindMasterIdHandler",
     "GetMasterPage",
     "GetMasterPageHandler",
+    "GetMasterSettings",
+    "GetMasterSettingsHandler",
     "GetWorkingCalendar",
     "GetWorkingCalendarHandler",
     "ListFreeSlots",

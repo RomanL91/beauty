@@ -63,3 +63,9 @@ class MasterNotPublishable(InvariantViolation):
     """Страницу нельзя опубликовать: нужны хотя бы одна услуга и рабочие часы."""
 
     code = "master_not_publishable"
+
+
+class UnknownPhoto(DomainError):
+    """Фото работы не найдено."""
+
+    code = "photo_not_found"

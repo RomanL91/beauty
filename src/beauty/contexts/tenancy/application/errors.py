@@ -39,3 +39,9 @@ class SlotUnavailableError(ConflictError):
     """Это время недоступно для записи (занято, вне расписания или правил)."""
 
     code = "slot_unavailable"
+
+
+class PhotoNotFoundError(ApplicationError):
+    """Фото работы не найдено."""
+
+    code = "photo_not_found"

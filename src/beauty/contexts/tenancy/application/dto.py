@@ -84,3 +84,18 @@ class WorkingCalendarView:
 
     timezone: str
     days: tuple[CalendarDayView, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MasterSettingsView:
+    """Страница мастера глазами владельца: черновик, график, правила, что мешает публикации."""
+
+    page: MasterPageView
+    published: bool
+    published_at: datetime | None
+    working_hours: tuple[tuple[int, tuple[tuple[time, time], ...]], ...]
+    days_off: tuple[date, ...]
+    min_notice_minutes: int
+    horizon_days: int
+    slot_step_minutes: int
+    publish_blockers: tuple[str, ...]

@@ -241,6 +241,14 @@ class PortfolioPhoto:
     alt: str = ""
 
     def __post_init__(self) -> None:
-        """Только https-ссылки."""
-        if not self.url.startswith("https://") or len(self.url) > 2000:
-            raise InvalidProfile("Фото — https-ссылка до 2000 символов")
+        """https-ссылка или путь к своему хранилищу (``/api/v1/media/public/…``)."""
+        if not is_image_url(self.url):
+            raise InvalidProfile("Фото — https-ссылка или файл из хранилища, до 2000 символов")
+        if len(self.alt) > 200:
+            raise InvalidProfile("Подпись к фото — до 200 символов")
+
+
+def is_image_url(url: str) -> bool:
+    """https-ссылка или путь на том же origin (файл из хранилища платформы)."""
+    same_origin = url.startswith("/") and not url.startswith("//")
+    return (url.startswith("https://") or same_origin) and len(url) <= 2000

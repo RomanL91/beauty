@@ -312,6 +312,228 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/me/settings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Настройки страницы мастера
+     * @description Страница, статус, рабочие часы, выходные даты, правила записи и что мешает публикации.
+     */
+    get: operations['getMySettings'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/profile': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Профиль страницы */
+    put: operations['updateMyProfile'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/services': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Добавить услугу */
+    post: operations['addMyService'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/services/{service_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        service_id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    /** Изменить услугу */
+    put: operations['updateMyService'];
+    post?: never;
+    /**
+     * Убрать услугу
+     * @description Услуга уходит в архив — прошлые и будущие записи на неё сохраняются.
+     */
+    delete: operations['archiveMyService'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/working-hours': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Рабочие часы по дням недели
+     * @description Несколько интервалов в дне — перерывы между ними. Дня нет в списке — выходной.
+     */
+    put: operations['setMyWorkingHours'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/days-off': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Выходные даты
+     * @description Заменяет список целиком; прошедшие даты отбрасываются.
+     */
+    put: operations['setMyDaysOff'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/booking-rules': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Правила записи */
+    put: operations['setMyBookingRules'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/photos': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Добавить фото работы */
+    post: operations['addMyPhoto'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/photos/{photo_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        photo_id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Убрать фото работы */
+    delete: operations['removeMyPhoto'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/avatar': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Фото профиля */
+    put: operations['setMyAvatar'];
+    post?: never;
+    /** Убрать фото профиля */
+    delete: operations['removeMyAvatar'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/publish': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Открыть страницу клиентам */
+    post: operations['publishMyPage'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/unpublish': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Скрыть страницу */
+    post: operations['unpublishMyPage'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/me/schedule': {
     parameters: {
       query?: never;
@@ -660,8 +882,65 @@ export interface components {
     Photo: {
       /** Format: uuid */
       id: string;
-      /** Format: uri */
+      /**
+       * Format: uri-reference
+       * @description https-ссылка или путь на этом же origin (/api/v1/media/public/…).
+       */
       url: string;
+      alt?: string;
+    };
+    /** @description Страница мастера глазами владельца. */
+    MasterSettings: {
+      page: components['schemas']['MasterPage'];
+      /** @enum {string} */
+      status: 'draft' | 'published';
+      published_at: string | null;
+      /** @description Рабочие дни (дня нет — выходной), по возрастанию weekday. */
+      working_hours: components['schemas']['WorkingDay'][];
+      days_off: string[];
+      booking_rules: components['schemas']['BookingRulesSettings'];
+      /** @description Что мешает опубликовать страницу (пусто — можно). */
+      publish_blockers: string[];
+    };
+    WorkingDay: {
+      /** @description 0 — понедельник … 6 — воскресенье. */
+      weekday: number;
+      intervals: components['schemas']['TimeInterval'][];
+    };
+    TimeInterval: {
+      /** @example 10:00 */
+      start: string;
+      /** @example 19:00 */
+      end: string;
+    };
+    BookingRulesSettings: {
+      confirm_within_hours: number;
+      change_deadline_hours: number;
+      min_notice_minutes: number;
+      horizon_days: number;
+      /** @enum {integer} */
+      slot_step_minutes: 5 | 10 | 15 | 20 | 30 | 60;
+    };
+    ProfileInput: {
+      display_name: string;
+      name_forms: components['schemas']['NameForms'];
+      specialty: string;
+      address: string;
+      about: string;
+      /** @example Asia/Almaty */
+      timezone: string;
+    };
+    ServiceInput: {
+      title: string;
+      duration_min: number;
+      price: components['schemas']['Money'] | null;
+    };
+    PhotoUpload: {
+      /**
+       * Format: binary
+       * @description image/jpeg, image/png или image/webp, до 8 МБ.
+       */
+      file: string;
       alt?: string;
     };
     MasterPage: {
@@ -1210,6 +1489,15 @@ export interface components {
     };
   };
   responses: {
+    /** @description Настройки после изменения. */
+    MasterSettings: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['MasterSettings'];
+      };
+    };
     /** @description Ошибка (RFC 9457). */
     Problem: {
       headers: {
@@ -1654,6 +1942,269 @@ export interface operations {
           'application/json': components['schemas']['MasterPage'];
         };
       };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+    };
+  };
+  getMySettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Настройки. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MasterSettings'];
+        };
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+    };
+  };
+  updateMyProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ProfileInput'];
+      };
+    };
+    responses: {
+      200: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  addMyService: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ServiceInput'];
+      };
+    };
+    responses: {
+      201: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  updateMyService: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        service_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ServiceInput'];
+      };
+    };
+    responses: {
+      200: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  archiveMyService: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        service_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+    };
+  };
+  setMyWorkingHours: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          days: components['schemas']['WorkingDay'][];
+        };
+      };
+    };
+    responses: {
+      200: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  setMyDaysOff: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          days: string[];
+        };
+      };
+    };
+    responses: {
+      200: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  setMyBookingRules: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BookingRulesSettings'];
+      };
+    };
+    responses: {
+      200: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  addMyPhoto: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['PhotoUpload'];
+      };
+    };
+    responses: {
+      201: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      413: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  removeMyPhoto: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        photo_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+    };
+  };
+  setMyAvatar: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['PhotoUpload'];
+      };
+    };
+    responses: {
+      200: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      413: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  removeMyAvatar: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+    };
+  };
+  publishMyPage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['MasterSettings'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+    };
+  };
+  unpublishMyPage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['MasterSettings'];
       401: components['responses']['Problem'];
       403: components['responses']['Problem'];
     };

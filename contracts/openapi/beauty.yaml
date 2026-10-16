@@ -413,6 +413,221 @@ paths:
           $ref: '#/components/responses/Problem'
         '403':
           $ref: '#/components/responses/Problem'
+  /me/settings:
+    get:
+      tags: [master]
+      operationId: getMySettings
+      summary: Настройки страницы мастера
+      description: Страница, статус, рабочие часы, выходные даты, правила записи и что мешает публикации.
+      responses:
+        '200':
+          description: Настройки.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MasterSettings' }
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+  /me/profile:
+    put:
+      tags: [master]
+      operationId: updateMyProfile
+      summary: Профиль страницы
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileInput' }
+      responses:
+        '200': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/services:
+    post:
+      tags: [master]
+      operationId: addMyService
+      summary: Добавить услугу
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServiceInput' }
+      responses:
+        '201': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/services/{service_id}:
+    parameters:
+      - name: service_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [master]
+      operationId: updateMyService
+      summary: Изменить услугу
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServiceInput' }
+      responses:
+        '200': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [master]
+      operationId: archiveMyService
+      summary: Убрать услугу
+      description: Услуга уходит в архив — прошлые и будущие записи на неё сохраняются.
+      responses:
+        '200': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /me/working-hours:
+    put:
+      tags: [master]
+      operationId: setMyWorkingHours
+      summary: Рабочие часы по дням недели
+      description: Несколько интервалов в дне — перерывы между ними. Дня нет в списке — выходной.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [days]
+              properties:
+                days:
+                  type: array
+                  maxItems: 7
+                  items: { $ref: '#/components/schemas/WorkingDay' }
+      responses:
+        '200': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/days-off:
+    put:
+      tags: [master]
+      operationId: setMyDaysOff
+      summary: Выходные даты
+      description: Заменяет список целиком; прошедшие даты отбрасываются.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [days]
+              properties:
+                days:
+                  type: array
+                  maxItems: 366
+                  items: { type: string, format: date }
+      responses:
+        '200': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/booking-rules:
+    put:
+      tags: [master]
+      operationId: setMyBookingRules
+      summary: Правила записи
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingRulesSettings' }
+      responses:
+        '200': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/photos:
+    post:
+      tags: [master]
+      operationId: addMyPhoto
+      summary: Добавить фото работы
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/PhotoUpload' }
+      responses:
+        '201': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/photos/{photo_id}:
+    parameters:
+      - name: photo_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [master]
+      operationId: removeMyPhoto
+      summary: Убрать фото работы
+      responses:
+        '200': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /me/avatar:
+    put:
+      tags: [master]
+      operationId: setMyAvatar
+      summary: Фото профиля
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/PhotoUpload' }
+      responses:
+        '200': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [master]
+      operationId: removeMyAvatar
+      summary: Убрать фото профиля
+      responses:
+        '200': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+  /me/publish:
+    post:
+      tags: [master]
+      operationId: publishMyPage
+      summary: Открыть страницу клиентам
+      responses:
+        '200': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /me/unpublish:
+    post:
+      tags: [master]
+      operationId: unpublishMyPage
+      summary: Скрыть страницу
+      responses:
+        '200': { $ref: '#/components/responses/MasterSettings' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
   /me/schedule:
     get:
       tags: [master]
@@ -790,6 +1005,11 @@ components:
       schema: { type: string }
 
   responses:
+    MasterSettings:
+      description: Настройки после изменения.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/MasterSettings' }
     Problem:
       description: Ошибка (RFC 9457).
       content:
@@ -893,8 +1113,84 @@ components:
       required: [id, url]
       properties:
         id: { type: string, format: uuid }
-        url: { type: string, format: uri }
+        url: { type: string, format: uri-reference, description: 'https-ссылка или путь на этом же origin (/api/v1/media/public/…).' }
         alt: { type: string }
+    MasterSettings:
+      type: object
+      description: Страница мастера глазами владельца.
+      required: [page, status, published_at, working_hours, days_off, booking_rules, publish_blockers]
+      properties:
+        page: { $ref: '#/components/schemas/MasterPage' }
+        status: { type: string, enum: [draft, published] }
+        published_at:
+          oneOf:
+            - { type: string, format: date-time }
+            - type: 'null'
+        working_hours:
+          type: array
+          description: Рабочие дни (дня нет — выходной), по возрастанию weekday.
+          items: { $ref: '#/components/schemas/WorkingDay' }
+        days_off:
+          type: array
+          items: { type: string, format: date }
+        booking_rules: { $ref: '#/components/schemas/BookingRulesSettings' }
+        publish_blockers:
+          type: array
+          description: Что мешает опубликовать страницу (пусто — можно).
+          items: { type: string }
+    WorkingDay:
+      type: object
+      required: [weekday, intervals]
+      properties:
+        weekday: { type: integer, minimum: 0, maximum: 6, description: '0 — понедельник … 6 — воскресенье.' }
+        intervals:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/TimeInterval' }
+    TimeInterval:
+      type: object
+      required: [start, end]
+      properties:
+        start: { type: string, pattern: '^\d{2}:\d{2}$', examples: ['10:00'] }
+        end: { type: string, pattern: '^\d{2}:\d{2}$', examples: ['19:00'] }
+    BookingRulesSettings:
+      type: object
+      required: [confirm_within_hours, change_deadline_hours, min_notice_minutes, horizon_days, slot_step_minutes]
+      properties:
+        confirm_within_hours: { type: integer, minimum: 1, maximum: 72 }
+        change_deadline_hours: { type: integer, minimum: 0, maximum: 168 }
+        min_notice_minutes: { type: integer, minimum: 0, maximum: 10080 }
+        horizon_days: { type: integer, minimum: 1, maximum: 90 }
+        slot_step_minutes: { type: integer, enum: [5, 10, 15, 20, 30, 60] }
+    ProfileInput:
+      type: object
+      required: [display_name, name_forms, specialty, address, about, timezone]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 80 }
+        name_forms: { $ref: '#/components/schemas/NameForms' }
+        specialty: { type: string, maxLength: 80 }
+        address: { type: string, maxLength: 200 }
+        about: { type: string, maxLength: 4000 }
+        timezone: { type: string, examples: ['Asia/Almaty'] }
+    ServiceInput:
+      type: object
+      required: [title, duration_min, price]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        duration_min: { type: integer, minimum: 5, maximum: 480, multipleOf: 5 }
+        price:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+    PhotoUpload:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: 'image/jpeg, image/png или image/webp, до 8 МБ.'
+        alt: { type: string, maxLength: 200 }
     MasterPage:
       type: object
       required: [slug, display_name, name_forms, specialty, address, timezone, avatar_url, about, services, photos, booking_rules]
@@ -907,7 +1203,7 @@ components:
         timezone: { type: string, examples: ['Asia/Almaty'] }
         avatar_url:
           oneOf:
-            - { type: string, format: uri }
+            - { type: string, format: uri-reference }
             - type: 'null'
         about: { type: string }
         services:

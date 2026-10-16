@@ -18,6 +18,7 @@ from beauty.contexts.tenancy.domain.errors import (
     InvalidProfile,
     MasterNotPublishable,
     ServiceLimitReached,
+    UnknownPhoto,
     UnknownService,
 )
 from beauty.contexts.tenancy.domain.events import (
@@ -39,6 +40,7 @@ from beauty.contexts.tenancy.domain.value_objects import (
     ServiceDuration,
     TimeZoneName,
     WeeklySchedule,
+    is_image_url,
 )
 from beauty.shared.domain.aggregate import AggregateRoot, Entity
 from beauty.shared.domain.events import DomainEvent
@@ -145,8 +147,8 @@ class Master(AggregateRoot):
 
     def update_profile(self, profile: MasterProfile, now: datetime) -> None:
         """Обновить профиль страницы."""
-        if profile.avatar_url is not None and not profile.avatar_url.startswith("https://"):
-            raise InvalidProfile("Фото профиля — https-ссылка")
+        if profile.avatar_url is not None and not is_image_url(profile.avatar_url):
+            raise InvalidProfile("Фото профиля — https-ссылка или файл из хранилища")
         normalized = MasterProfile(
             display_name=_text(profile.display_name, field="имя", max_length=80, required=True),
             name_forms=profile.name_forms,
@@ -189,6 +191,45 @@ class Master(AggregateRoot):
             raise InvalidProfile("Повторяющиеся фото")
         self.photos = photos
         self._touch(now, MasterProfileChanged(occurred_at=now, master_id=self.id))
+
+    def add_photo(self, photo: PortfolioPhoto, now: datetime) -> None:
+        """Добавить фото работы в конец подборки."""
+        self.replace_photos((*self.photos, photo), now)
+
+    def remove_photo(self, photo_id: UUID, now: datetime) -> PortfolioPhoto:
+        """Убрать фото работы; вернуть убранное."""
+        for photo in self.photos:
+            if photo.id == photo_id:
+                self.replace_photos(tuple(p for p in self.photos if p.id != photo_id), now)
+                return photo
+        raise UnknownPhoto(f"Фото {photo_id} не найдено")
+
+    def set_avatar(self, url: str | None, now: datetime) -> str | None:
+        """Фото профиля (``None`` — убрать); вернуть прежнее."""
+        previous = self.avatar_url
+        self.update_profile(
+            MasterProfile(
+                display_name=self.display_name,
+                name_forms=self.name_forms,
+                specialty=self.specialty,
+                address=self.address,
+                about=self.about,
+                timezone=self.timezone,
+                avatar_url=url,
+            ),
+            now,
+        )
+        return previous
+
+    @property
+    def publish_blockers(self) -> tuple[str, ...]:
+        """Что мешает опубликовать страницу (пусто — можно)."""
+        blockers = []
+        if not self.active_services:
+            blockers.append("Добавьте хотя бы одну услугу")
+        if self.schedule.is_empty:
+            blockers.append("Задайте рабочие часы")
+        return tuple(blockers)
 
     # ─────────────────────────── услуги ───────────────────────────
 
@@ -290,10 +331,8 @@ class Master(AggregateRoot):
         """Открыть страницу клиентам."""
         if self.is_published:
             return
-        if not self.active_services:
-            raise MasterNotPublishable("Добавьте хотя бы одну услугу")
-        if self.schedule.is_empty:
-            raise MasterNotPublishable("Задайте рабочие часы")
+        if self.publish_blockers:
+            raise MasterNotPublishable(self.publish_blockers[0])
         self.status = MasterStatus.PUBLISHED
         self.published_at = now
         self._touch(now, MasterPublished(occurred_at=now, master_id=self.id, slug=self.slug.value))

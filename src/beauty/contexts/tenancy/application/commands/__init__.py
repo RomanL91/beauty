@@ -2,8 +2,14 @@
 
 from beauty.contexts.tenancy.application.commands.owner import AssignOwner, AssignOwnerHandler
 from beauty.contexts.tenancy.application.commands.profile import (
+    AddPortfolioPhoto,
+    AddPortfolioPhotoHandler,
+    RemovePortfolioPhoto,
+    RemovePortfolioPhotoHandler,
     ReplacePortfolio,
     ReplacePortfolioHandler,
+    SetAvatar,
+    SetAvatarHandler,
     UpdateMasterProfile,
     UpdateMasterProfileHandler,
 )
@@ -34,6 +40,8 @@ from beauty.contexts.tenancy.application.commands.services import (
 )
 
 __all__ = [
+    "AddPortfolioPhoto",
+    "AddPortfolioPhotoHandler",
     "AddService",
     "AddServiceHandler",
     "ArchiveService",
@@ -46,8 +54,12 @@ __all__ = [
     "PublishMasterHandler",
     "RegisterMaster",
     "RegisterMasterHandler",
+    "RemovePortfolioPhoto",
+    "RemovePortfolioPhotoHandler",
     "ReplacePortfolio",
     "ReplacePortfolioHandler",
+    "SetAvatar",
+    "SetAvatarHandler",
     "SetBookingRules",
     "SetBookingRulesHandler",
     "SetDaysOff",

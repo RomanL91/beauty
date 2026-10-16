@@ -8,6 +8,8 @@ from fastapi import APIRouter
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from beauty.contexts.tenancy.application.commands import (
+    AddPortfolioPhoto,
+    AddPortfolioPhotoHandler,
     AddService,
     AddServiceHandler,
     ArchiveService,
@@ -20,8 +22,12 @@ from beauty.contexts.tenancy.application.commands import (
     PublishMasterHandler,
     RegisterMaster,
     RegisterMasterHandler,
+    RemovePortfolioPhoto,
+    RemovePortfolioPhotoHandler,
     ReplacePortfolio,
     ReplacePortfolioHandler,
+    SetAvatar,
+    SetAvatarHandler,
     SetBookingRules,
     SetBookingRulesHandler,
     SetDaysOff,
@@ -45,6 +51,8 @@ from beauty.contexts.tenancy.application.queries import (
     FindMasterIdHandler,
     GetMasterPage,
     GetMasterPageHandler,
+    GetMasterSettings,
+    GetMasterSettingsHandler,
     GetWorkingCalendar,
     GetWorkingCalendarHandler,
     ListFreeSlots,
@@ -64,6 +72,7 @@ from beauty.contexts.tenancy.infrastructure.uow import SqlAlchemyTenancyUnitOfWo
 from beauty.contexts.tenancy.presentation.api.cabinet import cabinet_router
 from beauty.contexts.tenancy.presentation.api.controller import TenancyApiController
 from beauty.shared.application.mediator import Mediator
+from beauty.shared.application.storage import FileStorage
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
 from beauty.shared.infrastructure.outbox.writer import OutboxWriter
@@ -86,6 +95,9 @@ _HTTP_STATUSES: dict[str, int] = {
     "invalid_money": 422,
     "invalid_booking_rules": 422,
     "invalid_schedule": 422,
+    "photo_not_found": 404,
+    "invalid_photo": 422,
+    "photo_too_large": 413,
 }
 
 
@@ -130,6 +142,10 @@ class TenancyModule:
         mediator.register(SetBookingRules, lambda: SetBookingRulesHandler(self._uow(), clock))
         mediator.register(SetDaysOff, lambda: SetDaysOffHandler(self._uow(), clock))
         mediator.register(ChangeDayOff, lambda: ChangeDayOffHandler(self._uow(), clock))
+        mediator.register(AddPortfolioPhoto, lambda: AddPortfolioPhotoHandler(self._uow(), clock))
+        mediator.register(RemovePortfolioPhoto, lambda: RemovePortfolioPhotoHandler(self._uow(), clock))
+        mediator.register(SetAvatar, lambda: SetAvatarHandler(self._uow(), clock))
+        mediator.register(GetMasterSettings, lambda: GetMasterSettingsHandler(self._uow()))
         mediator.register(PublishMaster, lambda: PublishMasterHandler(self._uow(), clock))
         mediator.register(UnpublishMaster, lambda: UnpublishMasterHandler(self._uow(), clock))
         mediator.register(GetMasterPage, lambda: GetMasterPageHandler(self._page_reader))
@@ -155,9 +171,11 @@ class TenancyModule:
         """HTTP-роутер публичных эндпоинтов."""
         return TenancyApiController(mediator).router()
 
-    def cabinet_router(self, mediator: Mediator, auth: MasterAuth) -> APIRouter:
-        """HTTP-роутер кабинета мастера (``GET /me``)."""
-        return cabinet_router(mediator, auth)
+    def cabinet_router(
+        self, mediator: Mediator, auth: MasterAuth, storage: FileStorage, api_prefix: str
+    ) -> APIRouter:
+        """HTTP-роутер кабинета мастера: профиль и настройки страницы, фото — в ``storage``."""
+        return cabinet_router(mediator, auth, storage, self._deps.id_generator, api_prefix)
 
     def _uow(self) -> SqlAlchemyTenancyUnitOfWork:
         """Новый Unit of Work на каждый обработчик."""
