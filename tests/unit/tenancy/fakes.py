@@ -50,6 +50,13 @@ class InMemoryMasters(MasterRepository):
         found = self._store.masters.get(master_id)
         return None if found is None else self._tracker.track(found)
 
+    async def get_by_owner(self, phone: str) -> Master | None:
+        """По телефону владельца."""
+        for master in self._store.masters.values():
+            if master.owner_phone == phone:
+                return self._tracker.track(master)
+        return None
+
     async def get_by_slug(self, slug: MasterSlug) -> Master | None:
         """По slug."""
         for master in self._store.masters.values():
@@ -86,15 +93,17 @@ class StoreReaders(MasterPageReader, AvailabilityReader, MasterDirectory):
         """Связать с хранилищем."""
         self._store = store
 
-    def _published(self, ref: MasterRef) -> Master | None:
+    def _published(self, ref: MasterRef, published_only: bool = True) -> Master | None:
         for master in self._store.masters.values():
-            if ref in (master.id, master.slug.value) and master.is_published:
+            if ref in (master.id, master.slug.value) and (master.is_published or not published_only):
                 return master
         return None
 
-    async def read(self, master_ref: MasterRef) -> MasterPageView | None:  # type: ignore[override]
+    async def read(  # type: ignore[override]
+        self, master_ref: MasterRef, *, published_only: bool = True
+    ) -> MasterPageView | None:
         """Страница (для MasterPageReader)."""
-        master = self._published(master_ref)
+        master = self._published(master_ref, published_only)
         if master is None:
             return None
         return MasterPageView(
@@ -118,9 +127,11 @@ class StoreReaders(MasterPageReader, AvailabilityReader, MasterDirectory):
             change_deadline_hours=master.booking_rules.change_deadline_hours,
         )
 
-    async def availability(self, master_ref: MasterRef) -> AvailabilityRecord | None:
+    async def availability(
+        self, master_ref: MasterRef, published_only: bool = True
+    ) -> AvailabilityRecord | None:
         """Снимок доступности."""
-        master = self._published(master_ref)
+        master = self._published(master_ref, published_only)
         if master is None:
             return None
         return AvailabilityRecord(
@@ -141,6 +152,10 @@ class StoreReaders(MasterPageReader, AvailabilityReader, MasterDirectory):
                 return master.id
         return None
 
+    async def find_by_owner(self, phone: str) -> UUID | None:
+        """Id по телефону владельца."""
+        return next((m.id for m in self._store.masters.values() if m.owner_phone == phone), None)
+
     async def active_service_titles(self, master_id: UUID) -> frozenset[str]:
         """Названия активных услуг."""
         return frozenset(s.title for s in self._store.masters[master_id].active_services)
@@ -153,9 +168,9 @@ class AvailabilityAdapter(AvailabilityReader):
         """Обернуть читателей."""
         self._readers = readers
 
-    async def read(self, master: MasterRef) -> AvailabilityRecord | None:
+    async def read(self, master: MasterRef, *, published_only: bool = True) -> AvailabilityRecord | None:
         """Снимок."""
-        return await self._readers.availability(master)
+        return await self._readers.availability(master, published_only)
 
 
 class FixedBusy(BusyTimeSource):

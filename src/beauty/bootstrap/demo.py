@@ -14,6 +14,7 @@ from uuid import UUID
 
 from beauty.contexts.tenancy.application.commands import (
     AddService,
+    AssignOwner,
     PublishMaster,
     RegisterMaster,
     SetBookingRules,
@@ -44,8 +45,11 @@ class DemoMasterSeeder:
         """Получить медиатор."""
         self._mediator = mediator
 
-    async def seed(self) -> UUID:
-        """Привести демо-мастера к эталону и вернуть его id."""
+    async def seed(self, owner_phone: str | None = None) -> UUID:
+        """Привести демо-мастера к эталону и вернуть его id.
+
+        ``owner_phone`` — телефон учётной записи, которой открыт кабинет мастера.
+        """
         send = self._mediator.send
         master_id = await send(FindMasterId(DEMO_SLUG))
         if master_id is None:
@@ -90,6 +94,9 @@ class DemoMasterSeeder:
         await send(SetWeeklySchedule(master_id=master_id, days=dict.fromkeys(range(6), _DAY)))
         await self._ensure_services(master_id)
         await send(PublishMaster(master_id))
+        if owner_phone:
+            await send(AssignOwner(DEMO_SLUG, owner_phone))
+            logger.info("Кабинет демо-мастера открыт для %s", owner_phone)
         logger.info("Демо-мастер %s опубликован", DEMO_SLUG)
         return master_id
 

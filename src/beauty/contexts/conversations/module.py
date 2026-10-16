@@ -10,17 +10,33 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from beauty.contexts.conversations.application.commands import (
     AssistClient,
     AssistClientHandler,
+    MarkConversationRead,
+    MarkConversationReadHandler,
     OpenConversation,
     OpenConversationHandler,
     PostClientMessage,
     PostClientMessageHandler,
+    PostMasterMessage,
+    PostMasterMessageHandler,
+    SetConversationHandler,
+    SetConversationHandlerHandler,
     SyncAppointment,
     SyncAppointmentHandler,
 )
-from beauty.contexts.conversations.application.ports import BookingDesk, MasterCatalog
+from beauty.contexts.conversations.application.ports import BookingDesk, ClientContacts, MasterCatalog
 from beauty.contexts.conversations.application.queries import (
+    FindConversationIds,
+    FindConversationIdsHandler,
+    GetConversationSummary,
+    GetConversationSummaryHandler,
+    GetMasterMessage,
+    GetMasterMessageHandler,
     GetMyConversation,
     GetMyConversationHandler,
+    ListInbox,
+    ListInboxHandler,
+    ListMasterMessages,
+    ListMasterMessagesHandler,
     ListMessages,
     ListMessagesHandler,
     ReadFeed,
@@ -34,9 +50,10 @@ from beauty.contexts.conversations.infrastructure.consumers import (
 )
 from beauty.contexts.conversations.infrastructure.jobs import PruneFeedJob
 from beauty.contexts.conversations.infrastructure.mapping import ConversationsOrmMapper
-from beauty.contexts.conversations.infrastructure.readers import SqlConversationReader
-from beauty.contexts.conversations.infrastructure.realtime import FeedTopicResolver
+from beauty.contexts.conversations.infrastructure.readers import SqlConversationReader, SqlInboxReader
+from beauty.contexts.conversations.infrastructure.realtime import FeedTopicResolver, MasterTopicResolver
 from beauty.contexts.conversations.infrastructure.uow import SqlAlchemyConversationsUnitOfWork
+from beauty.contexts.conversations.presentation.api.cabinet import cabinet_router
 from beauty.contexts.conversations.presentation.api.controller import ConversationsApiController
 from beauty.contexts.conversations.presentation.api.render import MessageRenderer
 from beauty.shared.application.mediator import Mediator
@@ -51,7 +68,7 @@ from beauty.shared.infrastructure.realtime.hub import RealtimeHub
 from beauty.shared.infrastructure.scheduling.registry import JobHandlerRegistry
 from beauty.shared.infrastructure.scheduling.scheduler import JobRequest
 from beauty.shared.infrastructure.storage.signing import SignedMediaUrls
-from beauty.shared.infrastructure.web.auth import BearerAuth
+from beauty.shared.infrastructure.web.auth import BearerAuth, MasterAuth
 from beauty.shared.infrastructure.web.errors import HttpErrorMapper
 
 _HTTP_STATUSES: dict[str, int] = {
@@ -80,6 +97,7 @@ class ConversationsDependencies:
     media: SignedMediaUrls
     catalog: MasterCatalog
     booking: BookingDesk
+    contacts: ClientContacts
     poll_interval: float
     stream_max_duration: float = 600.0
 
@@ -92,12 +110,23 @@ class ConversationsModule:
         ConversationsOrmMapper.map()
         self._deps = dependencies
         self._reader = SqlConversationReader(dependencies.session_factory)
+        self._inbox = SqlInboxReader(dependencies.session_factory)
 
     def register(self, mediator: Mediator, http_errors: HttpErrorMapper) -> None:
         """Зарегистрировать обработчики и коды ошибок."""
         deps = self._deps
         clock, ids, catalog = deps.clock, deps.id_generator, deps.catalog
-        mediator.register(OpenConversation, lambda: OpenConversationHandler(self._uow(), catalog, clock, ids))
+        mediator.register(
+            OpenConversation,
+            lambda: OpenConversationHandler(self._uow(), catalog, deps.contacts, clock, ids),
+        )
+        mediator.register(PostMasterMessage, lambda: PostMasterMessageHandler(self._uow(), clock, ids))
+        mediator.register(SetConversationHandler, lambda: SetConversationHandlerHandler(self._uow(), clock))
+        mediator.register(MarkConversationRead, lambda: MarkConversationReadHandler(self._uow(), clock))
+        mediator.register(ListInbox, lambda: ListInboxHandler(self._inbox))
+        mediator.register(GetConversationSummary, lambda: GetConversationSummaryHandler(self._inbox))
+        mediator.register(ListMasterMessages, lambda: ListMasterMessagesHandler(self._inbox))
+        mediator.register(GetMasterMessage, lambda: GetMasterMessageHandler(self._inbox))
         mediator.register(
             PostClientMessage, lambda: PostClientMessageHandler(self._uow(), catalog, clock, ids)
         )
@@ -108,6 +137,7 @@ class ConversationsModule:
         mediator.register(GetMyConversation, lambda: GetMyConversationHandler(self._reader, catalog))
         mediator.register(ListMessages, lambda: ListMessagesHandler(self._reader))
         mediator.register(ReadFeed, lambda: ReadFeedHandler(self._reader))
+        mediator.register(FindConversationIds, lambda: FindConversationIdsHandler(self._reader))
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
 
@@ -134,7 +164,7 @@ class ConversationsModule:
 
     def realtime_resolvers(self) -> tuple[TopicResolver, ...]:
         """Резолверы realtime-топиков."""
-        return (FeedTopicResolver(),)
+        return (FeedTopicResolver(), MasterTopicResolver())
 
     def api_router(self, mediator: Mediator, auth: BearerAuth) -> APIRouter:
         """HTTP-роутер переписки."""
@@ -148,6 +178,11 @@ class ConversationsModule:
             deps.poll_interval,
             deps.stream_max_duration,
         ).router()
+
+    def cabinet_router(self, mediator: Mediator, auth: MasterAuth) -> APIRouter:
+        """HTTP-роутер кабинета мастера (чаты и поток событий)."""
+        deps = self._deps
+        return cabinet_router(mediator, auth, deps.hub, MessageRenderer(deps.media), deps.stream_max_duration)
 
     def _uow(self) -> SqlAlchemyConversationsUnitOfWork:
         """Новый Unit of Work на каждый обработчик."""

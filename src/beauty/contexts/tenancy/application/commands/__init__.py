@@ -1,5 +1,6 @@
 """Команды контекста Tenancy."""
 
+from beauty.contexts.tenancy.application.commands.owner import AssignOwner, AssignOwnerHandler
 from beauty.contexts.tenancy.application.commands.profile import (
     ReplacePortfolio,
     ReplacePortfolioHandler,
@@ -35,6 +36,8 @@ __all__ = [
     "AddServiceHandler",
     "ArchiveService",
     "ArchiveServiceHandler",
+    "AssignOwner",
+    "AssignOwnerHandler",
     "PublishMaster",
     "PublishMasterHandler",
     "RegisterMaster",

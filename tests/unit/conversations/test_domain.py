@@ -18,14 +18,21 @@ from beauty.contexts.conversations.domain.content import (
     Tone,
     VoiceContent,
 )
-from beauty.contexts.conversations.domain.conversation import Conversation, FeedChange
+from beauty.contexts.conversations.domain.conversation import (
+    ClientCard,
+    Conversation,
+    FeedChange,
+    Handler,
+    NeedsMaster,
+    preview,
+)
 from beauty.contexts.conversations.domain.errors import (
     InvalidMessage,
     NotAnOffer,
     OfferAlreadyUsed,
     SlotNotOffered,
 )
-from beauty.contexts.conversations.domain.events import ClientMessagePosted, FeedAppended
+from beauty.contexts.conversations.domain.events import ClientMessagePosted, ConversationChanged, FeedAppended
 from beauty.contexts.conversations.domain.message import Message
 from beauty.contexts.conversations.infrastructure.serialization import dump_content, load_content
 
@@ -87,9 +94,13 @@ def test_card_refresh_ignores_stale_revisions() -> None:
     assert card.content == BookingCardContent(UUID(int=5), 3, {"status": "cancelled"})
 
 
-def test_feed_numbers_events_and_client_intent_event() -> None:
+def test_feed_numbers_events_and_summary() -> None:
     conversation = Conversation.open(
-        conversation_id=CONVERSATION, master_id=UUID(int=7), client_id=UUID(int=8), now=NOW
+        conversation_id=CONVERSATION,
+        master_id=UUID(int=7),
+        client_id=UUID(int=8),
+        client=ClientCard("Новый клиент · …89 67", "+7 705 ••• 89 67"),
+        now=NOW,
     )
     message = Message.from_client(
         message_id=UUID(int=6),
@@ -105,16 +116,39 @@ def test_feed_numbers_events_and_client_intent_event() -> None:
     )
     assert conversation.record(message, FeedChange.CREATED, NOW) == 1
     assert conversation.record(message, FeedChange.UPDATED, NOW) == 2
-    created, updated = conversation.pull_events()
-    assert isinstance(created, FeedAppended)
-    assert (created.seq, created.change, updated.change) == (1, "message.created", "message.updated")
+    events = conversation.pull_events()
+    feed = [e for e in events if isinstance(e, FeedAppended)]
+    assert [(e.seq, e.change) for e in feed] == [(1, "message.created"), (2, "message.updated")]
+    assert sum(isinstance(e, ConversationChanged) for e in events) == 1  # одно на транзакцию
+    assert (conversation.unread, conversation.last_message_preview) == (1, "Хочу записаться")
     (intent,) = message.pull_events()
     assert isinstance(intent, ClientMessagePosted)
     assert (intent.intent, intent.start) == ("book_slot", TEN)
+
+    conversation.ask_master(NeedsMaster.QUESTION, NOW)
+    conversation.ask_master(NeedsMaster.REQUEST, NOW)
+    conversation.ask_master(NeedsMaster.QUESTION, NOW)  # заявка важнее вопроса
+    assert conversation.needs_master is NeedsMaster.REQUEST
+    conversation.request_resolved(NOW)
+    assert conversation.needs_master is None
+    conversation.take_over(NOW)
+    assert (conversation.handler, conversation.unread) == (Handler.MASTER, 0)
+    conversation.ask_master(NeedsMaster.QUESTION, NOW)  # мастер и так ведёт диалог
+    assert conversation.needs_master is None
+    conversation.visit_completed(NOW)
+    assert conversation.visit_number == 2
+
     foreign = offer()
     foreign.conversation_id = UUID(int=99)
     with pytest.raises(ValueError, match="другой переписки"):
         conversation.record(foreign, FeedChange.CREATED, NOW)
+
+
+def test_preview_of_cards_and_long_text() -> None:
+    card = BookingCardContent(UUID(int=5), 1, {"service": {"title": "Массаж спины"}})
+    assert preview(card) == "Заявка: Массаж спины"
+    assert preview(VoiceContent("voice/2026/10/x.webm", 3)) == "Голосовое сообщение"
+    assert len(preview(TextContent("а" * 500))) == 120
 
 
 @pytest.mark.parametrize(

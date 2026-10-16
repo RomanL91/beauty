@@ -79,3 +79,35 @@ class FeedRead:
     entries: tuple[FeedEntry, ...]
     last_seq: int
     reset: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class LastMessageView:
+    """Последнее сообщение в списке чатов."""
+
+    author: str
+    preview: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationSummaryView:
+    """Чат в списке мастера."""
+
+    id: UUID
+    client_id: UUID
+    display_name: str
+    phone_masked: str
+    visit_number: int
+    handler: str
+    needs_me: str | None
+    last_message: LastMessageView | None
+    unread: int
+
+
+@dataclass(frozen=True, slots=True)
+class InboxView:
+    """Список чатов и счётчики фильтров."""
+
+    items: tuple[ConversationSummaryView, ...]
+    counts: dict[str, int]

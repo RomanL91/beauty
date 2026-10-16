@@ -1,4 +1,4 @@
-"""Командная строка: ``beauty api | bot | relay | scheduler | worker | seed-demo | appointment``."""
+"""Командная строка: процессы (``beauty api | bot | relay | scheduler | worker``) и команды оператора."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import signal
 from collections.abc import Callable, Mapping
 from uuid import UUID
@@ -17,6 +18,7 @@ from beauty.contexts.booking.application.commands import (
     ConfirmAppointment,
     DeclineAppointment,
 )
+from beauty.contexts.tenancy.application.commands import AssignOwner
 from beauty.entrypoints.api import ApiServerWorker
 from beauty.entrypoints.workers import (
     EventConsumersWorker,
@@ -47,14 +49,29 @@ class ProcessLauncher:
         """Доступные роли процесса."""
         return tuple(self._WORKERS)
 
-    def seed_demo(self) -> None:
+    def seed_demo(self, owner_phone: str | None) -> None:
         """Создать или обновить демо-мастера и выйти."""
-        asyncio.run(self._seed_demo(ApplicationContainer(self._settings, process_name="beauty-seed")))
+        container = ApplicationContainer(self._settings, process_name="beauty-seed")
+        asyncio.run(self._seed_demo(container, owner_phone))
 
     @staticmethod
-    async def _seed_demo(container: ApplicationContainer) -> None:
+    async def _seed_demo(container: ApplicationContainer, owner_phone: str | None) -> None:
         try:
-            await DemoMasterSeeder(container.mediator).seed()
+            await DemoMasterSeeder(container.mediator).seed(owner_phone)
+        finally:
+            await container.aclose()
+
+    def assign_owner(self, slug: str, phone: str) -> None:
+        """Открыть кабинет мастера учётной записи с этим телефоном."""
+        asyncio.run(
+            self._assign_owner(ApplicationContainer(self._settings, process_name="beauty-cli"), slug, phone)
+        )
+        print(f"Кабинет {slug} открыт для {phone}")
+
+    @staticmethod
+    async def _assign_owner(container: ApplicationContainer, slug: str, phone: str) -> None:
+        try:
+            await container.mediator.send(AssignOwner(slug, phone))
         finally:
             await container.aclose()
 
@@ -99,13 +116,24 @@ def main() -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     for role in launcher.roles():
         commands.add_parser(role, help=f"процесс {role}")
-    commands.add_parser("seed-demo", help="создать или обновить демо-мастера")
+    seed = commands.add_parser("seed-demo", help="создать или обновить демо-мастера")
+    seed.add_argument(
+        "--owner-phone",
+        default=os.environ.get("BEAUTY_DEMO_OWNER_PHONE") or None,
+        help="телефон (E.164) учётной записи, которой открыт кабинет (или BEAUTY_DEMO_OWNER_PHONE)",
+    )
+    master = commands.add_parser("master", help="администрирование мастеров")
+    master.add_argument("action", choices=("assign-owner",))
+    master.add_argument("slug")
+    master.add_argument("phone", help="телефон владельца в E.164, например +77011234567")
     appointment = commands.add_parser("appointment", help="решение мастера по заявке (до кабинета)")
     appointment.add_argument("action", choices=("confirm", "decline"))
     appointment.add_argument("appointment_id", type=UUID)
     arguments = parser.parse_args()
     if arguments.command == "seed-demo":
-        launcher.seed_demo()
+        launcher.seed_demo(arguments.owner_phone)
+    elif arguments.command == "master":
+        launcher.assign_owner(arguments.slug, arguments.phone)
     elif arguments.command == "appointment":
         launcher.decide_appointment(arguments.action, arguments.appointment_id)
     else:

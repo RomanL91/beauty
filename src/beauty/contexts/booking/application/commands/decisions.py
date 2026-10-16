@@ -26,9 +26,10 @@ class _Decision:
 
 @dataclass(frozen=True, slots=True)
 class ConfirmAppointment(Command[AppointmentPayload]):
-    """Мастер подтверждает заявку."""
+    """Мастер подтверждает заявку (``master_id`` — из кабинета; без него — оператор, CLI)."""
 
     appointment_id: UUID
+    master_id: UUID | None = None
 
 
 class ConfirmAppointmentHandler(_Decision, Handler[ConfirmAppointment, AppointmentPayload]):
@@ -37,7 +38,7 @@ class ConfirmAppointmentHandler(_Decision, Handler[ConfirmAppointment, Appointme
     async def handle(self, message: ConfirmAppointment) -> AppointmentPayload:
         """Подтвердить."""
         async with self._uow as uow:
-            appointment = await load(uow, message.appointment_id)
+            appointment = await load(uow, message.appointment_id, master_id=message.master_id)
             now = self._clock.now()
             if appointment.confirm(now):
                 await uow.timers.cancel(appointment.id)
@@ -52,9 +53,14 @@ class ConfirmAppointmentHandler(_Decision, Handler[ConfirmAppointment, Appointme
 
 @dataclass(frozen=True, slots=True)
 class DeclineAppointment(Command[AppointmentPayload]):
-    """Мастер отклоняет заявку (отклонённый перенос оставляет прежнюю запись в силе)."""
+    """Мастер отклоняет заявку (отклонённый перенос оставляет прежнюю запись в силе).
+
+    ``offer_alternatives`` — администратор предложит клиенту другие окна.
+    """
 
     appointment_id: UUID
+    master_id: UUID | None = None
+    offer_alternatives: bool = False
 
 
 class DeclineAppointmentHandler(_Decision, Handler[DeclineAppointment, AppointmentPayload]):
@@ -63,8 +69,8 @@ class DeclineAppointmentHandler(_Decision, Handler[DeclineAppointment, Appointme
     async def handle(self, message: DeclineAppointment) -> AppointmentPayload:
         """Отклонить."""
         async with self._uow as uow:
-            appointment = await load(uow, message.appointment_id)
-            if appointment.decline(self._clock.now()):
+            appointment = await load(uow, message.appointment_id, master_id=message.master_id)
+            if appointment.decline(self._clock.now(), offer_alternatives=message.offer_alternatives):
                 await uow.timers.cancel(appointment.id)
             await uow.commit()
         return appointment.snapshot()

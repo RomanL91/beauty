@@ -8,6 +8,7 @@ from enum import StrEnum
 from uuid import UUID
 
 from beauty.contexts.booking.domain.errors import InvalidTimeSlot
+from beauty.shared.domain.phone import anonymous_name, masked_phone
 
 MAX_DURATION = timedelta(hours=12)
 
@@ -76,10 +77,4 @@ class ClientSnapshot:
     @classmethod
     def new_client(cls, phone_e164: str, visit_number: int) -> ClientSnapshot:
         """Клиент без имени: «Новый клиент · …89 67»."""
-        digits = phone_e164.removeprefix("+")
-        tail = f"{digits[-4:-2]} {digits[-2:]}"
-        if phone_e164.startswith("+7") and len(digits) == 11:
-            masked = f"+7 {digits[1:4]} ••• {tail}"
-        else:
-            masked = f"+{digits[:-7]} ••• {tail}"
-        return cls(display_name=f"Новый клиент · …{tail}", phone_masked=masked, visit_number=visit_number)
+        return cls(anonymous_name(phone_e164), masked_phone(phone_e164), visit_number)

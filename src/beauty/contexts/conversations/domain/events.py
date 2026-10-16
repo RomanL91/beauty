@@ -21,6 +21,7 @@ class FeedAppended(DomainEvent):
     routing_key = "conversations.feed.appended"
 
     conversation_id: UUID
+    master_id: UUID
     seq: int
     change: str
     message_id: UUID
@@ -43,3 +44,13 @@ class ClientMessagePosted(DomainEvent):
     service_id: UUID | None = None
     start: datetime | None = None
     offer_id: UUID | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class ConversationChanged(DomainEvent):
+    """Изменилась сводка переписки для мастера (обработчик, «нужны вы», счётчики)."""
+
+    routing_key = "conversations.conversation.changed"
+
+    conversation_id: UUID
+    master_id: UUID

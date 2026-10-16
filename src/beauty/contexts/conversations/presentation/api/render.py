@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from beauty.contexts.conversations.application.dto import MessageView
+from beauty.contexts.conversations.application.dto import ConversationSummaryView, MessageView
 from beauty.contexts.conversations.domain.content import (
     BookingCardContent,
     OfferedSlot,
@@ -63,3 +63,23 @@ def _slot(slot: OfferedSlot) -> dict[str, Any]:
     if slot.service_id is not None:
         rendered["service_id"] = str(slot.service_id)
     return rendered
+
+
+def render_summary(summary: ConversationSummaryView) -> dict[str, Any]:
+    """Чат в форме ``ConversationSummary`` контракта."""
+    last = summary.last_message
+    return {
+        "id": str(summary.id),
+        "client": {
+            "id": str(summary.client_id),
+            "display_name": summary.display_name,
+            "phone_masked": summary.phone_masked,
+            "visit_number": summary.visit_number,
+        },
+        "handler": summary.handler,
+        "needs_me": summary.needs_me,
+        "last_message": None
+        if last is None
+        else {"author": last.author, "preview": last.preview, "created_at": last.created_at.isoformat()},
+        "unread": summary.unread,
+    }

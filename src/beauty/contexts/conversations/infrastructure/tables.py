@@ -23,12 +23,15 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 
 from beauty.contexts.conversations.domain.content import Author
+from beauty.contexts.conversations.domain.conversation import Handler, NeedsMaster
 from beauty.contexts.conversations.infrastructure.serialization import dump_content, load_content
 from beauty.shared.infrastructure.db.metadata import metadata
 from beauty.shared.infrastructure.db.types import JsonValueObjectType, StringValueObjectType
 
 ContentType = JsonValueObjectType(dump_content, load_content)
 AuthorType = StringValueObjectType(Author, lambda author: author.value)
+HandlerType = StringValueObjectType(Handler, lambda handler: handler.value)
+NeedsMasterType = StringValueObjectType(NeedsMaster, lambda reason: reason.value)
 
 conversations = Table(
     "conversations",
@@ -36,12 +39,22 @@ conversations = Table(
     Column("id", UUID(as_uuid=True), primary_key=True),
     Column("master_id", UUID(as_uuid=True), nullable=False),
     Column("client_id", UUID(as_uuid=True), nullable=False),
+    Column("client_display_name", Text, nullable=False),
+    Column("client_phone_masked", Text, nullable=False),
+    Column("handler", HandlerType, nullable=False),
+    Column("needs_master", NeedsMasterType),
+    Column("last_message_author", AuthorType),
+    Column("last_message_preview", Text),
+    Column("last_message_at", DateTime(timezone=True)),
+    Column("unread", Integer, nullable=False),
+    Column("completed_visits", Integer, nullable=False),
     Column("last_event_seq", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     Column("version", Integer, nullable=False),
     UniqueConstraint("master_id", "client_id", name="uq_conversations_master_client"),
     Index("ix_conversations_client", "client_id"),
+    Index("ix_conversations_master_recent", "master_id", "last_message_at"),
     schema="conversations",
     comment="Переписки клиентов с мастерами",
 )

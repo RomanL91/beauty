@@ -12,6 +12,8 @@ from beauty.contexts.tenancy.application.commands import (
     AddServiceHandler,
     ArchiveService,
     ArchiveServiceHandler,
+    AssignOwner,
+    AssignOwnerHandler,
     PublishMaster,
     PublishMasterHandler,
     RegisterMaster,
@@ -28,16 +30,19 @@ from beauty.contexts.tenancy.application.commands import (
 from beauty.contexts.tenancy.application.errors import (
     InvalidSlotWindowError,
     MasterNotFoundError,
+    OwnerTakenError,
     ServiceNotFoundError,
     SlugTakenError,
 )
 from beauty.contexts.tenancy.application.queries import (
+    FindMasterByOwner,
+    FindMasterByOwnerHandler,
     GetMasterPage,
     GetMasterPageHandler,
     ListFreeSlots,
     ListFreeSlotsHandler,
 )
-from beauty.contexts.tenancy.domain.errors import InvalidMasterSlug
+from beauty.contexts.tenancy.domain.errors import InvalidMasterSlug, InvalidProfile
 from beauty.contexts.tenancy.domain.events import MasterPublished, MasterRegistered
 from beauty.contexts.tenancy.domain.slots import SlotFinder, TimeInterval
 from beauty.shared.domain.ids import UuidV7Generator
@@ -215,3 +220,21 @@ async def test_unknown_service(world: World) -> None:
     await world.published_master()
     with pytest.raises(ServiceNotFoundError):
         await world.slots().handle(ListFreeSlots("alisa", service_id=uuid4()))
+
+
+async def test_assign_owner_and_find_draft_page(world: World) -> None:
+    master_id, _, _ = await world.published_master()
+    await AssignOwnerHandler(world.uow(), world.clock).handle(AssignOwner("alisa", "+77051238967"))
+    found = await FindMasterByOwnerHandler(world.readers).handle(FindMasterByOwner("+77051238967"))
+    assert found == master_id
+    other = await RegisterMasterHandler(world.uow(), world.clock, world.ids).handle(
+        RegisterMaster("dana", "Дана", "Дана", "Даны", "Дане")
+    )
+    with pytest.raises(OwnerTakenError):
+        await AssignOwnerHandler(world.uow(), world.clock).handle(AssignOwner("dana", "+77051238967"))
+    with pytest.raises(MasterNotFoundError):
+        await GetMasterPageHandler(world.readers).handle(GetMasterPage(other))
+    draft = await GetMasterPageHandler(world.readers).handle(GetMasterPage(other, published_only=False))
+    assert draft.slug == "dana"
+    with pytest.raises(InvalidProfile):
+        await AssignOwnerHandler(world.uow(), world.clock).handle(AssignOwner("dana", "87051238967"))

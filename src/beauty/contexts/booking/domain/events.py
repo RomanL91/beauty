@@ -48,6 +48,7 @@ class AppointmentCancelled(AppointmentEvent):
 
     cancelled_by: str
     reason: str
+    offer_alternatives: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)

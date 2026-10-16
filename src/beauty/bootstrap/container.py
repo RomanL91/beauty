@@ -16,7 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from beauty.bootstrap.adapters import (
     BookedTime,
     BookingFrontDesk,
+    ConversationsDirectory,
     IdentityClientDirectory,
+    OwnedMasters,
+    TenancyCalendar,
     TenancyMasterCatalog,
     TenancySlotPolicy,
 )
@@ -43,7 +46,7 @@ from beauty.shared.infrastructure.scheduling.registry import JobHandlerRegistry
 from beauty.shared.infrastructure.scheduling.scheduler import JobRequest
 from beauty.shared.infrastructure.storage.local import LocalFileStorage
 from beauty.shared.infrastructure.storage.signing import SignedMediaUrls
-from beauty.shared.infrastructure.web.auth import BearerAuth
+from beauty.shared.infrastructure.web.auth import BearerAuth, MasterAuth
 from beauty.shared.infrastructure.web.errors import HttpErrorMapper
 
 
@@ -164,6 +167,11 @@ class ApplicationContainer:
         return BearerAuth(lambda token: verifier.verify(token).account_id)
 
     @cached_property
+    def master_auth(self) -> MasterAuth:
+        """Аутентификация мастера: учётная запись владельца страницы."""
+        return MasterAuth(self.client_auth, OwnedMasters(lambda: self.mediator))
+
+    @cached_property
     def identity(self) -> IdentityModule:
         """Модуль Identity."""
         return IdentityModule(
@@ -203,6 +211,8 @@ class ApplicationContainer:
                 id_generator=self.id_generator,
                 slot_policy=TenancySlotPolicy(lambda: self.mediator),
                 clients=IdentityClientDirectory(lambda: self.mediator),
+                calendar=TenancyCalendar(lambda: self.mediator),
+                conversations=ConversationsDirectory(lambda: self.mediator),
             )
         )
 
@@ -220,6 +230,7 @@ class ApplicationContainer:
                 media=self.media_urls,
                 catalog=TenancyMasterCatalog(lambda: self.mediator),
                 booking=BookingFrontDesk(lambda: self.mediator),
+                contacts=IdentityClientDirectory(lambda: self.mediator),
                 poll_interval=self.settings.http.sse_poll_interval,
                 stream_max_duration=self.settings.http.sse_max_duration,
             )

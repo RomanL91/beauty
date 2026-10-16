@@ -7,10 +7,12 @@ Booking видит их через узкие порты, адаптеры по�
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from uuid import UUID
 
+from beauty.contexts.booking.application.schedule import DayAppointment, WorkingCalendar
 from beauty.contexts.booking.domain.value_objects import ServiceSnapshot
 
 
@@ -72,3 +74,27 @@ class BusyTimeReader(ABC):
     @abstractmethod
     async def read(self, master_id: UUID, start: datetime, end: datetime) -> list[BusyInterval]:
         """Заявки и записи, пересекающие ``[start, end)``."""
+
+
+class CalendarSource(ABC):
+    """Рабочие часы и выходные мастера (Tenancy)."""
+
+    @abstractmethod
+    async def calendar(self, master_id: UUID, start: date, days: int) -> WorkingCalendar:
+        """Дни подряд с ``start``."""
+
+
+class ConversationDirectory(ABC):
+    """Переписки мастера с клиентами (Conversations)."""
+
+    @abstractmethod
+    async def conversation_ids(self, master_id: UUID, client_ids: Collection[UUID]) -> dict[UUID, UUID]:
+        """Клиент → id переписки (у кого она есть)."""
+
+
+class MasterDayReader(ABC):
+    """Записи мастера за период (SQL)."""
+
+    @abstractmethod
+    async def appointments(self, master_id: UUID, start: datetime, end: datetime) -> list[DayAppointment]:
+        """Заявки, подтверждённые и состоявшиеся записи, начинающиеся в ``[start, end)``."""

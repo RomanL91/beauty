@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, time
 from uuid import UUID
 
 
@@ -67,3 +67,20 @@ class BookableSlotView:
     timezone: str
     confirm_within_hours: int
     change_deadline_hours: int
+
+
+@dataclass(frozen=True, slots=True)
+class CalendarDayView:
+    """Рабочий день мастера: выходной или рабочие интервалы (локальное время)."""
+
+    date: date
+    day_off: bool
+    hours: tuple[tuple[time, time], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class WorkingCalendarView:
+    """Рабочие дни мастера подряд, начиная с даты запроса."""
+
+    timezone: str
+    days: tuple[CalendarDayView, ...]

@@ -88,3 +88,23 @@ class ReadFeedHandler(Handler[ReadFeed, FeedRead]):
         if feed is None:
             raise ConversationNotFoundError()
         return feed
+
+
+@dataclass(frozen=True, slots=True)
+class FindConversationIds(Query[dict[UUID, UUID]]):
+    """Переписки мастера с клиентами (для графика: ссылка «в чат»)."""
+
+    master_id: UUID
+    client_ids: frozenset[UUID]
+
+
+class FindConversationIdsHandler(Handler[FindConversationIds, dict[UUID, UUID]]):
+    """Читает пары из read-модели."""
+
+    def __init__(self, reader: ConversationReader) -> None:
+        """Получить read-модель."""
+        self._reader = reader
+
+    async def handle(self, message: FindConversationIds) -> dict[UUID, UUID]:
+        """Клиент → переписка."""
+        return await self._reader.ids_for(message.master_id, message.client_ids)

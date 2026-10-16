@@ -9,11 +9,17 @@ from typing import Any
 from uuid import UUID
 
 from beauty.contexts.conversations.application.commands.base import post, revise
+from beauty.contexts.conversations.application.offers import SlotOfferComposer
 from beauty.contexts.conversations.application.phrases import day_label, time_label
 from beauty.contexts.conversations.application.ports import MasterCatalog
 from beauty.contexts.conversations.application.uow import ConversationsUnitOfWork
-from beauty.contexts.conversations.domain.content import BookingCardContent, SystemContent, Tone
-from beauty.contexts.conversations.domain.conversation import Conversation
+from beauty.contexts.conversations.domain.content import (
+    BookingCardContent,
+    MessageContent,
+    SystemContent,
+    Tone,
+)
+from beauty.contexts.conversations.domain.conversation import Conversation, NeedsMaster
 from beauty.contexts.conversations.domain.message import Message
 from beauty.shared.application.cqrs import Command, Handler
 from beauty.shared.domain.clock import Clock
@@ -36,6 +42,7 @@ class SyncAppointment(Command[None]):
     status: str
     reason: str | None = None
     reschedule_of: UUID | None = None
+    offer_alternatives: bool = False
 
 
 class SyncAppointmentHandler(Handler[SyncAppointment, None]):
@@ -49,6 +56,7 @@ class SyncAppointmentHandler(Handler[SyncAppointment, None]):
         self._catalog = catalog
         self._clock = clock
         self._ids = ids
+        self._offers = SlotOfferComposer(catalog, clock)
 
     async def handle(self, message: SyncAppointment) -> None:
         """Обновить или создать карточку и добавить системное сообщение."""
@@ -58,6 +66,7 @@ class SyncAppointmentHandler(Handler[SyncAppointment, None]):
                 return
             now = self._clock.now()
             card = await uow.messages.card_of(conversation.id, message.appointment_id)
+            self._summarize(conversation, message, now)
             if card is None:
                 self._post(
                     uow,
@@ -72,13 +81,37 @@ class SyncAppointmentHandler(Handler[SyncAppointment, None]):
             note = await self._note(message)
             if note is not None:
                 self._post(uow, conversation, note, now)
+            alternatives = await self._alternatives(message)
+            if alternatives is not None:
+                self._post(uow, conversation, alternatives, now)
             await uow.commit()
+
+    @staticmethod
+    def _summarize(conversation: Conversation, message: SyncAppointment, now: datetime) -> None:
+        """«Нужны вы» по заявке и счётчик визитов."""
+        if message.status == "requested":
+            conversation.ask_master(NeedsMaster.REQUEST, now)
+        elif message.status == "completed":
+            conversation.visit_completed(now)
+        else:
+            conversation.request_resolved(now)
+
+    async def _alternatives(self, message: SyncAppointment) -> MessageContent | None:
+        """«Предложить другое»: окна той же услуги с дня отклонённой заявки."""
+        if not (
+            message.status == "cancelled" and message.reason == "declined" and message.offer_alternatives
+        ):
+            return None
+        service = message.appointment.get("service")
+        service_id = UUID(str(service["id"])) if isinstance(service, Mapping) else None
+        start = datetime.fromisoformat(str(message.appointment["start"]))
+        return await self._offers.compose(message.master_id, service_id, around=max(start, self._clock.now()))
 
     def _post(
         self,
         uow: ConversationsUnitOfWork,
         conversation: Conversation,
-        content: BookingCardContent | SystemContent,
+        content: MessageContent,
         now: datetime,
     ) -> None:
         reply = Message.from_agent(

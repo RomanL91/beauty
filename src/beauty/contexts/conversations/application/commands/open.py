@@ -7,12 +7,13 @@ from uuid import UUID
 
 from beauty.contexts.conversations.application.dto import OpenedConversation
 from beauty.contexts.conversations.application.errors import MasterNotFoundError
-from beauty.contexts.conversations.application.ports import MasterCatalog
+from beauty.contexts.conversations.application.ports import ClientContacts, MasterCatalog
 from beauty.contexts.conversations.application.uow import ConversationsUnitOfWork
-from beauty.contexts.conversations.domain.conversation import Conversation
+from beauty.contexts.conversations.domain.conversation import ClientCard, Conversation
 from beauty.shared.application.cqrs import Command, Handler
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
+from beauty.shared.domain.phone import anonymous_name, masked_phone
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,11 +28,17 @@ class OpenConversationHandler(Handler[OpenConversation, OpenedConversation]):
     """Гонку двух открытий решает уникальный индекс: проигравший повторит и найдёт."""
 
     def __init__(
-        self, uow: ConversationsUnitOfWork, catalog: MasterCatalog, clock: Clock, ids: IdGenerator
+        self,
+        uow: ConversationsUnitOfWork,
+        catalog: MasterCatalog,
+        contacts: ClientContacts,
+        clock: Clock,
+        ids: IdGenerator,
     ) -> None:
         """Получить зависимости."""
         self._uow = uow
         self._catalog = catalog
+        self._contacts = contacts
         self._clock = clock
         self._ids = ids
 
@@ -44,10 +51,12 @@ class OpenConversationHandler(Handler[OpenConversation, OpenedConversation]):
             existing = await uow.conversations.find(master.id, message.client_id)
             if existing is not None:
                 return OpenedConversation(existing.id, master.slug, created=False)
+            phone = await self._contacts.phone(message.client_id)
             conversation = Conversation.open(
                 conversation_id=self._ids.new(),
                 master_id=master.id,
                 client_id=message.client_id,
+                client=ClientCard(anonymous_name(phone), masked_phone(phone)),
                 now=self._clock.now(),
             )
             uow.conversations.add(conversation)

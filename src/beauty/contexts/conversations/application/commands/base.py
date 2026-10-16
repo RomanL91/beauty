@@ -12,11 +12,18 @@ from beauty.contexts.conversations.domain.message import Message
 
 
 async def load_conversation(
-    uow: ConversationsUnitOfWork, conversation_id: UUID, client_id: UUID | None = None
+    uow: ConversationsUnitOfWork,
+    conversation_id: UUID,
+    client_id: UUID | None = None,
+    master_id: UUID | None = None,
 ) -> Conversation:
-    """Переписка по id; с ``client_id`` — только своя."""
+    """Переписка по id; с ``client_id``/``master_id`` — только своя."""
     conversation = await uow.conversations.get(conversation_id)
-    if conversation is None or (client_id is not None and conversation.client_id != client_id):
+    if (
+        conversation is None
+        or (client_id is not None and conversation.client_id != client_id)
+        or (master_id is not None and conversation.master_id != master_id)
+    ):
         raise ConversationNotFoundError()
     return conversation
 

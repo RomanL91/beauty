@@ -63,5 +63,6 @@ class AppointmentConsumer(IntegrationEventHandler):
                 status=str(appointment["status"]),
                 reason=payload.get("reason"),
                 reschedule_of=_uuid(payload.get("reschedule_of")),
+                offer_alternatives=bool(payload.get("offer_alternatives", False)),
             )
         )

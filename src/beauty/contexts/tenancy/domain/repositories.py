@@ -21,5 +21,9 @@ class MasterRepository(ABC):
         """Найти по id."""
 
     @abstractmethod
+    async def get_by_owner(self, phone: str) -> Master | None:
+        """Мастер, привязанный к телефону владельца."""
+
+    @abstractmethod
     async def get_by_slug(self, slug: MasterSlug) -> Master | None:
         """Найти по адресу страницы."""

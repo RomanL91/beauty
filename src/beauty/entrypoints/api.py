@@ -47,6 +47,9 @@ class ApiApplicationFactory:
         app.include_router(container.identity.api_router(container.mediator), prefix=settings.http.api_prefix)
         app.include_router(container.tenancy.api_router(container.mediator), prefix=settings.http.api_prefix)
         for router in (
+            container.tenancy.cabinet_router(container.mediator, container.master_auth),
+            container.booking.cabinet_router(container.mediator, container.master_auth),
+            container.conversations.cabinet_router(container.mediator, container.master_auth),
             container.booking.api_router(container.mediator, container.client_auth),
             container.conversations.api_router(container.mediator, container.client_auth),
             MediaController(container.file_storage, container.media_urls).router(),

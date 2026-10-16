@@ -23,19 +23,30 @@ from beauty.contexts.booking.application.commands import (
     RescheduleAppointment,
     RescheduleAppointmentHandler,
 )
-from beauty.contexts.booking.application.ports import ClientDirectory, SlotPolicy
-from beauty.contexts.booking.application.queries import ListBusyIntervals, ListBusyIntervalsHandler
+from beauty.contexts.booking.application.ports import (
+    CalendarSource,
+    ClientDirectory,
+    ConversationDirectory,
+    SlotPolicy,
+)
+from beauty.contexts.booking.application.queries import (
+    GetDaySchedule,
+    GetDayScheduleHandler,
+    ListBusyIntervals,
+    ListBusyIntervalsHandler,
+)
 from beauty.contexts.booking.infrastructure.jobs import CompleteVisitJob, ExpireRequestJob
 from beauty.contexts.booking.infrastructure.mapping import BookingOrmMapper
-from beauty.contexts.booking.infrastructure.readers import SqlBusyTimeReader
+from beauty.contexts.booking.infrastructure.readers import SqlBusyTimeReader, SqlMasterDayReader
 from beauty.contexts.booking.infrastructure.uow import SqlAlchemyBookingUnitOfWork
+from beauty.contexts.booking.presentation.api.cabinet import cabinet_router
 from beauty.contexts.booking.presentation.api.controller import BookingApiController
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
 from beauty.shared.infrastructure.outbox.writer import OutboxWriter
 from beauty.shared.infrastructure.scheduling.registry import JobHandlerRegistry
-from beauty.shared.infrastructure.web.auth import BearerAuth
+from beauty.shared.infrastructure.web.auth import BearerAuth, MasterAuth
 from beauty.shared.infrastructure.web.errors import HttpErrorMapper
 
 _HTTP_STATUSES: dict[str, int] = {
@@ -60,6 +71,8 @@ class BookingDependencies:
     id_generator: IdGenerator
     slot_policy: SlotPolicy
     clients: ClientDirectory
+    calendar: CalendarSource
+    conversations: ConversationDirectory
 
 
 class BookingModule:
@@ -70,6 +83,7 @@ class BookingModule:
         BookingOrmMapper.map()
         self._deps = dependencies
         self._busy_reader = SqlBusyTimeReader(dependencies.session_factory)
+        self._day_reader = SqlMasterDayReader(dependencies.session_factory)
 
     def register(self, mediator: Mediator, http_errors: HttpErrorMapper) -> None:
         """Зарегистрировать обработчики и коды ошибок."""
@@ -88,6 +102,10 @@ class BookingModule:
         mediator.register(ExpireAppointment, lambda: ExpireAppointmentHandler(self._uow(), clock))
         mediator.register(CompleteAppointment, lambda: CompleteAppointmentHandler(self._uow(), clock))
         mediator.register(ListBusyIntervals, lambda: ListBusyIntervalsHandler(self._busy_reader))
+        mediator.register(
+            GetDaySchedule,
+            lambda: GetDayScheduleHandler(deps.calendar, self._day_reader, deps.conversations),
+        )
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
 
@@ -99,6 +117,10 @@ class BookingModule:
     def api_router(self, mediator: Mediator, auth: BearerAuth) -> APIRouter:
         """HTTP-роутер записей клиента."""
         return BookingApiController(mediator, auth).router()
+
+    def cabinet_router(self, mediator: Mediator, auth: MasterAuth) -> APIRouter:
+        """HTTP-роутер кабинета мастера (график, решения по заявкам)."""
+        return cabinet_router(mediator, auth)
 
     def _uow(self) -> SqlAlchemyBookingUnitOfWork:
         """Новый Unit of Work на каждый обработчик."""

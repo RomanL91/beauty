@@ -141,12 +141,12 @@ class Appointment(AggregateRoot):
         self._record(AppointmentConfirmed(**self._event_fields(now)))
         return True
 
-    def decline(self, now: datetime) -> bool:
-        """Мастер отклонил заявку; повтор — no-op."""
+    def decline(self, now: datetime, *, offer_alternatives: bool = False) -> bool:
+        """Мастер отклонил заявку; ``offer_alternatives`` — клиенту предложат другие окна."""
         if self.cancel_reason is CancelReason.DECLINED:
             return False
         self._require_pending()
-        self._cancel(CancelledBy.MASTER, CancelReason.DECLINED, now)
+        self._cancel(CancelledBy.MASTER, CancelReason.DECLINED, now, offer_alternatives=offer_alternatives)
         return True
 
     def expire(self, now: datetime) -> bool:
@@ -227,13 +227,20 @@ class Appointment(AggregateRoot):
         if self.status is not AppointmentStatus.REQUESTED:
             raise AppointmentNotPending()
 
-    def _cancel(self, by: CancelledBy, reason: CancelReason, now: datetime) -> None:
+    def _cancel(
+        self, by: CancelledBy, reason: CancelReason, now: datetime, *, offer_alternatives: bool = False
+    ) -> None:
         self.status = AppointmentStatus.CANCELLED
         self.cancelled_at = now
         self.cancelled_by = by
         self.cancel_reason = reason
         self._touch(now)
-        event = AppointmentCancelled(**self._event_fields(now), cancelled_by=by.value, reason=reason.value)
+        event = AppointmentCancelled(
+            **self._event_fields(now),
+            cancelled_by=by.value,
+            reason=reason.value,
+            offer_alternatives=offer_alternatives,
+        )
         self._record(event)
 
     def _touch(self, now: datetime) -> None:

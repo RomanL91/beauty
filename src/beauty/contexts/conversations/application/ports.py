@@ -9,7 +9,14 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from beauty.contexts.conversations.application.dto import ConversationView, FeedRead, MessagePageView
+from beauty.contexts.conversations.application.dto import (
+    ConversationSummaryView,
+    ConversationView,
+    FeedRead,
+    InboxView,
+    MessagePageView,
+    MessageView,
+)
 from beauty.contexts.conversations.domain.content import OfferedSlot
 
 
@@ -37,6 +44,14 @@ class MasterInfo:
         if service_id is not None:
             return next((s for s in self.services if s.id == service_id), None)
         return min(self.services, key=lambda s: s.duration_min, default=None)
+
+
+class ClientContacts(ABC):
+    """Контакты клиентов (Identity)."""
+
+    @abstractmethod
+    async def phone(self, client_id: UUID) -> str:
+        """Телефон клиента в E.164."""
 
 
 class MasterCatalog(ABC):
@@ -84,6 +99,10 @@ class ConversationReader(ABC):
         """Переписка клиента с мастером."""
 
     @abstractmethod
+    async def ids_for(self, master_id: UUID, client_ids: frozenset[UUID]) -> dict[UUID, UUID]:
+        """Клиент → id переписки с мастером."""
+
+    @abstractmethod
     async def page(
         self, conversation_id: UUID, client_id: UUID, before: UUID | None, limit: int
     ) -> MessagePageView | None:
@@ -92,3 +111,25 @@ class ConversationReader(ABC):
     @abstractmethod
     async def feed(self, conversation_id: UUID, client_id: UUID, after: int | None) -> FeedRead | None:
         """События ленты после ``after`` (``None`` — нет такой переписки)."""
+
+
+class InboxReader(ABC):
+    """Чаты мастера (SQL → DTO)."""
+
+    @abstractmethod
+    async def inbox(self, master_id: UUID, filter_by: str, query: str | None) -> InboxView:
+        """Чаты по фильтру (``all|needs_me|agent|me``) и поиску; счётчики — без учёта поиска."""
+
+    @abstractmethod
+    async def summary(self, master_id: UUID, conversation_id: UUID) -> ConversationSummaryView | None:
+        """Шапка диалога своего мастера."""
+
+    @abstractmethod
+    async def master_message(self, master_id: UUID, message_id: UUID) -> tuple[UUID, MessageView] | None:
+        """Сообщение переписки своего мастера и id переписки."""
+
+    @abstractmethod
+    async def master_page(
+        self, conversation_id: UUID, master_id: UUID, before: UUID | None, limit: int
+    ) -> MessagePageView | None:
+        """История диалога своего мастера."""

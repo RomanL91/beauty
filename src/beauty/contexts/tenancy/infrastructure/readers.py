@@ -38,8 +38,8 @@ def _slug(raw: str) -> MasterSlug | None:
         return None
 
 
-def _published(master: MasterRef) -> ColumnElement[bool] | None:
-    """Условие «опубликованный мастер с этим slug или id»; ``None`` — заведомо не найдётся."""
+def _published(master: MasterRef, *, published_only: bool = True) -> ColumnElement[bool] | None:
+    """Условие «(опубликованный) мастер с этим slug или id»; ``None`` — заведомо не найдётся."""
     if isinstance(master, UUID):
         key: ColumnElement[bool] = masters.c.id == master
     else:
@@ -47,7 +47,7 @@ def _published(master: MasterRef) -> ColumnElement[bool] | None:
         if valid is None:
             return None
         key = masters.c.slug == valid
-    return key & (masters.c.status == MasterStatus.PUBLISHED)
+    return key & (masters.c.status == MasterStatus.PUBLISHED) if published_only else key
 
 
 class _Reader:
@@ -75,9 +75,9 @@ class _Reader:
 class SqlMasterPageReader(_Reader, MasterPageReader):
     """Страница опубликованного мастера."""
 
-    async def read(self, master: MasterRef) -> MasterPageView | None:
+    async def read(self, master: MasterRef, *, published_only: bool = True) -> MasterPageView | None:
         """Профиль, активные услуги, фото и правила."""
-        condition = _published(master)
+        condition = _published(master, published_only=published_only)
         if condition is None:
             return None
         statement = select(masters).where(condition)
@@ -116,9 +116,9 @@ class SqlMasterPageReader(_Reader, MasterPageReader):
 class SqlAvailabilityReader(_Reader, AvailabilityReader):
     """Снимок доступности опубликованного мастера."""
 
-    async def read(self, master: MasterRef) -> AvailabilityRecord | None:
+    async def read(self, master: MasterRef, *, published_only: bool = True) -> AvailabilityRecord | None:
         """Пояс, расписание, выходные, правила и длительности услуг."""
-        condition = _published(master)
+        condition = _published(master, published_only=published_only)
         if condition is None:
             return None
         statement = select(
@@ -166,6 +166,14 @@ class SqlMasterDirectory(_Reader, MasterDirectory):
         async with self._session_factory() as session:
             found: UUID | None = (
                 await session.execute(select(masters.c.id).where(masters.c.slug == valid))
+            ).scalar_one_or_none()
+        return found
+
+    async def find_by_owner(self, phone: str) -> UUID | None:
+        """Id мастера по телефону владельца."""
+        async with self._session_factory() as session:
+            found: UUID | None = (
+                await session.execute(select(masters.c.id).where(masters.c.owner_phone == phone))
             ).scalar_one_or_none()
         return found
 

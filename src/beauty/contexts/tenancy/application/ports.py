@@ -18,8 +18,8 @@ class MasterPageReader(ABC):
     """Публичная страница мастера (SQL → DTO, без агрегата)."""
 
     @abstractmethod
-    async def read(self, master: MasterRef) -> MasterPageView | None:
-        """Страница опубликованного мастера или ``None``."""
+    async def read(self, master: MasterRef, *, published_only: bool = True) -> MasterPageView | None:
+        """Страница мастера (по умолчанию — только опубликованного) или ``None``."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,8 +43,8 @@ class AvailabilityReader(ABC):
     """Снимок доступности мастера."""
 
     @abstractmethod
-    async def read(self, master: MasterRef) -> AvailabilityRecord | None:
-        """Снимок опубликованного мастера или ``None``."""
+    async def read(self, master: MasterRef, *, published_only: bool = True) -> AvailabilityRecord | None:
+        """Снимок мастера (по умолчанию — только опубликованного) или ``None``."""
 
 
 class BusyTimeSource(ABC):
@@ -64,6 +64,10 @@ class MasterDirectory(ABC):
     @abstractmethod
     async def find_id(self, slug: str) -> UUID | None:
         """Id мастера с таким slug."""
+
+    @abstractmethod
+    async def find_by_owner(self, phone: str) -> UUID | None:
+        """Id мастера по телефону владельца."""
 
     @abstractmethod
     async def active_service_titles(self, master_id: UUID) -> frozenset[str]:

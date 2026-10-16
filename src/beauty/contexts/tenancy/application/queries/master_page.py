@@ -13,9 +13,13 @@ from beauty.shared.application.cqrs import Handler, Query
 
 @dataclass(frozen=True, slots=True)
 class GetMasterPage(Query[MasterPageView]):
-    """Страница опубликованного мастера по адресу (или id — для других контекстов)."""
+    """Страница опубликованного мастера по адресу (или id — для других контекстов).
+
+    ``published_only=False`` — для кабинета владельца: он видит и черновик.
+    """
 
     master: MasterRef
+    published_only: bool = True
 
 
 class GetMasterPageHandler(Handler[GetMasterPage, MasterPageView]):
@@ -31,7 +35,7 @@ class GetMasterPageHandler(Handler[GetMasterPage, MasterPageView]):
 
     async def handle(self, message: GetMasterPage) -> MasterPageView:
         """Вернуть страницу."""
-        page = await self._reader.read(message.master)
+        page = await self._reader.read(message.master, published_only=message.published_only)
         if page is None:
             raise MasterNotFoundError()
         return page
@@ -73,3 +77,22 @@ class ListServiceTitlesHandler(Handler[ListServiceTitles, frozenset[str]]):
     async def handle(self, message: ListServiceTitles) -> frozenset[str]:
         """Вернуть названия."""
         return await self._directory.active_service_titles(message.master_id)
+
+
+@dataclass(frozen=True, slots=True)
+class FindMasterByOwner(Query[UUID | None]):
+    """Id мастера, которым владеет учётная запись с этим телефоном."""
+
+    phone: str
+
+
+class FindMasterByOwnerHandler(Handler[FindMasterByOwner, UUID | None]):
+    """Ищет мастера в каталоге."""
+
+    def __init__(self, directory: MasterDirectory) -> None:
+        """Получить каталог."""
+        self._directory = directory
+
+    async def handle(self, message: FindMasterByOwner) -> UUID | None:
+        """Вернуть id или ``None``."""
+        return await self._directory.find_by_owner(message.phone)

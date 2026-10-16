@@ -23,6 +23,12 @@ class SlugTakenError(ConflictError):
     code = "slug_taken"
 
 
+class OwnerTakenError(ConflictError):
+    """Этот телефон уже владеет другой страницей мастера."""
+
+    code = "owner_taken"
+
+
 class InvalidSlotWindowError(ApplicationError):
     """Некорректные границы поиска окон."""
 

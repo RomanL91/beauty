@@ -69,3 +69,12 @@ class MasterUnpublished(DomainEvent):
 
     master_id: UUID
     slug: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class MasterOwnerAssigned(DomainEvent):
+    """Страница привязана к учётной записи мастера (вход в кабинет)."""
+
+    routing_key = "tenancy.master.owner_assigned"
+
+    master_id: UUID

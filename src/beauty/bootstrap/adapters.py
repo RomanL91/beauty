@@ -7,29 +7,44 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from datetime import datetime, timedelta
+from collections.abc import Callable, Collection
+from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from beauty.contexts.booking.application.commands import RequestAppointment
 from beauty.contexts.booking.application.errors import SlotUnavailableError
-from beauty.contexts.booking.application.ports import BookableSlot, ClientDirectory, SlotPolicy
+from beauty.contexts.booking.application.ports import (
+    BookableSlot,
+    CalendarSource,
+    ClientDirectory,
+    ConversationDirectory,
+    SlotPolicy,
+)
 from beauty.contexts.booking.application.queries import ListBusyIntervals
+from beauty.contexts.booking.application.schedule import CalendarDay, WorkingCalendar
 from beauty.contexts.booking.domain.errors import InvalidTimeSlot
 from beauty.contexts.booking.domain.value_objects import ServiceSnapshot
 from beauty.contexts.conversations.application.errors import SlotNotAvailableError
 from beauty.contexts.conversations.application.ports import (
     BookingDesk,
+    ClientContacts,
     MasterCatalog,
     MasterInfo,
     RequestedAppointment,
     ServiceInfo,
 )
+from beauty.contexts.conversations.application.queries import FindConversationIds
 from beauty.contexts.conversations.domain.content import OfferedSlot
-from beauty.contexts.identity.application.queries import GetClientContact
+from beauty.contexts.identity.application.queries import ClientNotFoundError, GetClientContact
 from beauty.contexts.tenancy.application import errors as tenancy_errors
 from beauty.contexts.tenancy.application.ports import BusyTimeSource
-from beauty.contexts.tenancy.application.queries import CheckBookableSlot, GetMasterPage, ListFreeSlots
+from beauty.contexts.tenancy.application.queries import (
+    CheckBookableSlot,
+    FindMasterByOwner,
+    GetMasterPage,
+    GetWorkingCalendar,
+    ListFreeSlots,
+)
 from beauty.contexts.tenancy.domain.slots import TimeInterval
 from beauty.shared.application.mediator import Mediator
 
@@ -61,8 +76,8 @@ class TenancySlotPolicy(SlotPolicy):
         )
 
 
-class IdentityClientDirectory(ClientDirectory):
-    """Booking → Identity: телефон клиента."""
+class IdentityClientDirectory(ClientDirectory, ClientContacts):
+    """Booking и Conversations → Identity: телефон клиента."""
 
     def __init__(self, mediator: MediatorProvider) -> None:
         """Получить медиатор (лениво)."""
@@ -146,3 +161,46 @@ class BookingFrontDesk(BookingDesk):
         ) as error:
             raise SlotNotAvailableError(str(error)) from error
         return RequestedAppointment(UUID(payload["id"]), 1, payload)
+
+
+class OwnedMasters:
+    """Кабинет → Identity + Tenancy: учётная запись → телефон → страница мастера."""
+
+    def __init__(self, mediator: MediatorProvider) -> None:
+        """Получить медиатор (лениво)."""
+        self._mediator = mediator
+
+    async def __call__(self, account_id: UUID) -> UUID | None:
+        """Id мастера, которым владеет учётная запись."""
+        try:
+            contact = await self._mediator().send(GetClientContact(account_id))
+        except ClientNotFoundError:
+            return None
+        return await self._mediator().send(FindMasterByOwner(contact.phone))
+
+
+class TenancyCalendar(CalendarSource):
+    """Booking → Tenancy: рабочие часы и выходные для графика."""
+
+    def __init__(self, mediator: MediatorProvider) -> None:
+        """Получить медиатор (лениво)."""
+        self._mediator = mediator
+
+    async def calendar(self, master_id: UUID, start: date, days: int) -> WorkingCalendar:
+        """Дни подряд."""
+        view = await self._mediator().send(GetWorkingCalendar(master_id, start, days))
+        return WorkingCalendar(
+            view.timezone, tuple(CalendarDay(d.date, d.day_off, d.hours) for d in view.days)
+        )
+
+
+class ConversationsDirectory(ConversationDirectory):
+    """Booking → Conversations: ссылка из графика в чат клиента."""
+
+    def __init__(self, mediator: MediatorProvider) -> None:
+        """Получить медиатор (лениво)."""
+        self._mediator = mediator
+
+    async def conversation_ids(self, master_id: UUID, client_ids: Collection[UUID]) -> dict[UUID, UUID]:
+        """Клиент → переписка."""
+        return await self._mediator().send(FindConversationIds(master_id, frozenset(client_ids)))

@@ -7,12 +7,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from fastapi import Request
 
-from beauty.shared.application.errors import ApplicationError
+from beauty.shared.application.errors import AccessDeniedError, ApplicationError
 from beauty.shared.domain.errors import DomainError
 
 
@@ -38,3 +38,29 @@ class BearerAuth:
             return self._verify(token.strip())
         except (DomainError, ApplicationError) as error:
             raise UnauthenticatedError() from error
+
+
+class NotAMasterError(AccessDeniedError):
+    """Эта учётная запись не привязана к странице мастера."""
+
+    code = "not_a_master"
+
+
+type MasterResolver = Callable[[UUID], Awaitable[UUID | None]]
+"""Учётная запись → id мастера, которым она владеет (или ``None``)."""
+
+
+class MasterAuth:
+    """Зависимость FastAPI: id мастера текущей учётной записи (401 / 403 ``not_a_master``)."""
+
+    def __init__(self, bearer: BearerAuth, resolve: MasterResolver) -> None:
+        """Аутентификация клиента и поиск его страницы мастера."""
+        self._bearer = bearer
+        self._resolve = resolve
+
+    async def __call__(self, request: Request) -> UUID:
+        """Проверить токен и роль."""
+        master_id = await self._resolve(await self._bearer(request))
+        if master_id is None:
+            raise NotAMasterError()
+        return master_id

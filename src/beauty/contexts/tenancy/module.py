@@ -12,6 +12,8 @@ from beauty.contexts.tenancy.application.commands import (
     AddServiceHandler,
     ArchiveService,
     ArchiveServiceHandler,
+    AssignOwner,
+    AssignOwnerHandler,
     PublishMaster,
     PublishMasterHandler,
     RegisterMaster,
@@ -35,10 +37,14 @@ from beauty.contexts.tenancy.application.ports import BusyTimeSource
 from beauty.contexts.tenancy.application.queries import (
     CheckBookableSlot,
     CheckBookableSlotHandler,
+    FindMasterByOwner,
+    FindMasterByOwnerHandler,
     FindMasterId,
     FindMasterIdHandler,
     GetMasterPage,
     GetMasterPageHandler,
+    GetWorkingCalendar,
+    GetWorkingCalendarHandler,
     ListFreeSlots,
     ListFreeSlotsHandler,
     ListServiceTitles,
@@ -53,17 +59,20 @@ from beauty.contexts.tenancy.infrastructure.readers import (
     SqlMasterPageReader,
 )
 from beauty.contexts.tenancy.infrastructure.uow import SqlAlchemyTenancyUnitOfWork
+from beauty.contexts.tenancy.presentation.api.cabinet import cabinet_router
 from beauty.contexts.tenancy.presentation.api.controller import TenancyApiController
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
 from beauty.shared.infrastructure.outbox.writer import OutboxWriter
+from beauty.shared.infrastructure.web.auth import MasterAuth
 from beauty.shared.infrastructure.web.errors import HttpErrorMapper
 
 _HTTP_STATUSES: dict[str, int] = {
     "master_not_found": 404,
     "service_not_found": 404,
     "slug_taken": 409,
+    "owner_taken": 409,
     "master_not_publishable": 409,
     "service_limit_reached": 409,
     "slot_unavailable": 409,
@@ -122,6 +131,9 @@ class TenancyModule:
         mediator.register(UnpublishMaster, lambda: UnpublishMasterHandler(self._uow(), clock))
         mediator.register(GetMasterPage, lambda: GetMasterPageHandler(self._page_reader))
         mediator.register(FindMasterId, lambda: FindMasterIdHandler(self._directory))
+        mediator.register(FindMasterByOwner, lambda: FindMasterByOwnerHandler(self._directory))
+        mediator.register(GetWorkingCalendar, lambda: GetWorkingCalendarHandler(self._availability_reader))
+        mediator.register(AssignOwner, lambda: AssignOwnerHandler(self._uow(), clock))
         mediator.register(ListServiceTitles, lambda: ListServiceTitlesHandler(self._directory))
         mediator.register(
             ListFreeSlots,
@@ -139,6 +151,10 @@ class TenancyModule:
     def api_router(self, mediator: Mediator) -> APIRouter:
         """HTTP-роутер публичных эндпоинтов."""
         return TenancyApiController(mediator).router()
+
+    def cabinet_router(self, mediator: Mediator, auth: MasterAuth) -> APIRouter:
+        """HTTP-роутер кабинета мастера (``GET /me``)."""
+        return cabinet_router(mediator, auth)
 
     def _uow(self) -> SqlAlchemyTenancyUnitOfWork:
         """Новый Unit of Work на каждый обработчик."""

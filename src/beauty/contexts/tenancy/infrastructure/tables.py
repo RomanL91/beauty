@@ -88,6 +88,7 @@ masters = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     Column("published_at", DateTime(timezone=True)),
+    Column("owner_phone", Text, comment="телефон учётной записи владельца (E.164) — вход в кабинет"),
     Column("version", Integer, nullable=False),
     schema=SCHEMA,
     comment="Мастера-арендаторы и их публичные страницы",
@@ -114,3 +115,9 @@ Index(
     postgresql_where=text("archived_at IS NULL"),
 )
 Index("ix_master_services_master_id", master_services.c.master_id)
+Index(
+    "ux_masters_owner_phone",
+    masters.c.owner_phone,
+    unique=True,
+    postgresql_where=text("owner_phone IS NOT NULL"),
+)

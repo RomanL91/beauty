@@ -2,6 +2,15 @@
 
 from beauty.contexts.conversations.application.commands.assistant import AssistClient, AssistClientHandler
 from beauty.contexts.conversations.application.commands.cards import SyncAppointment, SyncAppointmentHandler
+from beauty.contexts.conversations.application.commands.master import (
+    MarkConversationRead,
+    MarkConversationReadHandler,
+    MasterReply,
+    PostMasterMessage,
+    PostMasterMessageHandler,
+    SetConversationHandler,
+    SetConversationHandlerHandler,
+)
 from beauty.contexts.conversations.application.commands.open import OpenConversation, OpenConversationHandler
 from beauty.contexts.conversations.application.commands.post import (
     BookSlotBody,
@@ -19,11 +28,18 @@ __all__ = [
     "AssistClientHandler",
     "BookSlotBody",
     "ClientBody",
+    "MarkConversationRead",
+    "MarkConversationReadHandler",
+    "MasterReply",
     "OpenConversation",
     "OpenConversationHandler",
     "PostClientMessage",
     "PostClientMessageHandler",
+    "PostMasterMessage",
+    "PostMasterMessageHandler",
     "RequestSlotsBody",
+    "SetConversationHandler",
+    "SetConversationHandlerHandler",
     "SlotPickBody",
     "SyncAppointment",
     "SyncAppointmentHandler",

@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -20,6 +21,7 @@ from beauty.contexts.tenancy.domain.errors import (
     UnknownService,
 )
 from beauty.contexts.tenancy.domain.events import (
+    MasterOwnerAssigned,
     MasterProfileChanged,
     MasterPublished,
     MasterRegistered,
@@ -44,6 +46,7 @@ from beauty.shared.domain.events import DomainEvent
 MAX_ACTIVE_SERVICES = 50
 MAX_PHOTOS = 30
 MAX_DAYS_OFF = 366
+_E164 = re.compile(r"^\+[1-9]\d{9,14}$")
 
 
 def _text(value: str, *, field: str, max_length: int, required: bool = False) -> str:
@@ -120,6 +123,7 @@ class Master(AggregateRoot):
         self.created_at = created_at
         self.updated_at = created_at
         self.published_at: datetime | None = None
+        self.owner_phone: str | None = None
 
     @classmethod
     def register(
@@ -300,6 +304,17 @@ class Master(AggregateRoot):
             return
         self.status = MasterStatus.DRAFT
         self._touch(now, MasterUnpublished(occurred_at=now, master_id=self.id, slug=self.slug.value))
+
+    # ─────────────────────────── владелец ───────────────────────────
+
+    def assign_owner(self, phone: str, now: datetime) -> None:
+        """Привязать страницу к учётной записи мастера по телефону (E.164)."""
+        if not _E164.match(phone):
+            raise InvalidProfile("Телефон владельца — в формате +77011234567")
+        if phone == self.owner_phone:
+            return
+        self.owner_phone = phone
+        self._touch(now, MasterOwnerAssigned(occurred_at=now, master_id=self.id))
 
     def _touch(self, now: datetime, event: DomainEvent) -> None:
         """Отметить изменение агрегата (растёт ``version``) и записать событие."""

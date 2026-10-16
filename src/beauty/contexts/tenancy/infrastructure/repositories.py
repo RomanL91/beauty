@@ -20,6 +20,11 @@ class SqlAlchemyMasterRepository(SqlAlchemyRepository[Master], MasterRepository)
         """По первичному ключу."""
         return self._seen(await self._session.get(Master, master_id))
 
+    async def get_by_owner(self, phone: str) -> Master | None:
+        """По телефону владельца (уникальный частичный индекс)."""
+        statement = select(Master).where(masters.c.owner_phone == phone)
+        return self._seen((await self._session.execute(statement)).scalar_one_or_none())
+
     async def get_by_slug(self, slug: MasterSlug) -> Master | None:
         """По уникальному адресу страницы."""
         statement = select(Master).where(masters.c.slug == slug)

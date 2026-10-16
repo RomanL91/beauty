@@ -18,11 +18,14 @@ from beauty.contexts.conversations.application.phrases import day_label, time_la
 from beauty.contexts.conversations.application.ports import MasterCatalog
 from beauty.contexts.conversations.application.uow import ConversationsUnitOfWork
 from beauty.contexts.conversations.domain.content import MessageContent, TextContent, VoiceContent
-from beauty.contexts.conversations.domain.conversation import Conversation
+from beauty.contexts.conversations.domain.conversation import Conversation, NeedsMaster
 from beauty.contexts.conversations.domain.message import Message
 from beauty.shared.application.cqrs import Command, Handler
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
+
+QUESTION_INTENTS = frozenset({"text", "voice"})
+"""Свободный текст и голосовые: без агента ответить на них может только мастер."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +126,8 @@ class PostClientMessageHandler(Handler[PostClientMessage, MessageView]):
                 offer_id=draft.offer_id,
             )
             post(uow, conversation, posted, now)
+            if draft.intent in QUESTION_INTENTS:
+                conversation.ask_master(NeedsMaster.QUESTION, now)
             await uow.commit()
         return MessageView.of(posted)
 

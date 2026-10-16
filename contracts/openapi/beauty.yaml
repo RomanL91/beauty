@@ -7,8 +7,8 @@ info:
     Источник правды для фронтенда и бэкенда.
 
     * Реализовано бэкендом: **auth** (`contexts/identity`), **public**
-      (`contexts/tenancy`) и **client** (`contexts/conversations`, `contexts/booking`).
-      Остальные разделы фронтенд пока получает от моков.
+      (`contexts/tenancy`), **client** и **master** (`contexts/conversations`,
+      `contexts/booking`). Разделы **assistant** и **push** фронтенд пока получает от моков.
     * Ошибки всех эндпоинтов — RFC 9457 `application/problem+json` с расширением
       `code` (машиночитаемый код; тексты `detail` могут меняться).
 
@@ -33,7 +33,11 @@ tags:
   - name: client
     description: Переписка и записи клиента.
   - name: master
-    description: Кабинет мастера.
+    description: |
+      Кабинет мастера. Доступ — access-токен учётной записи, к которой привязана
+      страница мастера (телефон владельца); иначе 403 `not_a_master`.
+  - name: assistant
+    description: Поручения мастера ИИ-агенту (кабинет; появятся вместе с агентом).
   - name: push
     description: Подписки Web Push.
 security:
@@ -407,6 +411,8 @@ paths:
               schema: { $ref: '#/components/schemas/MasterPage' }
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
   /me/schedule:
     get:
       tags: [master]
@@ -425,6 +431,8 @@ paths:
               schema: { $ref: '#/components/schemas/DaySchedule' }
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
   /me/appointments/{appointment_id}/confirm:
     parameters:
       - $ref: '#/components/parameters/AppointmentId'
@@ -439,6 +447,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Appointment' }
         '401':
+          $ref: '#/components/responses/Problem'
+        '403':
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
@@ -466,6 +476,8 @@ paths:
               schema: { $ref: '#/components/schemas/Appointment' }
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
   /me/conversations:
@@ -489,6 +501,8 @@ paths:
               schema: { $ref: '#/components/schemas/ConversationList' }
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
   /me/conversations/{conversation_id}:
     parameters:
       - $ref: '#/components/parameters/ConversationId'
@@ -503,6 +517,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ConversationSummary' }
         '401':
+          $ref: '#/components/responses/Problem'
+        '403':
           $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
@@ -524,6 +540,8 @@ paths:
               schema: { $ref: '#/components/schemas/MessagePage' }
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
     post:
@@ -543,6 +561,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/MasterSendResult' }
         '401':
+          $ref: '#/components/responses/Problem'
+        '403':
           $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
@@ -566,11 +586,13 @@ paths:
               schema: { $ref: '#/components/schemas/HandlerState' }
         '401':
           $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
   /me/assistant/messages:
     get:
-      tags: [master]
+      tags: [assistant]
       operationId: listAssistantMessages
       summary: Лента поручений
       parameters:
@@ -585,7 +607,7 @@ paths:
         '401':
           $ref: '#/components/responses/Problem'
     post:
-      tags: [master]
+      tags: [assistant]
       operationId: sendAssistantMessage
       summary: Дать поручение
       requestBody:
@@ -614,7 +636,7 @@ paths:
         required: true
         schema: { type: string, format: uuid }
     post:
-      tags: [master]
+      tags: [assistant]
       operationId: answerAssistantChoice
       summary: Выбрать вариант
       requestBody:
@@ -641,6 +663,10 @@ paths:
       tags: [master]
       operationId: streamMasterEvents
       summary: SSE-поток кабинета мастера
+      description: |
+        Живой поток без журнала: кадры — с момента подключения. При переподключении с
+        `Last-Event-ID` первым приходит `event: reset` (`StreamResetEvent`): кабинет
+        перечитывает график и чаты.
       parameters:
         - $ref: '#/components/parameters/LastEventId'
       responses:
@@ -790,7 +816,8 @@ components:
             `invalid_slot_window` (422), `conversation_not_found` (404), `appointment_not_found` (404),
             `offer_not_found` (404), `offer_already_used` (409), `slot_not_offered` (422),
             `slot_unavailable` / `slot_taken` (409), `change_deadline_passed` (409),
-            `appointment_closed` (409), `invalid_voice` (422), `voice_too_large` (413).
+            `appointment_closed` (409), `invalid_voice` (422), `voice_too_large` (413),
+            `not_a_master` (403), `appointment_not_pending` (409), `request_expired` (409).
         errors:
           type: array
           description: Ошибки полей для 422.
@@ -1388,6 +1415,7 @@ components:
         - $ref: '#/components/schemas/MasterMessageEvent'
         - $ref: '#/components/schemas/AppointmentUpdatedEvent'
         - $ref: '#/components/schemas/ConversationUpdatedEvent'
+        - $ref: '#/components/schemas/StreamResetEvent'
     PushPayload:
       type: object
       required: [kind, title, body, url]
