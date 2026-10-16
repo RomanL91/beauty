@@ -13,6 +13,8 @@ from beauty.contexts.conversations.application.queries.inbox import (
 from beauty.contexts.conversations.application.queries.reading import (
     FindConversationIds,
     FindConversationIdsHandler,
+    GetConversationState,
+    GetConversationStateHandler,
     GetMyConversation,
     GetMyConversationHandler,
     ListMessages,
@@ -24,6 +26,8 @@ from beauty.contexts.conversations.application.queries.reading import (
 __all__ = [
     "FindConversationIds",
     "FindConversationIdsHandler",
+    "GetConversationState",
+    "GetConversationStateHandler",
     "GetConversationSummary",
     "GetConversationSummaryHandler",
     "GetMasterMessage",

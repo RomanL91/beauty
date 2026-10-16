@@ -22,6 +22,7 @@ from sqlalchemy.engine import make_url
 
 from beauty.bootstrap.container import ApplicationContainer
 from beauty.shared.infrastructure.config import (
+    AgentSettings,
     AuthSettings,
     DatabaseSettings,
     HttpSettings,
@@ -71,7 +72,9 @@ async def container(
 ) -> AsyncIterator[ApplicationContainer]:
     """Контейнер приложения поверх тестовой БД (SSE-потоки — короткие)."""
     settings = Settings(
+        _env_file=None,  # .env разработчика (например, включённый Hermes) не влияет на тесты
         database=DatabaseSettings(url=database_url, pool_size=5, max_overflow=5),
+        agent=AgentSettings(runtime="off"),
         auth=AuthSettings(cookie_secure=True),
         http=HttpSettings(sse_poll_interval=0.2, sse_max_duration=0.6),
         storage=StorageSettings(root=str(tmp_path_factory.mktemp("files"))),
@@ -91,6 +94,6 @@ async def clean_database(container: ApplicationContainer) -> None:
                 "TRUNCATE identity.client_sessions, identity.auth_challenges, identity.client_accounts, "
                 "tenancy.master_services, tenancy.masters, booking.appointments, "
                 "conversations.feed_events, conversations.messages, conversations.conversations, "
-                "infra.outbox, infra.inbox, infra.scheduled_jobs CASCADE"
+                "agent.tickets, agent.profiles, infra.outbox, infra.inbox, infra.scheduled_jobs CASCADE"
             )
         )

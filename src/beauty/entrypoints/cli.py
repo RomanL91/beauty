@@ -11,17 +11,21 @@ import signal
 from collections.abc import Callable, Mapping
 from uuid import UUID
 
+from beauty.bootstrap.agent import AgentOperator
 from beauty.bootstrap.container import ApplicationContainer
 from beauty.bootstrap.demo import DemoMasterSeeder
+from beauty.contexts.agent.application.commands import ProvisionAgent, SetAgentEnabled
 from beauty.contexts.booking.application.commands import (
     AppointmentPayload,
     ConfirmAppointment,
     DeclineAppointment,
 )
 from beauty.contexts.tenancy.application.commands import AssignOwner
+from beauty.contexts.tenancy.application.queries import FindMasterId
 from beauty.entrypoints.api import ApiServerWorker
 from beauty.entrypoints.workers import (
     EventConsumersWorker,
+    McpServerWorker,
     OutboxRelayWorker,
     SchedulerWorker,
     TelegramBotWorker,
@@ -39,6 +43,7 @@ class ProcessLauncher:
         "relay": OutboxRelayWorker,
         "scheduler": SchedulerWorker,
         "worker": EventConsumersWorker,
+        "mcp": McpServerWorker,
     }
 
     def __init__(self, settings: Settings) -> None:
@@ -92,6 +97,28 @@ class ProcessLauncher:
         finally:
             await container.aclose()
 
+    def agent(self, action: str, slug: str | None) -> None:
+        """Команды оператора ИИ-администратора."""
+        container = ApplicationContainer(self._settings, process_name="beauty-cli")
+        print(asyncio.run(self._agent(container, action, slug)))
+
+    @staticmethod
+    async def _agent(container: ApplicationContainer, action: str, slug: str | None) -> str:
+        try:
+            if action == "bootstrap":
+                synced = await AgentOperator(container).bootstrap()
+                return f"Шаблон профиля Hermes готов; профилей мастеров приведено к нему: {len(synced)}"
+            master_id = await container.mediator.send(FindMasterId(slug or ""))
+            if master_id is None:
+                return f"Мастер {slug} не найден"
+            if action == "provision":
+                profile = await container.mediator.send(ProvisionAgent(master_id))
+                return f"ИИ-администратор {slug}: профиль Hermes {profile}"
+            await container.mediator.send(SetAgentEnabled(master_id, action == "enable"))
+            return f"ИИ-администратор {slug}: {'включён' if action == 'enable' else 'выключен'}"
+        finally:
+            await container.aclose()
+
     def launch(self, role: str) -> None:
         """Запустить роль (блокирующий вызов)."""
         container = ApplicationContainer(self._settings, process_name=f"beauty-{role}")
@@ -110,6 +137,7 @@ class ProcessLauncher:
 def main() -> None:
     """Точка входа консольного скрипта ``beauty``."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # опрос Hermes — каждые 0,5 с
     settings = Settings()
     launcher = ProcessLauncher(settings)
     parser = argparse.ArgumentParser(prog="beauty", description="Процессы сервиса Beauty")
@@ -129,9 +157,14 @@ def main() -> None:
     appointment = commands.add_parser("appointment", help="решение мастера по заявке (до кабинета)")
     appointment.add_argument("action", choices=("confirm", "decline"))
     appointment.add_argument("appointment_id", type=UUID)
+    agent = commands.add_parser("agent", help="ИИ-администратор: шаблон Hermes, профили мастеров")
+    agent.add_argument("action", choices=("bootstrap", "provision", "enable", "disable"))
+    agent.add_argument("slug", nargs="?", help="адрес страницы мастера (кроме bootstrap)")
     arguments = parser.parse_args()
     if arguments.command == "seed-demo":
         launcher.seed_demo(arguments.owner_phone)
+    elif arguments.command == "agent":
+        launcher.agent(arguments.action, arguments.slug)
     elif arguments.command == "master":
         launcher.assign_owner(arguments.slug, arguments.phone)
     elif arguments.command == "appointment":

@@ -10,6 +10,7 @@ from sqlalchemy import ColumnElement, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from beauty.contexts.conversations.application.dto import (
+    ConversationState,
     ConversationSummaryView,
     ConversationView,
     FeedEntry,
@@ -20,6 +21,7 @@ from beauty.contexts.conversations.application.dto import (
     MessageView,
 )
 from beauty.contexts.conversations.application.ports import ConversationReader, InboxReader
+from beauty.contexts.conversations.domain.content import MASTER_ONLY_KINDS
 from beauty.contexts.conversations.domain.conversation import Handler
 from beauty.contexts.conversations.infrastructure.tables import conversations, feed_events, messages
 
@@ -61,6 +63,20 @@ class SqlConversationReader(ConversationReader):
             row = (await session.execute(statement)).one_or_none()
         return None if row is None else ConversationView(row.id, row.master_id)
 
+    async def state(self, conversation_id: UUID) -> ConversationState | None:
+        """Мастер, клиент и обработчик."""
+        c = conversations.c
+        statement = select(c.id, c.master_id, c.client_id, c.client_display_name, c.handler).where(
+            c.id == conversation_id
+        )
+        async with self._session_factory() as session:
+            row = (await session.execute(statement)).one_or_none()
+        if row is None:
+            return None
+        return ConversationState(
+            row.id, row.master_id, row.client_id, row.client_display_name, row.handler.value
+        )
+
     async def ids_for(self, master_id: UUID, client_ids: frozenset[UUID]) -> dict[UUID, UUID]:
         """Переписки мастера с этими клиентами (уникальный индекс пары)."""
         if not client_ids:
@@ -79,10 +95,15 @@ class SqlConversationReader(ConversationReader):
         async with self._session_factory() as session:
             if await self._last_seq(session, conversation_id, client_id) is None:
                 return None
-        return await self.history(conversation_id, before, limit)
+        return await self.history(conversation_id, before, limit, for_master=False)
 
-    async def history(self, conversation_id: UUID, before: UUID | None, limit: int) -> MessagePageView:
-        """Последние ``limit`` сообщений старше ``before`` (доступ проверяет вызывающий)."""
+    async def history(
+        self, conversation_id: UUID, before: UUID | None, limit: int, *, for_master: bool
+    ) -> MessagePageView:
+        """Последние ``limit`` сообщений старше ``before`` (доступ проверяет вызывающий).
+
+        Клиенту не отдаются сообщения только для мастера (заметки агента).
+        """
         async with self._session_factory() as session:
             statement = (
                 select(*_MESSAGE_COLUMNS)
@@ -90,6 +111,8 @@ class SqlConversationReader(ConversationReader):
                 .order_by(messages.c.id.desc())
                 .limit(limit + 1)
             )
+            if not for_master:
+                statement = statement.where(messages.c.kind.not_in(MASTER_ONLY_KINDS))
             if before is not None:
                 statement = statement.where(messages.c.id < before)
             rows = (await session.execute(statement)).all()
@@ -107,7 +130,7 @@ class SqlConversationReader(ConversationReader):
             if after > last or after < 0:
                 return FeedRead((), last, reset=True)
             statement = (
-                select(feed_events.c.seq, feed_events.c.change, *_MESSAGE_COLUMNS)
+                select(feed_events.c.seq, feed_events.c.change, messages.c.kind, *_MESSAGE_COLUMNS)
                 .join(messages, messages.c.id == feed_events.c.message_id)
                 .where(feed_events.c.conversation_id == conversation_id, feed_events.c.seq > after)
                 .order_by(feed_events.c.seq)
@@ -117,8 +140,11 @@ class SqlConversationReader(ConversationReader):
         if not rows or rows[0].seq != after + 1:
             # Начало журнала уже удалено: досылать нечего, клиент перечитает историю.
             return FeedRead((), last, reset=True)
-        entries = tuple(FeedEntry(row.seq, row.change, _view(row)) for row in rows)
-        return FeedRead(entries, entries[-1].seq)
+        # Заметки для мастера пропускаем, но позицию двигаем: номера событий без дыр.
+        entries = tuple(
+            FeedEntry(row.seq, row.change, _view(row)) for row in rows if row.kind not in MASTER_ONLY_KINDS
+        )
+        return FeedRead(entries, rows[-1].seq)
 
     @staticmethod
     async def _last_seq(session: AsyncSession, conversation_id: UUID, client_id: UUID) -> int | None:
@@ -234,7 +260,8 @@ class SqlInboxReader(InboxReader):
         async with self._session_factory() as session:
             if (await session.execute(owner)).scalar_one_or_none() is None:
                 return None
-        return await SqlConversationReader(self._session_factory).history(conversation_id, before, limit)
+        reader = SqlConversationReader(self._session_factory)
+        return await reader.history(conversation_id, before, limit, for_master=True)
 
     @staticmethod
     def _matches(query: str) -> ColumnElement[bool]:

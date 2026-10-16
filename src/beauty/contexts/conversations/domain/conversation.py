@@ -20,6 +20,7 @@ from enum import StrEnum
 from uuid import UUID
 
 from beauty.contexts.conversations.domain.content import (
+    AgentNoteContent,
     Author,
     BookingCardContent,
     MessageContent,
@@ -142,6 +143,12 @@ class Conversation(AggregateRoot):
             self.needs_master = reason
             self._changed(now)
 
+    def question_answered(self, now: datetime) -> None:
+        """На вопрос клиента ответили (агент): мастер больше не нужен."""
+        if self.needs_master is NeedsMaster.QUESTION:
+            self.needs_master = None
+            self._changed(now)
+
     def request_resolved(self, now: datetime) -> None:
         """Мастер (или система) решил заявку."""
         if self.needs_master is NeedsMaster.REQUEST:
@@ -184,7 +191,9 @@ class Conversation(AggregateRoot):
 def preview(content: MessageContent) -> str:
     """Строка для списка чатов."""
     match content:
-        case TextContent(text) | SlotOfferContent(text, _, _) | SystemContent(text, _):
+        case (
+            TextContent(text) | SlotOfferContent(text, _, _) | SystemContent(text, _) | AgentNoteContent(text)
+        ):
             short = text
         case VoiceContent():
             short = "Голосовое сообщение"

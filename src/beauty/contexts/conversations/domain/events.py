@@ -41,6 +41,7 @@ class ClientMessagePosted(DomainEvent):
     master_id: UUID
     client_id: UUID
     intent: str
+    text: str | None = None
     service_id: UUID | None = None
     start: datetime | None = None
     offer_id: UUID | None = None

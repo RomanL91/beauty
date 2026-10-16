@@ -121,6 +121,7 @@ class PostClientMessageHandler(Handler[PostClientMessage, MessageView]):
                 content=draft.content,
                 intent=draft.intent,
                 now=now,
+                text=draft.content.text if isinstance(draft.content, TextContent) else None,
                 service_id=draft.service_id,
                 start=draft.start,
                 offer_id=draft.offer_id,

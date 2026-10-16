@@ -10,10 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from beauty.contexts.conversations.application.commands import (
     AssistClient,
     AssistClientHandler,
+    HandOffToMaster,
+    HandOffToMasterHandler,
     MarkConversationRead,
     MarkConversationReadHandler,
     OpenConversation,
     OpenConversationHandler,
+    PostAgentReply,
+    PostAgentReplyHandler,
     PostClientMessage,
     PostClientMessageHandler,
     PostMasterMessage,
@@ -27,6 +31,8 @@ from beauty.contexts.conversations.application.ports import BookingDesk, ClientC
 from beauty.contexts.conversations.application.queries import (
     FindConversationIds,
     FindConversationIdsHandler,
+    GetConversationState,
+    GetConversationStateHandler,
     GetConversationSummary,
     GetConversationSummaryHandler,
     GetMasterMessage,
@@ -138,6 +144,9 @@ class ConversationsModule:
         mediator.register(ListMessages, lambda: ListMessagesHandler(self._reader))
         mediator.register(ReadFeed, lambda: ReadFeedHandler(self._reader))
         mediator.register(FindConversationIds, lambda: FindConversationIdsHandler(self._reader))
+        mediator.register(GetConversationState, lambda: GetConversationStateHandler(self._reader))
+        mediator.register(PostAgentReply, lambda: PostAgentReplyHandler(self._uow(), clock, ids))
+        mediator.register(HandOffToMaster, lambda: HandOffToMasterHandler(self._uow(), clock, ids))
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
 

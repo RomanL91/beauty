@@ -10,6 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from beauty.contexts.conversations.application.dto import (
+    ConversationState,
     ConversationSummaryView,
     ConversationView,
     FeedRead,
@@ -97,6 +98,10 @@ class ConversationReader(ABC):
     @abstractmethod
     async def find(self, master_id: UUID, client_id: UUID) -> ConversationView | None:
         """Переписка клиента с мастером."""
+
+    @abstractmethod
+    async def state(self, conversation_id: UUID) -> ConversationState | None:
+        """Мастер, клиент и обработчик переписки."""
 
     @abstractmethod
     async def ids_for(self, master_id: UUID, client_ids: frozenset[UUID]) -> dict[UUID, UUID]:

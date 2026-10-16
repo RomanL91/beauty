@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from beauty.contexts.conversations.application.dto import FeedRead, MessagePageView, OpenedConversation
+from beauty.contexts.conversations.application.dto import (
+    ConversationState,
+    FeedRead,
+    MessagePageView,
+    OpenedConversation,
+)
 from beauty.contexts.conversations.application.errors import ConversationNotFoundError, MasterNotFoundError
 from beauty.contexts.conversations.application.ports import ConversationReader, MasterCatalog
 from beauty.shared.application.cqrs import Handler, Query
@@ -108,3 +113,25 @@ class FindConversationIdsHandler(Handler[FindConversationIds, dict[UUID, UUID]])
     async def handle(self, message: FindConversationIds) -> dict[UUID, UUID]:
         """Клиент → переписка."""
         return await self._reader.ids_for(message.master_id, message.client_ids)
+
+
+@dataclass(frozen=True, slots=True)
+class GetConversationState(Query[ConversationState]):
+    """Состояние переписки для агента."""
+
+    conversation_id: UUID
+
+
+class GetConversationStateHandler(Handler[GetConversationState, ConversationState]):
+    """Читает состояние из read-модели."""
+
+    def __init__(self, reader: ConversationReader) -> None:
+        """Получить read-модель."""
+        self._reader = reader
+
+    async def handle(self, message: GetConversationState) -> ConversationState:
+        """Состояние или ``ConversationNotFoundError``."""
+        state = await self._reader.state(message.conversation_id)
+        if state is None:
+            raise ConversationNotFoundError()
+        return state

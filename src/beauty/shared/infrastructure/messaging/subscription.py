@@ -10,7 +10,12 @@ from beauty.shared.infrastructure.messaging.topology import ConsumerQueueSpec
 
 @dataclass(frozen=True, slots=True)
 class EventSubscription:
-    """Очередь консьюмера и обработчик (без inbox — его добавляет процесс-воркер)."""
+    """Очередь консьюмера и обработчик (без inbox — его добавляет процесс-воркер).
+
+    ``ambient_transaction=False`` — обработчик долгий и ходит во внешние системы:
+    inbox отмечает событие до обработки, без общей транзакции.
+    """
 
     spec: ConsumerQueueSpec
     handler: IntegrationEventHandler
+    ambient_transaction: bool = True

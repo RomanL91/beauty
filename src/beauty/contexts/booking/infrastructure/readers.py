@@ -8,7 +8,12 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from beauty.contexts.booking.application.ports import BusyInterval, BusyTimeReader, MasterDayReader
+from beauty.contexts.booking.application.ports import (
+    BusyInterval,
+    BusyTimeReader,
+    ClientAppointmentsReader,
+    MasterDayReader,
+)
 from beauty.contexts.booking.application.schedule import DayAppointment
 from beauty.contexts.booking.domain.appointment import Appointment
 from beauty.contexts.booking.domain.value_objects import AppointmentStatus
@@ -42,6 +47,31 @@ class SqlBusyTimeReader(BusyTimeReader):
         async with self._session_factory() as session:
             rows = (await session.execute(statement)).all()
         return [BusyInterval(row.start_at, row.end_at) for row in rows]
+
+
+class SqlClientAppointmentsReader(ClientAppointmentsReader):
+    """Будущие открытые записи клиента у мастера — по индексу ``(client_id, master_id, start_at)``."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        """Получить фабрику сессий."""
+        self._session_factory = session_factory
+
+    async def upcoming(self, master_id: UUID, client_id: UUID, now: datetime) -> list[DayAppointment]:
+        """Заявки и подтверждённые записи, которые ещё не начались."""
+        columns = appointments.c
+        statement = (
+            select(Appointment)
+            .where(
+                columns.client_id == client_id,
+                columns.master_id == master_id,
+                columns.start_at > now,
+                columns.status.in_((AppointmentStatus.REQUESTED, AppointmentStatus.CONFIRMED)),
+            )
+            .order_by(columns.start_at)
+        )
+        async with self._session_factory() as session:
+            found = (await session.execute(statement)).scalars().all()
+            return [DayAppointment(a.snapshot(), a.client_id, a.slot.start, a.slot.end) for a in found]
 
 
 class SqlMasterDayReader(MasterDayReader):

@@ -19,6 +19,17 @@ class ConversationView:
 
 
 @dataclass(frozen=True, slots=True)
+class ConversationState:
+    """Переписка для агента: чья, с кем и кто ведёт."""
+
+    id: UUID
+    master_id: UUID
+    client_id: UUID
+    client_name: str
+    handler: str
+
+
+@dataclass(frozen=True, slots=True)
 class OpenedConversation:
     """Результат открытия переписки."""
 

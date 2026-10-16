@@ -102,6 +102,20 @@ class BookingCardContent:
 
 
 @dataclass(frozen=True, slots=True)
+class AgentNoteContent:
+    """Заметка агента для мастера («клиент спрашивает про парковку») — клиенту не видна."""
+
+    text: str
+
+    def __post_init__(self) -> None:
+        """Непустая и не длиннее лимита."""
+        cleaned = self.text.strip()
+        if not cleaned or len(cleaned) > MAX_TEXT:
+            raise InvalidMessage(f"Заметка — от 1 до {MAX_TEXT} символов")
+        object.__setattr__(self, "text", cleaned)
+
+
+@dataclass(frozen=True, slots=True)
 class SystemContent:
     """Системное сообщение («Запись подтверждена»)."""
 
@@ -109,7 +123,12 @@ class SystemContent:
     tone: Tone = Tone.INFO
 
 
-type MessageContent = TextContent | VoiceContent | SlotOfferContent | BookingCardContent | SystemContent
+type MessageContent = (
+    TextContent | VoiceContent | SlotOfferContent | BookingCardContent | SystemContent | AgentNoteContent
+)
+
+MASTER_ONLY_KINDS = frozenset({"agent_note"})
+"""Виды сообщений, которые клиент не видит никогда."""
 
 
 def kind_of(content: MessageContent) -> str:
@@ -125,3 +144,5 @@ def kind_of(content: MessageContent) -> str:
             return "booking_card"
         case SystemContent():
             return "system"
+        case AgentNoteContent():
+            return "agent_note"

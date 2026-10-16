@@ -1,0 +1,171 @@
+"""Порты прикладного слоя Agent.
+
+Агент — клиент остальных контекстов: каталог мастера (Tenancy), переписка
+(Conversations), окна и записи (Booking). Адаптеры подключает корень композиции.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceBrief:
+    """Услуга в инструкциях агента."""
+
+    id: UUID
+    title: str
+    duration_min: int
+    price_amount: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class MasterBrief:
+    """Мастер в инструкциях агента."""
+
+    id: UUID
+    name: str
+    specialty: str
+    address: str
+    timezone: str
+    services: tuple[ServiceBrief, ...]
+    confirm_within_hours: int
+    change_deadline_hours: int
+
+
+class MasterBriefs(ABC):
+    """Каталог мастеров (Tenancy)."""
+
+    @abstractmethod
+    async def brief(self, master_id: UUID) -> MasterBrief | None:
+        """Мастер для инструкций (и черновик — агент мог быть включён до публикации)."""
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationInfo:
+    """Переписка, в которой отвечает агент."""
+
+    master_id: UUID
+    client_id: UUID
+    client_name: str
+    handler: str
+
+
+class Conversations(ABC):
+    """Переписка (Conversations)."""
+
+    @abstractmethod
+    async def state(self, conversation_id: UUID) -> ConversationInfo:
+        """Чья переписка и кто её ведёт."""
+
+    @abstractmethod
+    async def reply(self, conversation_id: UUID, text: str, *, resolve_question: bool) -> bool:
+        """Ответ агента клиенту; ``False`` — диалог уже ведёт мастер."""
+
+    @abstractmethod
+    async def hand_off(self, conversation_id: UUID, note: str) -> None:
+        """Передать диалог мастеру с заметкой."""
+
+
+@dataclass(frozen=True, slots=True)
+class FreeSlot:
+    """Свободное окно (время — в поясе мастера)."""
+
+    start: datetime
+    end: datetime
+    service_id: UUID
+
+
+class SlotUnavailableError(Exception):
+    """Окно заняли или его нет в расписании."""
+
+
+class ChangeRefusedError(Exception):
+    """Запись нельзя изменить (прошёл дедлайн, уже отменена, не найдена)."""
+
+
+type AppointmentSnapshot = Mapping[str, Any]
+"""Запись в форме контракта (``Appointment``)."""
+
+
+class Booking(ABC):
+    """Окна и записи (Tenancy + Booking)."""
+
+    @abstractmethod
+    async def free_slots(
+        self, master_id: UUID, service_id: UUID, since: datetime | None, limit: int
+    ) -> list[FreeSlot]:
+        """Ближайшие свободные окна услуги."""
+
+    @abstractmethod
+    async def request(
+        self, master_id: UUID, client_id: UUID, service_id: UUID, start: datetime
+    ) -> AppointmentSnapshot:
+        """Заявка клиента или ``SlotUnavailableError``."""
+
+    @abstractmethod
+    async def client_appointments(self, master_id: UUID, client_id: UUID) -> list[AppointmentSnapshot]:
+        """Будущие заявки и записи клиента к мастеру."""
+
+    @abstractmethod
+    async def cancel(self, appointment_id: UUID, client_id: UUID) -> AppointmentSnapshot:
+        """Отменить свою запись или ``ChangeRefusedError``."""
+
+
+@dataclass(frozen=True, slots=True)
+class RunRequest:
+    """Ход агента."""
+
+    profile_name: str
+    api_key: str
+    session_id: str
+    input: str
+    instructions: str
+    idempotency_key: str
+
+
+@dataclass(frozen=True, slots=True)
+class RunOutcome:
+    """Итог хода: ``completed`` и текст ответа или статус ошибки."""
+
+    status: str
+    output: str = ""
+
+    @property
+    def ok(self) -> bool:
+        """Ход завершился ответом."""
+        return self.status == "completed" and bool(self.output.strip())
+
+
+class AgentRuntime(ABC):
+    """Где думает агент (Hermes)."""
+
+    @property
+    @abstractmethod
+    def enabled(self) -> bool:
+        """Включён ли runtime в этом окружении."""
+
+    @abstractmethod
+    async def run(self, request: RunRequest) -> RunOutcome:
+        """Выполнить ход и дождаться результата."""
+
+
+@dataclass(frozen=True, slots=True)
+class ProvisionedProfile:
+    """Секреты созданного профиля."""
+
+    runs_api_key: str
+    mcp_token: str
+
+
+class ProfileProvisioner(ABC):
+    """Создание профилей мастеров в runtime."""
+
+    @abstractmethod
+    async def create(self, profile_name: str, master_name: str) -> ProvisionedProfile:
+        """Создать профиль (клон шаблона) со своими секретами и SOUL.md."""

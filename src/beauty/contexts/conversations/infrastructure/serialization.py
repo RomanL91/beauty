@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from beauty.contexts.conversations.domain.content import (
+    AgentNoteContent,
     BookingCardContent,
     MessageContent,
     OfferedSlot,
@@ -49,6 +50,8 @@ def dump_content(content: MessageContent) -> dict[str, Any]:
             }
         case SystemContent(text, tone):
             body = {"text": text, "tone": tone.value}
+        case AgentNoteContent(text):
+            body = {"text": text}
     return {"kind": kind_of(content), **body}
 
 
@@ -77,4 +80,6 @@ def load_content(raw: dict[str, Any]) -> MessageContent:
         return BookingCardContent(UUID(raw["appointment_id"]), int(raw["revision"]), raw["appointment"])
     if kind == "system":
         return SystemContent(raw["text"], Tone(raw["tone"]))
+    if kind == "agent_note":
+        return AgentNoteContent(raw["text"])
     raise ValueError(f"Неизвестный вид сообщения: {kind!r}")

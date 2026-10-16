@@ -10,10 +10,15 @@
 from __future__ import annotations
 
 from functools import cached_property
+from pathlib import Path
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from beauty.bootstrap.adapters import (
+    AgentBooking,
+    AgentConversations,
+    AgentMasters,
     BookedTime,
     BookingFrontDesk,
     ConversationsDirectory,
@@ -23,6 +28,10 @@ from beauty.bootstrap.adapters import (
     TenancyMasterCatalog,
     TenancySlotPolicy,
 )
+from beauty.contexts.agent.application.ports import AgentRuntime
+from beauty.contexts.agent.infrastructure.hermes import CommandRunner, HermesProvisioner, ProfileFiles
+from beauty.contexts.agent.infrastructure.runtime import DisabledRuntime, HermesRuntime
+from beauty.contexts.agent.module import AgentDependencies, AgentModule
 from beauty.contexts.booking.module import BookingDependencies, BookingModule
 from beauty.contexts.conversations.module import ConversationsDependencies, ConversationsModule
 from beauty.contexts.identity.module import IdentityDependencies, IdentityModule
@@ -96,6 +105,7 @@ class ApplicationContainer:
         self.tenancy.register(mediator, self.http_errors)
         self.booking.register(mediator, self.http_errors)
         self.conversations.register(mediator, self.http_errors)
+        self.agent.register(mediator, self.http_errors)
         return mediator
 
     @cached_property
@@ -142,7 +152,7 @@ class ApplicationContainer:
 
     def event_subscriptions(self) -> tuple[EventSubscription, ...]:
         """Консьюмеры интеграционных событий всех контекстов."""
-        return self.conversations.subscriptions(self.mediator)
+        return (*self.conversations.subscriptions(self.mediator), *self.agent.subscriptions(self.mediator))
 
     def realtime_resolvers(self) -> tuple[TopicResolver, ...]:
         """Realtime-топики всех контекстов (для моста в процессе API)."""
@@ -236,8 +246,57 @@ class ApplicationContainer:
             )
         )
 
+    @cached_property
+    def agent_http(self) -> httpx.AsyncClient:
+        """HTTP-клиент к Hermes."""
+        return httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0))
+
+    @cached_property
+    def agent_runtime(self) -> AgentRuntime:
+        """Hermes или выключенный runtime (``BEAUTY_AGENT__RUNTIME``)."""
+        settings = self.settings.agent
+        if settings.runtime == "hermes":
+            return HermesRuntime(settings.hermes_url, self.agent_http, timeout=settings.run_timeout)
+        return DisabledRuntime()
+
+    @cached_property
+    def hermes_runner(self) -> CommandRunner:
+        """Hermes CLI."""
+        return CommandRunner.from_string(self.settings.agent.hermes_cmd)
+
+    @cached_property
+    def hermes_files(self) -> ProfileFiles:
+        """Файлы профилей Hermes."""
+        settings = self.settings.agent
+        owner = None
+        if settings.profiles_owner:
+            uid, gid = settings.profiles_owner.split(":")
+            owner = (int(uid), int(gid))
+        return ProfileFiles(Path(settings.profiles_root), owner)
+
+    @cached_property
+    def agent(self) -> AgentModule:
+        """Модуль Agent."""
+        settings = self.settings.agent
+        provisioner = HermesProvisioner(self.hermes_runner, self.hermes_files, settings.template_profile)
+        return AgentModule(
+            AgentDependencies(
+                session_factory=self.session_factory,
+                outbox_writer=self.outbox_writer,
+                clock=self.clock,
+                runtime=self.agent_runtime,
+                provisioner=provisioner,
+                masters=AgentMasters(lambda: self.mediator),
+                conversations=AgentConversations(lambda: self.mediator),
+                booking=AgentBooking(lambda: self.mediator),
+                ticket_ttl=settings.ticket_ttl,
+            )
+        )
+
     async def aclose(self) -> None:
         """Закрыть внешние ресурсы, которые успели открыться."""
+        if "agent_http" in self.__dict__:
+            await self.agent_http.aclose()
         if "rabbit" in self.__dict__:
             await self.rabbit.close()
         if "engine" in self.__dict__:

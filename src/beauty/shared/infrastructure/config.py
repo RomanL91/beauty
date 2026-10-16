@@ -74,6 +74,28 @@ class StorageSettings(BaseModel):
     root: str = "./var/files"
 
 
+class AgentSettings(BaseModel):
+    """ИИ-администратор: runtime Hermes и MCP-сервер ``beauty-tools``."""
+
+    runtime: str = Field(default="off", pattern="^(off|hermes)$")
+    hermes_url: str = "http://hermes:8642"
+    hermes_cmd: str = "docker exec beauty-hermes hermes"
+    profiles_root: str = "/hermes/profiles"
+    profiles_owner: str | None = "10000:10000"
+    template_profile: str = "beauty-template"
+    # Как MCP-сервер виден из контейнера Hermes.
+    mcp_url: str = "http://mcp:8765/mcp"
+    mcp_host: str = "0.0.0.0"
+    mcp_port: int = 8765
+    model: str = "google/gemini-2.5-flash"
+    provider: str = "openrouter"
+    base_url: str | None = None
+    provider_api_key: SecretStr = SecretStr("")
+    streaming: bool = True
+    ticket_ttl: timedelta = timedelta(minutes=10)
+    run_timeout: float = 120.0
+
+
 class HttpSettings(BaseModel):
     """Параметры HTTP API."""
 
@@ -101,3 +123,4 @@ class Settings(BaseSettings):
     auth: AuthSettings = AuthSettings()
     storage: StorageSettings = StorageSettings()
     http: HttpSettings = HttpSettings()
+    agent: AgentSettings = AgentSettings()

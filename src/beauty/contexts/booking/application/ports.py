@@ -92,6 +92,14 @@ class ConversationDirectory(ABC):
         """Клиент → id переписки (у кого она есть)."""
 
 
+class ClientAppointmentsReader(ABC):
+    """Записи клиента к мастеру (SQL)."""
+
+    @abstractmethod
+    async def upcoming(self, master_id: UUID, client_id: UUID, now: datetime) -> list[DayAppointment]:
+        """Открытые заявки и записи, которые ещё не начались."""
+
+
 class MasterDayReader(ABC):
     """Записи мастера за период (SQL)."""
 

@@ -8,9 +8,15 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from beauty.contexts.booking.application.ports import CalendarSource, ConversationDirectory, MasterDayReader
+from beauty.contexts.booking.application.ports import (
+    CalendarSource,
+    ClientAppointmentsReader,
+    ConversationDirectory,
+    MasterDayReader,
+)
 from beauty.contexts.booking.application.schedule import build_day
 from beauty.shared.application.cqrs import Handler, Query
+from beauty.shared.domain.clock import Clock
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,3 +58,25 @@ class GetDayScheduleHandler(Handler[GetDaySchedule, dict[str, Any]]):
             "items": items,
             "summary": summary,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class ListClientAppointments(Query[list[dict[str, Any]]]):
+    """Будущие заявки и записи клиента к мастеру (для агента и «Моих записей»)."""
+
+    master_id: UUID
+    client_id: UUID
+
+
+class ListClientAppointmentsHandler(Handler[ListClientAppointments, list[dict[str, Any]]]):
+    """Снимки записей в форме контракта."""
+
+    def __init__(self, reader: ClientAppointmentsReader, clock: Clock) -> None:
+        """Получить read-модель и часы."""
+        self._reader = reader
+        self._clock = clock
+
+    async def handle(self, message: ListClientAppointments) -> list[dict[str, Any]]:
+        """Записи по времени."""
+        found = await self._reader.upcoming(message.master_id, message.client_id, self._clock.now())
+        return [dict(item.payload) for item in found]

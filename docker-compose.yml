@@ -1,4 +1,5 @@
 # Локальное окружение: PostgreSQL, RabbitMQ, процессы приложения и web (nginx с двумя PWA).
+# ИИ-администратор (Hermes + MCP beauty-tools) — профиль agent: docker compose --profile agent up -d
 x-app: &app
   build: .
   env_file: .env
@@ -71,6 +72,73 @@ services:
     <<: *app
     command: ["worker"]
 
+  # ─────────────── ИИ-администратор (профиль agent) ───────────────
+  # Hermes: один gateway-мультиплексор обслуживает профили всех мастеров (/p/<профиль>/).
+  # Наружу не публикуется: в него ходит только worker.
+  hermes:
+    profiles: [agent]
+    image: nousresearch/hermes-agent:${HERMES_TAG:-stable}
+    container_name: beauty-hermes
+    restart: unless-stopped
+    # Под мультиплексором gateway читает API_SERVER_KEY только из .env профиля, а не из env
+    # контейнера (а stage2 образа при ключе в env его в .env не пишет) — кладём ключ сами.
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        [ -n "$$API_SERVER_KEY" ] || { echo 'задайте HERMES_DEFAULT_API_KEY в .env' >&2; exit 1; };
+        grep -q '^API_SERVER_KEY=..' /opt/data/.env 2>/dev/null
+        || echo "API_SERVER_KEY=$$API_SERVER_KEY" >> /opt/data/.env;
+        exec /opt/hermes/docker/entrypoint-dispatch.sh gateway run
+    environment:
+      API_SERVER_ENABLED: "true"
+      API_SERVER_HOST: 0.0.0.0
+      API_SERVER_KEY: ${HERMES_DEFAULT_API_KEY:-}
+      GATEWAY_MULTIPLEX_PROFILES: "true"
+    volumes: ["hermes-data:/opt/data"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8642/health"]
+      interval: 5s
+      retries: 30
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  # MCP-сервер beauty-tools: инструменты ресепшна для Hermes (http://mcp:8765/mcp).
+  mcp:
+    <<: *app
+    profiles: [agent]
+    command: ["mcp"]
+
+  # Шаблон профиля Hermes и профиль демо-мастера alisa (идемпотентно).
+  # Другому мастеру: docker compose run --rm agent-setup "beauty agent provision <slug>"
+  agent-setup:
+    build:
+      context: .
+      target: ops
+    profiles: [agent]
+    env_file: .env
+    entrypoint: ["sh", "-c"]
+    command: ["beauty agent bootstrap && beauty agent provision alisa"]
+    volumes:
+      - hermes-data:/hermes
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      hermes:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # Сценарная OpenAI-совместимая «модель» для прогона без ключа LLM
+  # (BEAUTY_AGENT__PROVIDER=custom, BEAUTY_AGENT__BASE_URL=http://fake-llm:8090/v1).
+  fake-llm:
+    profiles: [fake-llm]
+    build: .
+    entrypoint: ["python", "/devtools/fake_llm.py"]
+    volumes: ["./devtools:/devtools:ro"]
+    restart: unless-stopped
+
   # PWA клиента (http://<slug>.localhost:8080) и мастера (http://master.localhost:8080).
   web:
     build:
@@ -82,6 +150,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  hermes-data:
   pgdata:
   rabbitdata:
   files:

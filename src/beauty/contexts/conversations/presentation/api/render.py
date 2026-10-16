@@ -6,6 +6,7 @@ from typing import Any
 
 from beauty.contexts.conversations.application.dto import ConversationSummaryView, MessageView
 from beauty.contexts.conversations.domain.content import (
+    AgentNoteContent,
     BookingCardContent,
     OfferedSlot,
     SlotOfferContent,
@@ -55,6 +56,8 @@ class MessageRenderer:
                 payload["appointment"] = dict(appointment)
             case SystemContent(text, tone):
                 payload |= {"text": text, "tone": tone.value}
+            case AgentNoteContent(text):
+                payload["text"] = text
         return payload
 
 

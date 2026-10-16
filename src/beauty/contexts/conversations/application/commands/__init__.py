@@ -1,5 +1,11 @@
 """Команды контекста Conversations."""
 
+from beauty.contexts.conversations.application.commands.agent import (
+    HandOffToMaster,
+    HandOffToMasterHandler,
+    PostAgentReply,
+    PostAgentReplyHandler,
+)
 from beauty.contexts.conversations.application.commands.assistant import AssistClient, AssistClientHandler
 from beauty.contexts.conversations.application.commands.cards import SyncAppointment, SyncAppointmentHandler
 from beauty.contexts.conversations.application.commands.master import (
@@ -28,11 +34,15 @@ __all__ = [
     "AssistClientHandler",
     "BookSlotBody",
     "ClientBody",
+    "HandOffToMaster",
+    "HandOffToMasterHandler",
     "MarkConversationRead",
     "MarkConversationReadHandler",
     "MasterReply",
     "OpenConversation",
     "OpenConversationHandler",
+    "PostAgentReply",
+    "PostAgentReplyHandler",
     "PostClientMessage",
     "PostClientMessageHandler",
     "PostMasterMessage",

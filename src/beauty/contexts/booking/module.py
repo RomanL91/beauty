@@ -34,10 +34,16 @@ from beauty.contexts.booking.application.queries import (
     GetDayScheduleHandler,
     ListBusyIntervals,
     ListBusyIntervalsHandler,
+    ListClientAppointments,
+    ListClientAppointmentsHandler,
 )
 from beauty.contexts.booking.infrastructure.jobs import CompleteVisitJob, ExpireRequestJob
 from beauty.contexts.booking.infrastructure.mapping import BookingOrmMapper
-from beauty.contexts.booking.infrastructure.readers import SqlBusyTimeReader, SqlMasterDayReader
+from beauty.contexts.booking.infrastructure.readers import (
+    SqlBusyTimeReader,
+    SqlClientAppointmentsReader,
+    SqlMasterDayReader,
+)
 from beauty.contexts.booking.infrastructure.uow import SqlAlchemyBookingUnitOfWork
 from beauty.contexts.booking.presentation.api.cabinet import cabinet_router
 from beauty.contexts.booking.presentation.api.controller import BookingApiController
@@ -84,6 +90,7 @@ class BookingModule:
         self._deps = dependencies
         self._busy_reader = SqlBusyTimeReader(dependencies.session_factory)
         self._day_reader = SqlMasterDayReader(dependencies.session_factory)
+        self._client_reader = SqlClientAppointmentsReader(dependencies.session_factory)
 
     def register(self, mediator: Mediator, http_errors: HttpErrorMapper) -> None:
         """Зарегистрировать обработчики и коды ошибок."""
@@ -102,6 +109,9 @@ class BookingModule:
         mediator.register(ExpireAppointment, lambda: ExpireAppointmentHandler(self._uow(), clock))
         mediator.register(CompleteAppointment, lambda: CompleteAppointmentHandler(self._uow(), clock))
         mediator.register(ListBusyIntervals, lambda: ListBusyIntervalsHandler(self._busy_reader))
+        mediator.register(
+            ListClientAppointments, lambda: ListClientAppointmentsHandler(self._client_reader, clock)
+        )
         mediator.register(
             GetDaySchedule,
             lambda: GetDayScheduleHandler(deps.calendar, self._day_reader, deps.conversations),

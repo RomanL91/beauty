@@ -57,6 +57,7 @@ class Message(AggregateRoot):
         content: MessageContent,
         intent: str,
         now: datetime,
+        text: str | None = None,
         service_id: UUID | None = None,
         start: datetime | None = None,
         offer_id: UUID | None = None,
@@ -71,6 +72,7 @@ class Message(AggregateRoot):
                 master_id=master_id,
                 client_id=client_id,
                 intent=intent,
+                text=text,
                 service_id=service_id,
                 start=start,
                 offer_id=offer_id,
@@ -80,10 +82,16 @@ class Message(AggregateRoot):
 
     @classmethod
     def from_agent(
-        cls, *, message_id: UUID, conversation_id: UUID, content: MessageContent, now: datetime
+        cls,
+        *,
+        message_id: UUID,
+        conversation_id: UUID,
+        content: MessageContent,
+        now: datetime,
+        ai_generated: bool = False,
     ) -> Message:
-        """Сообщение администратора записи (детерминированное, не ИИ)."""
-        return cls(message_id, conversation_id, Author.AGENT, content, None, False, now)
+        """Сообщение администратора: детерминированное (запись) или ответ ИИ-агента."""
+        return cls(message_id, conversation_id, Author.AGENT, content, None, ai_generated, now)
 
     def select_slot(self, start: datetime, now: datetime) -> SlotOfferContent:
         """Отметить выбранное окно в предложении; вернуть обновлённое предложение."""
