@@ -35,11 +35,10 @@ VITE_MOCK_AUTH=1 pnpm -C frontend dev      # то же без бэкенда: в
 | `VITE_VAPID_PUBLIC_KEY` | base64url                                  | публичный ключ Web Push; пусто — подписка недоступна                                      |
 | `VITE_API_PROXY`        | URL                                        | куда Vite проксирует `/api` (по умолчанию `http://localhost:8000`)                        |
 
-Сейчас бэкенд реализует вход (`auth`), страницу мастера с окнами (`public`),
-переписку с записями клиента (`client`) и кабинет мастера (`master`). Docker-сборки:
-клиент — `VITE_REAL_API=auth,public,client`, кабинет — `VITE_REAL_API=auth,master`.
-Поручения агенту (`assistant`) и push пока в моках; в реальной сборке кабинета экран
-поручений показывает «появится вместе с агентом». Вход мастера — тот же Telegram
+Бэкенд реализует все группы контракта. Docker-сборки: клиент —
+`VITE_REAL_API=auth,public,client,push`, кабинет — `VITE_REAL_API=auth,master,assistant,push`
+(группа `master` включает настройки страницы: профиль, услуги, график, правила, фото).
+Вход мастера — тот же Telegram
 (общий пакет `packages/telegram-login`); если группа `auth` не на бэкенде (моки, e2e),
 кабинет открывается заглушкой сессии (`StubMasterAuthGateway`). Кабинет открыт номеру,
 привязанному к странице: `BEAUTY_DEMO_OWNER_PHONE` для демо или
@@ -60,7 +59,7 @@ e2e                        Playwright: сценарии и скриншоты 39
 
 Компоненты зависят только от портов (`AuthGateway`, `MasterGateway`,
 `ConversationGateway`, `ScheduleGateway`, `InboxGateway`, `AssistantGateway`,
-`MasterEventsGateway`, `PushGateway`); адаптеры собирает `AppContainer`
+`MasterEventsGateway`, `MasterSettingsGateway`, `PushGateway`); адаптеры собирает `AppContainer`
 (`apps/*/src/app/container.ts`) и отдаёт через React context.
 
 Сессия: access-токен только в памяти (`SessionStore`), refresh — httpOnly-cookie;
