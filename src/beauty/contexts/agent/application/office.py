@@ -175,14 +175,15 @@ class RunOfficeTurnHandler(Handler[RunOfficeTurn, None]):
         async with self._uow_factory() as uow:
             profile = await uow.profiles.get(message.master_id)
             seat = profile.seat(AgentFace.BACK_OFFICE) if profile is not None and profile.enabled else None
-            if not self._runtime.enabled or seat is None:
-                await self._post(message.master_id, OfficeSystem(NOT_CONNECTED, OfficeTone.WARNING))
-                return
-            if message.input is None:
-                await self._post(message.master_id, OfficeText(VOICE_REPLY))
-                return
-            now = self._clock.now()
-            ticket = RunTicket.issue_office(master_id=message.master_id, now=now, ttl=self._ticket_ttl)
+        if not self._runtime.enabled or seat is None:
+            await self._post(message.master_id, OfficeSystem(NOT_CONNECTED, OfficeTone.WARNING))
+            return
+        if message.input is None:
+            await self._post(message.master_id, OfficeText(VOICE_REPLY))
+            return
+        now = self._clock.now()
+        ticket = RunTicket.issue_office(master_id=message.master_id, now=now, ttl=self._ticket_ttl)
+        async with self._uow_factory() as uow:
             uow.tickets.add(ticket)
             await uow.commit()
         master = await self._masters.brief(message.master_id)

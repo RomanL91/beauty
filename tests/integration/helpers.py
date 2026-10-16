@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import httpx
 from sqlalchemy import func, select, update
 
@@ -14,7 +16,12 @@ from beauty.contexts.identity.application.commands import (
 )
 from beauty.contexts.identity.application.dto import StartedChallenge
 from beauty.shared.application.mediator import Mediator
-from beauty.shared.infrastructure.inbox.guard import InboxGuard, InboxIdempotentHandler
+from beauty.shared.infrastructure.inbox.guard import (
+    InboxClaimFirstHandler,
+    InboxGuard,
+    InboxIdempotentHandler,
+)
+from beauty.shared.infrastructure.messaging.handler import IntegrationEventHandler
 from beauty.shared.infrastructure.outbox.envelope import EventEnvelope
 from beauty.shared.infrastructure.outbox.table import outbox_table
 from beauty.shared.infrastructure.realtime.bridge import RealtimeBridge
@@ -52,23 +59,28 @@ class BotSimulator:
 class EventPump:
     """Relay и консьюмеры без брокера: события outbox → обработчики подписок и realtime-хаб.
 
-    Обработчики обёрнуты в inbox, как в процессе ``worker``; события, порождённые
+    Обработчики обёрнуты в inbox, как в процессе ``worker`` (долгие — claim-first, без общей
+    транзакции); события, порождённые
     обработчиками, доставляются в следующих раундах.
     """
 
-    def __init__(self, container: ApplicationContainer) -> None:
-        """Собрать подписки контейнера."""
+    def __init__(
+        self, container: ApplicationContainer, overrides: Mapping[str, IntegrationEventHandler] | None = None
+    ) -> None:
+        """Собрать подписки контейнера; ``overrides`` — обработчики очередей вместо штатных."""
         self._container = container
         guard = InboxGuard()
-        self._handlers = [
-            (
-                subscription.spec.binding_keys,
-                InboxIdempotentHandler(
-                    subscription.handler, container.transaction_scope, guard, subscription.spec.name
-                ),
+        replaced = dict(overrides or {})
+        self._handlers: list[tuple[tuple[str, ...], IntegrationEventHandler]] = []
+        for subscription in container.event_subscriptions():
+            name = subscription.spec.name
+            handler = replaced.get(name, subscription.handler)
+            guarded: IntegrationEventHandler = (
+                InboxIdempotentHandler(handler, container.transaction_scope, guard, name)
+                if subscription.ambient_transaction
+                else InboxClaimFirstHandler(handler, container.session_factory, guard, name)
             )
-            for subscription in container.event_subscriptions()
-        ]
+            self._handlers.append((subscription.spec.binding_keys, guarded))
         self._bridge = RealtimeBridge(container.realtime_hub, container.realtime_resolvers())
         self.delivered: list[str] = []
 

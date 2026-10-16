@@ -158,18 +158,20 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
             return
         async with self._new_uow() as uow:
             profile = await uow.profiles.get(state.master_id)
-            if profile is None or not profile.enabled:
-                return
-            if message.text is None:
-                await self._conversations.hand_off(message.conversation_id, VOICE_NOTE)
-                return
-            ticket = RunTicket.issue(
-                master_id=state.master_id,
-                conversation_id=message.conversation_id,
-                client_id=state.client_id,
-                now=self._clock.now(),
-                ttl=self._ticket_ttl,
-            )
+            seat = profile.seat(AgentFace.FRONT_DESK) if profile is not None and profile.enabled else None
+        if seat is None:
+            return
+        if message.text is None:
+            await self._conversations.hand_off(message.conversation_id, VOICE_NOTE)
+            return
+        ticket = RunTicket.issue(
+            master_id=state.master_id,
+            conversation_id=message.conversation_id,
+            client_id=state.client_id,
+            now=self._clock.now(),
+            ttl=self._ticket_ttl,
+        )
+        async with self._new_uow() as uow:  # отдельно: другие UoW не вкладываются в открытый
             uow.tickets.add(ticket)
             await uow.commit()
         master = await self._masters.brief(state.master_id)
@@ -177,8 +179,8 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
             return
         outcome = await self._runtime.run(
             RunRequest(
-                profile_name=profile.profile_name,
-                api_key=profile.runs_api_key,
+                profile_name=seat[0],
+                api_key=seat[1],
                 session_id=str(message.conversation_id),
                 input=message.text,
                 instructions=front_desk_instructions(master, state.client_name, ticket.id, self._clock.now()),
@@ -186,7 +188,7 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
             )
         )
         if not outcome.ok:
-            logger.warning("Ход агента %s: %s", profile.profile_name, outcome.status)
+            logger.warning("Ход агента %s: %s", seat[0], outcome.status)
             await self._conversations.hand_off(message.conversation_id, FAILURE_NOTE)
             return
         async with self._new_uow() as uow:

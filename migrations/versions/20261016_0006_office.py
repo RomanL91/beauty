@@ -92,7 +92,10 @@ def downgrade() -> None:
     op.execute("DELETE FROM booking.appointments WHERE cancel_reason = 'master_cancelled'")
     op.drop_constraint(op.f("ck_appointments_cancel_reason"), "appointments", schema="booking")
     op.create_check_constraint(
-        op.f("ck_appointments_cancel_reason"), "appointments", f"cancel_reason IN ({_REASONS})", schema="booking"
+        op.f("ck_appointments_cancel_reason"),
+        "appointments",
+        f"cancel_reason IN ({_REASONS})",
+        schema="booking",
     )
     op.drop_index("ux_office_messages_client_message_id", table_name="office_messages", schema="agent")
     op.drop_index("ix_office_messages_master", table_name="office_messages", schema="agent")

@@ -49,8 +49,12 @@ class BackOfficeConsumer(IntegrationEventHandler):
 
     async def handle(self, envelope: EventEnvelope) -> None:
         """Перевести событие в команду."""
+        await self._mediator.send(self.command(envelope))
+
+    @staticmethod
+    def command(envelope: EventEnvelope) -> RunOfficeTurn:
+        """Ход кабинета по событию: поручение (голосовое — ``input=None``) или выбор мастера."""
         payload = envelope.payload
-        master_id = UUID(str(payload["master_id"]))
         message_id = str(payload["message_id"])
         if envelope.routing_key == OfficeChoiceAnswered.routing_key:
             text: str | None = (
@@ -61,4 +65,4 @@ class BackOfficeConsumer(IntegrationEventHandler):
             raw = payload.get("text")
             text = None if raw is None else str(raw)
             key = message_id
-        await self._mediator.send(RunOfficeTurn(master_id=master_id, input=text, idempotency_key=key))
+        return RunOfficeTurn(master_id=UUID(str(payload["master_id"])), input=text, idempotency_key=key)

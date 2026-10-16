@@ -8,6 +8,11 @@ Hermes ходит сюда как к провайдеру ``custom`` (``POST /v1
 * вопрос не про запись («парковка», «?») → ``handoff_to_master`` → ответ;
 * иначе — приветствие.
 
+Кабинет мастера (инструкции «С тобой говорит сам мастер»):
+
+* «что у меня завтра?» → ``day_schedule`` → кто записан;
+* «закрой воскресенье» → ``ask_master`` (карточка выбора) → «Мастер выбрал …» → ``set_day_off``.
+
 Тикет хода и ``service_id`` берутся из инструкций запуска, как это делала бы модель.
 Запуск: ``python devtools/fake_llm.py`` (порт ``FAKE_LLM_PORT``, по умолчанию 8090).
 """
@@ -20,6 +25,7 @@ import re
 import time
 import uuid
 from collections.abc import Iterator
+from datetime import date, timedelta
 from typing import Any
 
 import uvicorn
@@ -30,6 +36,9 @@ TICKET = re.compile(r"Тикет хода: (t-[a-z0-9]+)")
 SERVICE = re.compile(r"^- (?P<title>.+?) — .*\(service_id: (?P<id>[0-9a-f-]{36})\)", re.MULTILINE)
 # Hermes оборачивает результат инструмента и кладёт JSON строкой — кавычки экранированы.
 START = re.compile(r'\\?"start\\?"\s*:\s*\\?"([^"\\]+)')
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+NOW = re.compile(r"Сейчас: [^,]+, (\d{2})\.(\d{2})\.(\d{4})")
+OFFICE_MARK = "С тобой говорит сам мастер"
 BOOKING_WORDS = ("запиш", "записа", "окн", "свобод", "массаж", "маникюр", "стриж")
 
 app = FastAPI(title="fake-llm")
@@ -65,20 +74,20 @@ class Turn:
 
     @staticmethod
     def _logical(name: str) -> str:
-        for logical in (
-            "find_free_slots",
-            "book_appointment",
-            "my_appointments",
-            "cancel_appointment",
-            "handoff_to_master",
-        ):
-            if name.endswith(logical):
-                return logical
-        return name
+        """``mcp__beauty__find_free_slots`` → ``find_free_slots``."""
+        return name.rsplit("__", 1)[-1]
 
     def tool(self, logical: str) -> str | None:
         """Как инструмент называется у Hermes (с префиксом MCP-сервера)."""
         return next((name for name in self.tools if name.endswith(logical)), None)
+
+    def today(self) -> date:
+        """«Сейчас» из инструкций хода (дата мастера)."""
+        found = NOW.search(self.system)
+        if found is None:
+            return date.today()
+        day, month, year = (int(part) for part in found.groups())
+        return date(year, month, day)
 
     def service_id(self) -> str | None:
         """Услуга из каталога: по словам клиента, иначе первая."""
@@ -91,6 +100,11 @@ class Turn:
 
 
 type Step = tuple[str | None, dict[str, Any] | None, str]
+
+
+def next_weekday(today: date, weekday: int) -> date:
+    """Ближайший день недели после сегодня (0 — понедельник)."""
+    return today + timedelta(days=(weekday - today.weekday() - 1) % 7 + 1)
 
 
 def answer(text: str) -> Step:
@@ -123,12 +137,54 @@ def booking(turn: Turn, ticket: str) -> Step:
     return answer(f"Записала вас на {when}. Мастер подтвердит заявку — карточка уже в чате.")
 
 
+def answered(turn: Turn, ticket: str) -> Step:
+    """Ответ мастера на вопрос «Закрыть …?»."""
+    if "ничего" in turn.user.lower():
+        return answer("Хорошо, ничего не меняю.")
+    day = DATE.search(turn.user)
+    if day is None:
+        return answer("Не поняла, какую дату закрыть.")
+    closed = {"ticket": ticket, "date": day.group(0), "off": True}
+    return once(turn, "set_day_off", closed, f"Готово: {day.group(0)} закрыта для записи.")
+
+
+def schedule(turn: Turn, ticket: str, target: date) -> Step:
+    """График дня → кто записан."""
+    if "day_schedule" not in turn.results:
+        return call("day_schedule", {"ticket": ticket, "date": target.isoformat()})
+    visits = re.findall(r'\\?"client\\?"\s*:\s*\\?"([^"\\]+)', turn.results["day_schedule"])
+    if not visits:
+        return answer(f"На {target.isoformat()} записей нет.")
+    return answer(f"На {target.isoformat()} записей: {len(visits)} — {', '.join(visits)}.")
+
+
+def office(turn: Turn, ticket: str) -> Step:
+    """Кабинет: «что у меня завтра?», «закрой воскресенье» (с вопросом мастеру), ответ на вопрос."""
+    today = turn.today()
+    text = turn.user.lower()
+    if text.startswith("мастер выбрал"):
+        return answered(turn, ticket)
+    if "закр" in text or "выходн" in text:
+        target = next_weekday(today, 6) if "воскрес" in text else today + timedelta(days=1)
+        question = {
+            "ticket": ticket,
+            "question": f"Закрыть {target.isoformat()} для записи?",
+            "options": ["Да, закрыть", "Ничего не менять"],
+        }
+        return once(turn, "ask_master", question, "Уточняю у вас.")
+    if "что у меня" in text or "график" in text:
+        return schedule(turn, ticket, today + timedelta(days=1) if "завтра" in text else today)
+    return answer("Поняла. Пока умею показать график и закрыть день — уточните поручение.")
+
+
 def decide(turn: Turn) -> Step:
-    """Следующий шаг хода по реплике клиента."""
+    """Следующий шаг хода по реплике клиента или поручению мастера."""
     found = TICKET.search(turn.system)
     if found is None or not turn.tools:
         return answer("Готово.")  # служебные вызовы Hermes (заголовок сессии и т. п.)
     ticket = found.group(1)
+    if OFFICE_MARK in turn.system:
+        return office(turn, ticket)
     text = turn.user.lower()
     if any(word in text for word in BOOKING_WORDS):
         return booking(turn, ticket)
