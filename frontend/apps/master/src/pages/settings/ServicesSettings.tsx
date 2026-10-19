@@ -1,9 +1,18 @@
 import { ApiError, type MasterSettings, type Service, type ServiceInput } from '@beauty/api';
-import { Button, Icon, Sheet, StateView, formatMinutes, formatMoney, useOnline } from '@beauty/ui';
+import {
+  Button,
+  Icon,
+  SelectField,
+  Sheet,
+  StateView,
+  TextField,
+  formatMinutes,
+  formatMoney,
+  useOnline,
+} from '@beauty/ui';
 import { useState, type FormEvent } from 'react';
 import { parseTenge, tengeText } from '../../entities/settings/model';
 import { useSettingsChange } from '../../entities/settings/queries';
-import { SelectField, TextField } from '../../shared/ui/Field';
 import { FormError, SettingsScreen } from './SettingsScreen';
 import styles from './Settings.module.css';
 

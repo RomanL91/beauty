@@ -6,6 +6,7 @@
  */
 import type { RequestHandler } from 'msw';
 import { MockDb, type MockDbOptions } from './db';
+import { adminHandlers } from './handlers/admin';
 import { authHandlers } from './handlers/auth';
 import { clientHandlers } from './handlers/client';
 import { assistantHandlers, masterHandlers } from './handlers/master';
@@ -18,9 +19,11 @@ export { CLIENT_CONVERSATION_ID } from './fixtures/client-chat';
 export { CONVERSATIONS, DARYA_REQUEST_ID } from './fixtures/master-cabinet';
 export { CLIENTS } from './fixtures/people';
 export { uuidv7 } from './ids';
+export { MOCK_ADMIN_LOGIN, MOCK_ADMIN_PASSWORD } from './admin';
 
 /** Группы эндпоинтов контракта (теги OpenAPI). */
-export type EndpointGroup = 'auth' | 'public' | 'client' | 'master' | 'assistant' | 'push';
+export type EndpointGroup =
+  'auth' | 'public' | 'client' | 'master' | 'assistant' | 'push' | 'admin';
 
 /** Все группы. */
 export const ALL_GROUPS: readonly EndpointGroup[] = [
@@ -30,6 +33,7 @@ export const ALL_GROUPS: readonly EndpointGroup[] = [
   'master',
   'assistant',
   'push',
+  'admin',
 ];
 
 /** Какие группы уже реализованы бэкендом — их не мокаем, запросы уходят в сеть. */
@@ -50,6 +54,7 @@ export function createHandlers(
     ...(mocked('master') ? masterHandlers(db) : []),
     ...(mocked('assistant') ? assistantHandlers(db) : []),
     ...(mocked('push') ? pushHandlers() : []),
+    ...(mocked('admin') ? adminHandlers(db) : []),
   ];
 }
 

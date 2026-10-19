@@ -1,4 +1,4 @@
-import { cx } from '@beauty/ui';
+import { cx } from '../cx';
 import {
   useId,
   type InputHTMLAttributes,

@@ -4,6 +4,7 @@
  */
 import {
   ApiError,
+  HttpAdminGateway,
   HttpAssistantGateway,
   HttpAuthGateway,
   HttpConversationGateway,
@@ -20,7 +21,13 @@ import {
   type MessageOf,
 } from '@beauty/api';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { CONVERSATIONS, DARYA_REQUEST_ID, DEMO_SLUG } from './index';
+import {
+  CONVERSATIONS,
+  DARYA_REQUEST_ID,
+  DEMO_SLUG,
+  MOCK_ADMIN_LOGIN,
+  MOCK_ADMIN_PASSWORD,
+} from './index';
 import { createMockServer } from './node';
 import { localDate } from './clock';
 
@@ -341,5 +348,53 @@ describe('настройки страницы мастера', () => {
     await expect(page.getPage(DEMO_SLUG)).rejects.toMatchObject({ status: 404 });
     expect((await settings.publish()).status).toBe('published');
     await expect(page.getPage(DEMO_SLUG)).resolves.toMatchObject({ slug: DEMO_SLUG });
+  });
+});
+
+describe('админ-панель', () => {
+  it('вход, CSRF, мастер, блокировка клиента, журнал', async () => {
+    const admin = new HttpAdminGateway(new HttpCore({ origin: ORIGIN }));
+    await expect(admin.login(MOCK_ADMIN_LOGIN, 'wrong-password')).rejects.toMatchObject({
+      status: 401,
+      code: 'invalid_credentials',
+    });
+    const session = await admin.login(MOCK_ADMIN_LOGIN, MOCK_ADMIN_PASSWORD);
+    expect(session.admin.login).toBe(MOCK_ADMIN_LOGIN);
+    expect((await admin.me())?.csrf_token).toBe(session.csrf_token);
+
+    const created = await admin.createMaster({
+      slug: 'asem',
+      display_name: 'Әсем Нурланова',
+      name_forms: { nominative: 'Әсем', genitive: 'Әсем', dative: 'Әсем' },
+      specialty: 'Массаж',
+      timezone: 'Asia/Almaty',
+      owner_phone: '+77010001122',
+    });
+    expect([created.status, created.agent, created.publish_blockers.length]).toEqual([
+      'draft',
+      'not_connected',
+      2,
+    ]);
+    await expect(admin.setPublication(created.id, true)).rejects.toMatchObject({ status: 409 });
+    expect((await admin.masters({ q: 'asem' })).map((m) => m.slug)).toEqual(['asem']);
+
+    const alisa = (await admin.masters({ q: DEMO_SLUG }))[0]!;
+    expect((await admin.setPublication(alisa.id, false)).status).toBe('draft');
+    expect((await admin.setPublication(alisa.id, true)).status).toBe('published');
+
+    const { items } = await admin.clients({ q: '7011231234' });
+    const blocked = await admin.setClientBlock(items[0]!.id, true, 'Спам');
+    expect([blocked.blocked, blocked.blocked_reason]).toEqual([true, 'Спам']);
+    await admin.setClientBlock(items[0]!.id, false);
+
+    const audit = await admin.audit();
+    expect(audit.items.slice(0, 2).map((e) => e.action)).toEqual([
+      'client.unblocked',
+      'client.blocked',
+    ]);
+
+    await admin.logout();
+    expect(await admin.me()).toBeNull();
+    await expect(admin.dashboard()).rejects.toMatchObject({ status: 401 });
   });
 });

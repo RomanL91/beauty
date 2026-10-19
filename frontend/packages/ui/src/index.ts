@@ -60,5 +60,6 @@ export {
   type VoiceClip,
 } from './hooks/useVoiceRecorder';
 export { Sheet } from './components/Sheet';
+export { SelectField, TextArea, TextField, Toggle } from './components/Field';
 export { ChatFeed, FeedSkeleton, type FeedEntry } from './chat/ChatFeed';
 export { VoicePreviewBar, VoiceRecordingBar } from './chat/Voice';

@@ -1,0 +1,114 @@
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+}
+
+.caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.total {
+  flex: 1 1 auto;
+  font-size: 13px;
+  color: var(--c-text-muted);
+}
+
+.toggle {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  background: var(--c-surface);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-text-2);
+}
+
+.plot {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.plot svg {
+  display: block;
+  overflow: visible;
+}
+
+.grid {
+  stroke: var(--c-divider);
+  stroke-width: 1;
+}
+
+.tick {
+  fill: var(--c-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar {
+  fill: var(--c-chart);
+}
+
+.barActive {
+  fill: var(--c-accent);
+}
+
+.hit {
+  fill: transparent;
+}
+
+.tooltip {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  background: var(--c-text);
+  color: #fff;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.tooltipDay {
+  font-size: 12px;
+  color: rgb(255 255 255 / 0.75);
+}
+
+.tableWrap {
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--c-divider);
+  text-align: left;
+}
+
+.table td:last-child,
+.table th:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

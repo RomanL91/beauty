@@ -765,30 +765,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-}
-export interface webhooks {
-  pushNotification: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Web Push на устройство
-     * @description Не HTTP-эндпоинт API: так описана полезная нагрузка Web Push, которую сервер
-     *     шифрует (RFC 8291) и отправляет на `endpoint` подписки. Service worker
-     *     показывает уведомление и по нажатию открывает `url` (путь в том же приложении).
-     */
-    post: operations['pushNotification'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/admin/auth/login': {
     parameters: {
       query?: never;
@@ -1089,6 +1065,30 @@ export interface webhooks {
     get: operations['adminSystem'];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+}
+export interface webhooks {
+  pushNotification: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Web Push на устройство
+     * @description Не HTTP-эндпоинт API: так описана полезная нагрузка Web Push, которую сервер
+     *     шифрует (RFC 8291) и отправляет на `endpoint` подписки. Service worker
+     *     показывает уведомление и по нажатию открывает `url` (путь в том же приложении).
+     */
+    post: operations['pushNotification'];
     delete?: never;
     options?: never;
     head?: never;
@@ -3107,28 +3107,6 @@ export interface operations {
       404: components['responses']['Problem'];
     };
   };
-  pushNotification: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['PushPayload'];
-      };
-    };
-    responses: {
-      /** @description Push-сервис принял сообщение. */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
   adminLogin: {
     parameters: {
       query?: never;
@@ -3660,6 +3638,28 @@ export interface operations {
         };
       };
       401: components['responses']['Problem'];
+    };
+  };
+  pushNotification: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PushPayload'];
+      };
+    };
+    responses: {
+      /** @description Push-сервис принял сообщение. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
     };
   };
 }

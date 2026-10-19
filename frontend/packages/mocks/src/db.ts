@@ -31,6 +31,7 @@ const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 import { EventLog } from './event-log';
 import { MockProblem } from './errors';
 import { MockSettings } from './settings';
+import { MockAdmin } from './admin';
 import { uuidv7 } from './ids';
 import { CLIENT_CONVERSATION_ID, clientChatSeed } from './fixtures/client-chat';
 import {
@@ -97,6 +98,7 @@ const CLIENT_ACCOUNT_ID = '0192a0c0-0000-7000-8000-00000000c11e';
 export class MockDb {
   readonly page = masterPage();
   readonly settings = new MockSettings(this.page, (file) => this.#storeUpload(file));
+  readonly admin: MockAdmin;
   readonly clientLog = new EventLog();
   readonly masterLog = new EventLog();
 
@@ -122,6 +124,7 @@ export class MockDb {
       taskStepMs: options.taskStepMs ?? 1500,
     };
     this.#storage = options.storage ?? memoryStore();
+    this.admin = new MockAdmin(this.page, this.settings, this.#storage);
 
     const chat = clientChatSeed();
     this.#clientMessages = chat.messages;

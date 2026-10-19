@@ -40,6 +40,13 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
+      command: 'pnpm --filter @beauty/admin exec vite --port 5175 --strictPort',
+      url: 'http://localhost:5175',
+      env: { VITE_API_MODE: 'mock' },
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
       command: 'pnpm --filter @beauty/master exec vite --port 5174 --strictPort',
       url: 'http://localhost:5174',
       env: { VITE_API_MODE: 'mock' },

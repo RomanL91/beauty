@@ -939,25 +939,6 @@ paths:
         '404':
           $ref: '#/components/responses/Problem'
 
-webhooks:
-  pushNotification:
-    post:
-      operationId: pushNotification
-      summary: Web Push на устройство
-      description: |
-        Не HTTP-эндпоинт API: так описана полезная нагрузка Web Push, которую сервер
-        шифрует (RFC 8291) и отправляет на `endpoint` подписки. Service worker
-        показывает уведомление и по нажатию открывает `url` (путь в том же приложении).
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/PushPayload' }
-      responses:
-        '201':
-          description: Push-сервис принял сообщение.
-
   /admin/auth/login:
     post:
       tags: [admin]
@@ -1369,6 +1350,24 @@ webhooks:
             application/json:
               schema: { $ref: '#/components/schemas/AdminSystem' }
         '401': { $ref: '#/components/responses/Problem' }
+webhooks:
+  pushNotification:
+    post:
+      operationId: pushNotification
+      summary: Web Push на устройство
+      description: |
+        Не HTTP-эндпоинт API: так описана полезная нагрузка Web Push, которую сервер
+        шифрует (RFC 8291) и отправляет на `endpoint` подписки. Service worker
+        показывает уведомление и по нажатию открывает `url` (путь в том же приложении).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PushPayload' }
+      responses:
+        '201':
+          description: Push-сервис принял сообщение.
 
 components:
   securitySchemes:

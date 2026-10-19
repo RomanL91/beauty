@@ -1,5 +1,15 @@
 import { ApiError, type MasterSettings } from '@beauty/api';
-import { Button, Icon, IconButton, dateKey, formatDayHeading, useNow, useOnline } from '@beauty/ui';
+import {
+  Button,
+  Icon,
+  IconButton,
+  TextField,
+  Toggle,
+  dateKey,
+  formatDayHeading,
+  useNow,
+  useOnline,
+} from '@beauty/ui';
 import { useState, type FormEvent } from 'react';
 import {
   WEEKDAYS,
@@ -9,7 +19,6 @@ import {
   type WeekDraft,
 } from '../../entities/settings/model';
 import { useSettingsChange } from '../../entities/settings/queries';
-import { TextField, Toggle } from '../../shared/ui/Field';
 import { FormError, SaveBar, SettingsScreen } from './SettingsScreen';
 import styles from './Settings.module.css';
 

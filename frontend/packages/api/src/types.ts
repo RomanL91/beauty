@@ -31,6 +31,24 @@ export type ProfileInput = Schemas['ProfileInput'];
 export type ServiceInput = Schemas['ServiceInput'];
 export type Slot = Schemas['Slot'];
 
+export type AdminAccount = Schemas['AdminAccount'];
+export type AdminAccountInput = Schemas['AdminAccountInput'];
+export type AdminSession = Schemas['AdminSession'];
+export type AdminDashboard = Schemas['AdminDashboard'];
+export type DailyPoint = Schemas['DailyPoint'];
+export type MasterStatus = Schemas['MasterStatus'];
+export type AgentState = Schemas['AgentState'];
+export type AdminMasterRow = Schemas['AdminMasterRow'];
+export type AdminMasterInput = Schemas['AdminMasterInput'];
+export type AdminMasterDetail = Schemas['AdminMasterDetail'];
+export type AdminUpcoming = Schemas['AdminUpcoming'];
+export type AdminClientRow = Schemas['AdminClientRow'];
+export type AdminAgentReport = Schemas['AdminAgentReport'];
+export type AgentDay = Schemas['AgentDay'];
+export type AgentFailure = Schemas['AgentFailure'];
+export type AdminAuditEntry = Schemas['AdminAuditEntry'];
+export type AdminSystem = Schemas['AdminSystem'];
+
 export type ClientRef = Schemas['ClientRef'];
 export type Appointment = Schemas['Appointment'];
 export type AppointmentStatus = Appointment['status'];

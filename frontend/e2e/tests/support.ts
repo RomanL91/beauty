@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 
 export const CLIENT = 'http://alisa.localhost:5173';
 export const MASTER = 'http://localhost:5174';
+export const ADMIN = 'http://localhost:5175';
 
 /** Скриншот экрана 390×844 для сверки с макетами (docs/design/mockups). */
 export async function shot(page: Page, name: string): Promise<void> {

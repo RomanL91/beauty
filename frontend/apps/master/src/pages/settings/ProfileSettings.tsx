@@ -1,9 +1,8 @@
 import { ApiError, type MasterSettings, type ProfileInput } from '@beauty/api';
-import { Avatar, Button, useOnline } from '@beauty/ui';
+import { Avatar, Button, SelectField, TextArea, TextField, useOnline } from '@beauty/ui';
 import { useRef, useState, type FormEvent } from 'react';
 import { TIMEZONES } from '../../entities/settings/model';
 import { useSettingsChange } from '../../entities/settings/queries';
-import { SelectField, TextArea, TextField } from '../../shared/ui/Field';
 import { imageProblem } from './images';
 import { FormError, SaveBar, SettingsScreen } from './SettingsScreen';
 import styles from './Settings.module.css';

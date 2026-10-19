@@ -8,6 +8,7 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/client/package.json apps/client/
 COPY apps/master/package.json apps/master/
+COPY apps/admin/package.json apps/admin/
 COPY packages/api/package.json packages/api/
 COPY packages/mocks/package.json packages/mocks/
 COPY packages/ui/package.json packages/ui/
@@ -20,10 +21,11 @@ COPY . .
 # Публичный VAPID-ключ для Web Push (пусто — подписка недоступна).
 ARG VITE_VAPID_PUBLIC_KEY=
 ENV VITE_VAPID_PUBLIC_KEY=${VITE_VAPID_PUBLIC_KEY}
-RUN pnpm --filter @beauty/client build && pnpm --filter @beauty/master build
+RUN pnpm --filter @beauty/client build && pnpm --filter @beauty/master build && pnpm --filter @beauty/admin build
 
 FROM nginx:1.29-alpine
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY nginx/app.conf nginx/security-headers.conf /etc/nginx/snippets/
 COPY --from=build /app/apps/client/dist /usr/share/nginx/client
 COPY --from=build /app/apps/master/dist /usr/share/nginx/master
+COPY --from=build /app/apps/admin/dist /usr/share/nginx/admin

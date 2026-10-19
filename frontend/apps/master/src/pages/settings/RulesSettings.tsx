@@ -1,10 +1,9 @@
 import { ApiError, type BookingRulesSettings, type MasterSettings } from '@beauty/api';
-import { formatMinutes } from '@beauty/ui';
+import { SelectField, formatMinutes } from '@beauty/ui';
 import { useState, type FormEvent } from 'react';
 import { SLOT_STEPS } from '../../entities/settings/model';
 import { useSettingsChange } from '../../entities/settings/queries';
 import { plural } from '../../shared/lib/plural';
-import { SelectField } from '../../shared/ui/Field';
 import { FormError, SaveBar, SettingsScreen } from './SettingsScreen';
 import styles from './Settings.module.css';
 
