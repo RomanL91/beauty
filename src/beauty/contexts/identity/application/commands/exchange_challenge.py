@@ -7,7 +7,7 @@ from datetime import timedelta
 from uuid import UUID
 
 from beauty.contexts.identity.application.dto import SessionTokens
-from beauty.contexts.identity.application.errors import ChallengeNotFoundError
+from beauty.contexts.identity.application.errors import AccountBlockedError, ChallengeNotFoundError
 from beauty.contexts.identity.application.ports import AccessTokenIssuer, SecretGenerator
 from beauty.contexts.identity.application.services.refresh_token import RefreshToken
 from beauty.contexts.identity.application.uow import IdentityUnitOfWork
@@ -55,6 +55,10 @@ class ExchangeChallengeForSessionHandler(Handler[ExchangeChallengeForSession, Se
             if challenge is None:
                 raise ChallengeNotFoundError()
             account_id = challenge.consume(message.browser_secret, now)
+            account = await uow.accounts.get(account_id)
+            if account is not None and account.blocked:
+                await uow.commit()  # вход погашен: повторить его нельзя
+                raise AccountBlockedError()
             session = ClientSession.open(
                 session_id=self._id_generator.new(),
                 account_id=account_id,

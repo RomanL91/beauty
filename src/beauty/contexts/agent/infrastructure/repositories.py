@@ -10,9 +10,11 @@ from beauty.contexts.agent.domain.office import OfficeMessage
 from beauty.contexts.agent.domain.profile import AgentProfile
 from beauty.contexts.agent.domain.repositories import (
     AgentProfileRepository,
+    AgentRunRepository,
     OfficeMessageRepository,
     RunTicketRepository,
 )
+from beauty.contexts.agent.domain.run import AgentRun
 from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
 from beauty.contexts.agent.infrastructure.tables import office_messages, profiles, tickets
 from beauty.shared.domain.secrets import HashedSecret
@@ -84,3 +86,7 @@ class SqlAlchemyOfficeMessageRepository(SqlAlchemyRepository[OfficeMessage], Off
         statement = statement.order_by(office_messages.c.id.desc()).limit(limit + 1)
         found = list((await self._session.execute(statement)).scalars())
         return [self._tracker.track(m) for m in reversed(found[:limit])], len(found) > limit
+
+
+class SqlAlchemyAgentRunRepository(SqlAlchemyRepository[AgentRun], AgentRunRepository):
+    """Журнал ходов (только запись; читают отчёты)."""

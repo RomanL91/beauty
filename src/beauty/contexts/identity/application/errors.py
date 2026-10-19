@@ -33,3 +33,15 @@ class IdentityConflictError(ConflictError):
     """Номер уже принадлежит другой учётной записи — нужна помощь поддержки."""
 
     code = "identity_conflict"
+
+
+class AccountBlockedError(AccessDeniedError):
+    """Учётная запись заблокирована хозяином сервиса."""
+
+    code = "account_blocked"
+
+
+class AccountNotFoundError(NotFoundError):
+    """Учётной записи нет."""
+
+    code = "account_not_found"

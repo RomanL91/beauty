@@ -26,6 +26,8 @@ from beauty.contexts.identity.application.commands import (
     RefreshSessionHandler,
     RevokeSession,
     RevokeSessionHandler,
+    SetAccountBlocked,
+    SetAccountBlockedHandler,
     StartTelegramAuth,
     StartTelegramAuthHandler,
 )
@@ -76,6 +78,8 @@ _HTTP_STATUSES: dict[str, int] = {
     "session_reuse_detected": 401,
     "session_inactive": 401,
     "identity_conflict": 409,
+    "account_blocked": 403,
+    "account_not_found": 404,
     "contact_not_owned": 422,
     "invalid_phone": 422,
     "invalid_nonce": 422,
@@ -161,6 +165,7 @@ class IdentityModule:
             ),
         )
         mediator.register(RevokeSession, lambda: RevokeSessionHandler(self._uow(), deps.clock))
+        mediator.register(SetAccountBlocked, lambda: SetAccountBlockedHandler(self._uow(), deps.clock))
         mediator.register(
             GetChallengeStatus, lambda: GetChallengeStatusHandler(self._status_reader, deps.clock)
         )

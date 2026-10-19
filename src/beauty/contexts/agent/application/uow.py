@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from beauty.contexts.agent.domain.repositories import (
     AgentProfileRepository,
+    AgentRunRepository,
     OfficeMessageRepository,
     RunTicketRepository,
 )
@@ -16,3 +17,4 @@ class AgentUnitOfWork(UnitOfWork):
     profiles: AgentProfileRepository
     tickets: RunTicketRepository
     office: OfficeMessageRepository
+    runs: AgentRunRepository

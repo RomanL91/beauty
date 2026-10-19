@@ -7,6 +7,7 @@ from uuid import UUID
 
 from beauty.contexts.agent.domain.office import OfficeMessage
 from beauty.contexts.agent.domain.profile import AgentProfile
+from beauty.contexts.agent.domain.run import AgentRun
 from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
 from beauty.shared.domain.secrets import HashedSecret
 
@@ -65,3 +66,11 @@ class OfficeMessageRepository(ABC):
         self, master_id: UUID, before: UUID | None, limit: int
     ) -> tuple[list[OfficeMessage], bool]:
         """Страница ленты по возрастанию времени и признак «есть раньше»."""
+
+
+class AgentRunRepository(ABC):
+    """Журнал ходов."""
+
+    @abstractmethod
+    def add(self, run: AgentRun) -> None:
+        """Записать ход."""

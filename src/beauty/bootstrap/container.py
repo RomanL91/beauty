@@ -17,6 +17,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from beauty.bootstrap.adapters import (
+    AdminPlatform,
     AgentBooking,
     AgentCabinet,
     AgentConversations,
@@ -30,7 +31,10 @@ from beauty.bootstrap.adapters import (
     TenancyCalendar,
     TenancyMasterCatalog,
     TenancySlotPolicy,
+    admin_master_settings,
 )
+from beauty.contexts.admin.infrastructure.reports import Features, SqlAdminReports
+from beauty.contexts.admin.module import AdminDependencies, AdminModule
 from beauty.contexts.agent.application.ports import AgentRuntime
 from beauty.contexts.agent.domain.ticket import AgentFace
 from beauty.contexts.agent.infrastructure.hermes import CommandRunner, HermesProvisioner, ProfileFiles
@@ -122,6 +126,7 @@ class ApplicationContainer:
         self.conversations.register(mediator, self.http_errors)
         self.agent.register(mediator, self.http_errors)
         self.notifications.register(mediator, self.http_errors)
+        self.admin.register(mediator, self.http_errors)
         return mediator
 
     @cached_property
@@ -327,6 +332,34 @@ class ApplicationContainer:
                 media=self.media_urls,
                 transcriber=self.voice_transcriber,
                 ticket_ttl=settings.ticket_ttl,
+            )
+        )
+
+    @cached_property
+    def admin(self) -> AdminModule:
+        """Модуль Admin: админ-панель хозяина сервиса."""
+        settings = self.settings
+        features = Features(
+            environment=settings.environment,
+            agent_runtime=settings.agent.runtime,
+            agent_model=settings.agent.model,
+            speech_provider=settings.speech.provider,
+            speech_model=settings.speech.model,
+            push=bool(settings.push.vapid_private_key.get_secret_value()),
+        )
+        return AdminModule(
+            AdminDependencies(
+                session_factory=self.session_factory,
+                outbox_writer=self.outbox_writer,
+                clock=self.clock,
+                ids=self.id_generator,
+                platform=AdminPlatform(lambda: self.mediator),
+                reports=SqlAdminReports(
+                    self.session_factory, admin_master_settings(lambda: self.mediator), features, self.clock
+                ),
+                session_ttl=settings.admin.session_ttl,
+                secure_cookie=settings.auth.cookie_secure,
+                api_prefix=settings.http.api_prefix,
             )
         )
 

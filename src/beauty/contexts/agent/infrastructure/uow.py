@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from beauty.contexts.agent.application.uow import AgentUnitOfWork
 from beauty.contexts.agent.infrastructure.repositories import (
     SqlAlchemyAgentProfileRepository,
+    SqlAlchemyAgentRunRepository,
     SqlAlchemyOfficeMessageRepository,
     SqlAlchemyRunTicketRepository,
 )
@@ -22,3 +23,4 @@ class SqlAlchemyAgentUnitOfWork(SqlAlchemyUnitOfWork, AgentUnitOfWork):
         self.profiles = SqlAlchemyAgentProfileRepository(session, tracker)
         self.tickets = SqlAlchemyRunTicketRepository(session, tracker)
         self.office = SqlAlchemyOfficeMessageRepository(session, tracker)
+        self.runs = SqlAlchemyAgentRunRepository(session, tracker)

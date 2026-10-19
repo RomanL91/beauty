@@ -64,3 +64,7 @@ class ClientSessionRepository(ABC):
     @abstractmethod
     async def get(self, session_id: UUID) -> ClientSession | None:
         """Найти по id."""
+
+    @abstractmethod
+    async def active_of(self, account_id: UUID) -> list[ClientSession]:
+        """Неотозванные сессии учётной записи."""

@@ -141,6 +141,14 @@ class InMemorySessions(ClientSessionRepository):
         found = self._store.sessions.get(session_id)
         return None if found is None else self._tracker.track(found)
 
+    async def active_of(self, account_id: UUID) -> list[ClientSession]:
+        """Неотозванные сессии учётной записи."""
+        return [
+            self._tracker.track(s)
+            for s in self._store.sessions.values()
+            if s.account_id == account_id and s.revoked_at is None
+        ]
+
 
 class InMemoryIdentityUnitOfWork(IdentityUnitOfWork):
     """Unit of Work поверх ``IdentityStore``: при коммите складывает события в хранилище."""

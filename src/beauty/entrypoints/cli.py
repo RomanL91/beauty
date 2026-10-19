@@ -8,12 +8,15 @@ import json
 import logging
 import os
 import signal
+import sys
 from collections.abc import Callable, Mapping
+from getpass import getpass
 from uuid import UUID
 
 from beauty.bootstrap.agent import AgentOperator
 from beauty.bootstrap.container import ApplicationContainer
 from beauty.bootstrap.demo import DemoMasterSeeder
+from beauty.contexts.admin.application.admins import CreateAdmin, ResetAdminPassword
 from beauty.contexts.agent.application.commands import ProvisionAgent, SetAgentEnabled
 from beauty.contexts.booking.application.commands import (
     AppointmentPayload,
@@ -81,6 +84,25 @@ class ProcessLauncher:
         finally:
             await container.aclose()
 
+    def admin(self, action: str, login: str, name: str | None, password_stdin: bool) -> None:
+        """Администратор панели: ``create`` (первый и следующие) или ``password`` (сброс)."""
+        password = _read_password(password_stdin)
+        container = ApplicationContainer(self._settings, process_name="beauty-cli")
+        print(asyncio.run(self._admin(container, action, login, name or login, password)))
+
+    @staticmethod
+    async def _admin(
+        container: ApplicationContainer, action: str, login: str, name: str, password: str
+    ) -> str:
+        try:
+            if action == "create":
+                created = await container.mediator.send(CreateAdmin(None, login, name, password))
+                return f"Администратор {created.login} добавлен — вход: admin.<домен>"
+            reset = await container.mediator.send(ResetAdminPassword(login, password))
+            return f"Пароль администратора {reset.login} изменён, его сессии закрыты"
+        finally:
+            await container.aclose()
+
     def decide_appointment(self, action: str, appointment_id: UUID) -> None:
         """Подтвердить или отклонить заявку от имени мастера (до кабинета мастера)."""
         container = ApplicationContainer(self._settings, process_name="beauty-cli")
@@ -135,6 +157,16 @@ class ProcessLauncher:
         await worker.run(stop)
 
 
+def _read_password(from_stdin: bool) -> str:
+    """Пароль: из stdin (скрипты) или дважды с терминала без эха."""
+    if from_stdin or not sys.stdin.isatty():
+        return sys.stdin.readline().rstrip("\n")
+    password = getpass("Пароль (от 10 символов): ")
+    if getpass("Ещё раз: ") != password:
+        raise SystemExit("Пароли не совпали")
+    return password
+
+
 def main() -> None:
     """Точка входа консольного скрипта ``beauty``."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -161,6 +193,13 @@ def main() -> None:
     agent = commands.add_parser("agent", help="ИИ-администратор: шаблон Hermes, профили мастеров")
     agent.add_argument("action", choices=("bootstrap", "provision", "enable", "disable"))
     agent.add_argument("slug", nargs="?", help="адрес страницы мастера (кроме bootstrap)")
+    admin = commands.add_parser("admin", help="администраторы панели (логин и пароль)")
+    admin.add_argument(
+        "action", choices=("create", "password"), help="create — добавить, password — сбросить"
+    )
+    admin.add_argument("login")
+    admin.add_argument("--name", help="имя в панели (по умолчанию — логин)")
+    admin.add_argument("--password-stdin", action="store_true", help="пароль — первой строкой stdin")
     push = commands.add_parser("push", help="Web Push")
     push.add_argument("action", choices=("keys",), help="keys — новая пара ключей VAPID для .env")
     arguments = parser.parse_args()
@@ -173,6 +212,8 @@ def main() -> None:
         print(f"BEAUTY_PUSH__VAPID_PUBLIC_KEY={keys.public_key}")
         print(f"BEAUTY_PUSH__VAPID_PRIVATE_KEY={keys.private_key}")
         print(f"VITE_VAPID_PUBLIC_KEY={keys.public_key}")
+    elif arguments.command == "admin":
+        launcher.admin(arguments.action, arguments.login, arguments.name, arguments.password_stdin)
     elif arguments.command == "master":
         launcher.assign_owner(arguments.slug, arguments.phone)
     elif arguments.command == "appointment":

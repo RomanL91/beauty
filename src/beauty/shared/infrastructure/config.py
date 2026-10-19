@@ -87,6 +87,12 @@ class PushSettings(BaseModel):
     ttl: int = 86_400
 
 
+class AdminSettings(BaseModel):
+    """Админ-панель хозяина сервиса: срок сессии (cookie ``bk_admin``)."""
+
+    session_ttl: timedelta = timedelta(hours=12)
+
+
 class SpeechSettings(BaseModel):
     """Распознавание голосовых (клиентов и поручений мастера).
 
@@ -159,3 +165,4 @@ class Settings(BaseSettings):
     agent: AgentSettings = AgentSettings()
     push: PushSettings = PushSettings()
     speech: SpeechSettings = SpeechSettings()
+    admin: AdminSettings = AdminSettings()

@@ -30,9 +30,11 @@ from beauty.contexts.agent.domain.office import OfficeMessage
 from beauty.contexts.agent.domain.profile import AgentProfile
 from beauty.contexts.agent.domain.repositories import (
     AgentProfileRepository,
+    AgentRunRepository,
     OfficeMessageRepository,
     RunTicketRepository,
 )
+from beauty.contexts.agent.domain.run import AgentRun
 from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
 from beauty.shared.domain.secrets import HashedSecret
 
@@ -51,6 +53,7 @@ class AgentStore:
         self.profiles: dict[UUID, AgentProfile] = {}
         self.tickets: dict[str, RunTicket] = {}
         self.office: dict[UUID, OfficeMessage] = {}
+        self.runs: list[AgentRun] = []
         self.events: list[Any] = []
 
 
@@ -129,6 +132,14 @@ class _Office(OfficeMessageRepository):
         return mine[-limit:], len(mine) > limit
 
 
+class _Runs(AgentRunRepository):
+    def __init__(self, store: AgentStore) -> None:
+        self._store = store
+
+    def add(self, run: AgentRun) -> None:
+        self._store.runs.append(run)
+
+
 class InMemoryAgentUnitOfWork(AgentUnitOfWork):
     """Unit of Work в памяти; события агрегатов ленты — в ``store.events`` при коммите."""
 
@@ -139,6 +150,7 @@ class InMemoryAgentUnitOfWork(AgentUnitOfWork):
         self.profiles = _Profiles(store)
         self.tickets = _Tickets(store)
         self.office = _Office(store, self._seen)
+        self.runs = _Runs(store)
 
     async def commit(self) -> None:
         """Собрать события."""

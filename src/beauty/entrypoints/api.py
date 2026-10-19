@@ -41,7 +41,7 @@ class ApiApplicationFactory:
             allow_origin_regex=settings.http.cors_origin_regex,
             allow_credentials=True,
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-            allow_headers=["Authorization", "Content-Type"],
+            allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"],
         )
         container.http_errors.install(app)
         app.include_router(container.identity.api_router(container.mediator), prefix=settings.http.api_prefix)
@@ -59,6 +59,7 @@ class ApiApplicationFactory:
             container.booking.api_router(container.mediator, container.client_auth),
             container.conversations.api_router(container.mediator, container.client_auth),
             MediaController(container.file_storage, container.media_urls).router(),
+            container.admin.api_router(container.mediator),
         ):
             app.include_router(router, prefix=settings.http.api_prefix)
         app.add_api_route("/health", self._health, methods=["GET"], include_in_schema=False)

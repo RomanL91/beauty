@@ -83,3 +83,13 @@ class ClientSessionRevoked(DomainEvent):
     session_id: UUID
     account_id: UUID
     reason: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class ClientBlocked(DomainEvent):
+    """Хозяин сервиса заблокировал (``blocked=False`` — разблокировал) клиента."""
+
+    routing_key = "identity.client.blocked"
+
+    account_id: UUID
+    blocked: bool

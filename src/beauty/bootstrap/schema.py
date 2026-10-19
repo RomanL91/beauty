@@ -26,6 +26,7 @@ class SchemaCatalog:
         "beauty.contexts.conversations.infrastructure.tables",
         "beauty.contexts.agent.infrastructure.tables",
         "beauty.contexts.notifications.infrastructure.tables",
+        "beauty.contexts.admin.infrastructure.tables",
     )
     SCHEMAS: tuple[str, ...] = (
         "infra",
@@ -35,6 +36,7 @@ class SchemaCatalog:
         "conversations",
         "agent",
         "notifications",
+        "admin",
     )
 
     @classmethod

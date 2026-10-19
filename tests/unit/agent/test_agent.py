@@ -92,6 +92,13 @@ async def test_turn_books_through_tools_and_replies(clock: FrozenClock) -> None:
     assert (request.session_id, request.idempotency_key) == (str(CONVERSATION), str(CONVERSATION))
     assert world.booking.requests[0][0] == CLIENT  # клиент — из тикета
     assert world.conversations.replies == [("Записала вас на завтра, Алиса подтвердит.", True)]
+    (run,) = world.store.runs  # журнал ходов — для отчётов панели
+    assert (run.status, run.face, run.conversation_id, run.failed) == (
+        "completed",
+        "front_desk",
+        CONVERSATION,
+        False,
+    )
 
 
 async def test_turn_skipped_or_handed_off(clock: FrozenClock) -> None:
@@ -113,6 +120,7 @@ async def test_turn_skipped_or_handed_off(clock: FrozenClock) -> None:
 
     await failing.answer(ScriptedRuntime(broken))
     assert failing.conversations.handoffs == [FAILURE_NOTE]
+    assert [(r.status, r.failed) for r in failing.store.runs] == [("timeout", True)]
 
     off = World(clock)
     off.store.profiles[MASTER].set_enabled(False, clock.now())

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Column, DateTime, Index, Integer, Table, Text, text
+from sqlalchemy import Boolean, Column, DateTime, Float, Index, Integer, Table, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 
 from beauty.contexts.agent.domain.office import OfficeAuthor
@@ -76,4 +76,19 @@ office_messages = Table(
     ),
     schema="agent",
     comment="Лента поручений мастера его ИИ-администратору",
+)
+
+runs = Table(
+    "runs",
+    metadata,
+    Column("id", Text, primary_key=True, comment="id тикета хода"),
+    Column("master_id", UUID(as_uuid=True), nullable=False),
+    Column("face", FaceType, nullable=False),
+    Column("conversation_id", UUID(as_uuid=True)),
+    Column("status", Text, nullable=False, comment="completed или статус сбоя"),
+    Column("seconds", Float, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Index("ix_runs_created_at", "created_at"),
+    schema="agent",
+    comment="Журнал ходов агента (итог и длительность)",
 )

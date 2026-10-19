@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
@@ -21,6 +22,7 @@ from beauty.contexts.agent.application.ports import (
     ProfileProvisioner,
     RunRequest,
 )
+from beauty.contexts.agent.application.run_log import log_run
 from beauty.contexts.agent.application.uow import AgentUnitOfWork
 from beauty.contexts.agent.domain.profile import AgentProfile
 from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
@@ -186,6 +188,7 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
             )
             uow.tickets.add(ticket)
             await uow.commit()
+        started = time.monotonic()
         outcome = await self._runtime.run(
             RunRequest(
                 profile_name=seat[0],
@@ -196,6 +199,7 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
                 idempotency_key=str(message.message_id),
             )
         )
+        await log_run(self._uow_factory, ticket, outcome, time.monotonic() - started)
         if not outcome.ok:
             logger.warning("Ход агента %s: %s", seat[0], outcome.status)
             await self._conversations.hand_off(message.conversation_id, FAILURE_NOTE)

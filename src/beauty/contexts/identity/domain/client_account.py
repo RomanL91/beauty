@@ -11,6 +11,7 @@ from uuid import UUID
 
 from beauty.contexts.identity.domain.events import (
     ClientAuthenticated,
+    ClientBlocked,
     ClientPhoneChanged,
     ClientRegistered,
     ClientTelegramRelinked,
@@ -32,6 +33,8 @@ class ClientAccount(AggregateRoot):
         self.created_at = created_at
         self.updated_at = created_at
         self.last_authenticated_at: datetime | None = None
+        self.blocked_at: datetime | None = None
+        self.blocked_reason: str | None = None
 
     @classmethod
     def register(
@@ -78,3 +81,28 @@ class ClientAccount(AggregateRoot):
                 telegram_user_id=self.telegram_user_id.value,
             )
         )
+
+    @property
+    def blocked(self) -> bool:
+        """Заблокирован хозяином сервиса."""
+        return self.blocked_at is not None
+
+    def block(self, reason: str | None, now: datetime) -> bool:
+        """Заблокировать (повтор — no-op, ``False``): вход и обновление сессии запрещены."""
+        if self.blocked_at is not None:
+            return False
+        self.blocked_at = now
+        self.blocked_reason = (reason or "").strip()[:300] or None
+        self.updated_at = now
+        self._record(ClientBlocked(occurred_at=now, account_id=self.id, blocked=True))
+        return True
+
+    def unblock(self, now: datetime) -> bool:
+        """Снять блокировку (не заблокирован — no-op, ``False``)."""
+        if self.blocked_at is None:
+            return False
+        self.blocked_at = None
+        self.blocked_reason = None
+        self.updated_at = now
+        self._record(ClientBlocked(occurred_at=now, account_id=self.id, blocked=False))
+        return True

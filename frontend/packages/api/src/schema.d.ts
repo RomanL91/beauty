@@ -789,6 +789,312 @@ export interface webhooks {
     patch?: never;
     trace?: never;
   };
+  '/admin/auth/login': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Вход администратора
+     * @description Логин и пароль. Ставит httpOnly-cookie `bk_admin` (путь `/api/v1/admin`) и отдаёт
+     *     CSRF-токен для заголовка `X-CSRF-Token` изменяющих запросов. Неверный логин и
+     *     неверный пароль — одинаковый 401 `invalid_credentials`; 5 ошибок подряд — 429
+     *     `admin_locked` на 15 минут.
+     */
+    post: operations['adminLogin'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/auth/me': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Текущий администратор и CSRF-токен сессии */
+    get: operations['adminMe'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/auth/logout': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Выйти (сессия отзывается) */
+    post: operations['adminLogout'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/auth/password': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Сменить свой пароль (другие сессии отзываются) */
+    post: operations['adminChangePassword'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/dashboard': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Сводка сервиса */
+    get: operations['adminDashboard'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/masters': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Мастера */
+    get: operations['adminListMasters'];
+    put?: never;
+    /** Завести мастера (страница — черновик) */
+    post: operations['adminCreateMaster'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/masters/{master_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Карточка мастера */
+    get: operations['adminGetMaster'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/masters/{master_id}/owner': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Телефон владельца (кабинет открывается этому номеру Telegram) */
+    put: operations['adminSetMasterOwner'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/masters/{master_id}/publication': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Опубликовать или скрыть страницу */
+    put: operations['adminSetMasterPublication'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/masters/{master_id}/agent': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Включить или выключить ИИ-администратора мастера
+     * @description Только для подключённого агента; подключение — командой `beauty agent provision <slug>`.
+     */
+    put: operations['adminSetMasterAgent'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/clients': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Клиенты платформы */
+    get: operations['adminListClients'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/clients/{client_id}/block': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Заблокировать или разблокировать клиента
+     * @description Блокировка отзывает все сессии; вход и обновление сессии — 403 `account_blocked`.
+     */
+    put: operations['adminSetClientBlock'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/agent': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** ИИ-администратор — настройки, ходы, сбои, голосовые */
+    get: operations['adminAgentReport'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/admins': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Администраторы */
+    get: operations['adminListAdmins'];
+    put?: never;
+    /** Добавить администратора */
+    post: operations['adminCreateAdmin'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/admins/{admin_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Включить/отключить администратора или задать ему пароль
+     * @description Отключение и новый пароль отзывают его сессии; себя отключить нельзя (409 `cannot_disable_self`).
+     */
+    patch: operations['adminUpdateAdmin'];
+    trace?: never;
+  };
+  '/admin/audit': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Журнал действий администраторов */
+    get: operations['adminAudit'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/system': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Состояние системы */
+    get: operations['adminSystem'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export interface components {
   schemas: {
@@ -1487,6 +1793,216 @@ export interface components {
         auth: string;
       };
     };
+    AdminLoginInput: {
+      login: string;
+      password: string;
+    };
+    AdminPasswordChange: {
+      current_password: string;
+      new_password: string;
+    };
+    AdminAccount: {
+      /** Format: uuid */
+      id: string;
+      login: string;
+      display_name: string;
+      active: boolean;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      last_login_at: string | null;
+    };
+    AdminAccountInput: {
+      login: string;
+      display_name: string;
+      password: string;
+    };
+    AdminSession: {
+      admin: components['schemas']['AdminAccount'];
+      csrf_token: string;
+      /** Format: date-time */
+      expires_at: string;
+    };
+    DailyPoint: {
+      /** Format: date */
+      date: string;
+      /** @description Новые заявки. */
+      requested: number;
+      /** @description Подтверждённые записи. */
+      confirmed: number;
+      /** @description Отменённые и отклонённые. */
+      cancelled: number;
+      new_clients: number;
+      /** @description Сообщения клиентов. */
+      messages: number;
+      agent_turns: number;
+      agent_failures: number;
+    };
+    AdminDashboard: {
+      totals: {
+        masters: number;
+        published: number;
+        agents_enabled: number;
+        clients: number;
+        blocked_clients: number;
+        /** @description Подтверждённые записи впереди. */
+        upcoming_appointments: number;
+        /** @description Заявки, ждущие мастера. */
+        pending_requests: number;
+        conversations: number;
+      };
+      /** @description 30 дней по UTC, по возрастанию. */
+      days: components['schemas']['DailyPoint'][];
+    };
+    /** @enum {string} */
+    MasterStatus: 'draft' | 'published';
+    /**
+     * @description `not_connected` — профиль Hermes не создан (`beauty agent provision <slug>`).
+     * @enum {string}
+     */
+    AgentState: 'not_connected' | 'enabled' | 'disabled';
+    AdminMasterRow: {
+      /** Format: uuid */
+      id: string;
+      slug: string;
+      display_name: string;
+      specialty: string;
+      status: components['schemas']['MasterStatus'];
+      owner_phone: string | null;
+      agent: components['schemas']['AgentState'];
+      services: number;
+      appointments_30d: number;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      last_activity_at: string | null;
+    };
+    AdminMasterInput: {
+      slug: string;
+      display_name: string;
+      name_forms: components['schemas']['NameForms'];
+      specialty?: string;
+      /** @example Asia/Almaty */
+      timezone: string;
+      /** @example +77011234567 */
+      owner_phone?: string | null;
+    };
+    AdminUpcoming: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      start: string;
+      /** @enum {string} */
+      status: 'requested' | 'confirmed';
+      service: string;
+      /** @description Телефон клиента. */
+      client: string;
+    };
+    AdminMasterDetail: components['schemas']['AdminMasterRow'] & {
+      page: components['schemas']['MasterPage'];
+      /** Format: date-time */
+      published_at: string | null;
+      publish_blockers: string[];
+      /** @description Команда подключения агента (если не подключён). */
+      agent_command: string | null;
+      /** @description За 30 дней (клиенты и переписки — всего). */
+      stats: {
+        clients: number;
+        conversations: number;
+        requested: number;
+        confirmed: number;
+        cancelled: number;
+        completed: number;
+        agent_turns: number;
+        agent_failures: number;
+        handoffs: number;
+      };
+      upcoming: components['schemas']['AdminUpcoming'][];
+    };
+    AdminClientRow: {
+      /** Format: uuid */
+      id: string;
+      phone: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      last_login_at: string | null;
+      /** @description Адреса мастеров, с кем есть переписка. */
+      masters: string[];
+      appointments: number;
+      blocked: boolean;
+      blocked_reason: string | null;
+    };
+    AgentDay: {
+      /** Format: date */
+      date: string;
+      front_desk: number;
+      office: number;
+      failures: number;
+      handoffs: number;
+      avg_seconds: number | null;
+      p95_seconds: number | null;
+    };
+    AgentFailure: {
+      /** Format: date-time */
+      at: string;
+      /** @description Адрес страницы мастера. */
+      master: string;
+      /** @enum {string} */
+      face: 'front_desk' | 'back_office';
+      status: string;
+      seconds: number;
+    };
+    AdminAgentReport: {
+      /** @enum {string} */
+      runtime: 'off' | 'hermes';
+      model: string;
+      speech: {
+        /** @enum {string} */
+        provider: 'off' | 'openrouter' | 'fake';
+        model: string;
+      };
+      days: components['schemas']['AgentDay'][];
+      /** @description Последние сбои (до 20). */
+      failures: components['schemas']['AgentFailure'][];
+      /** @description Голосовые клиентов и поручения за 14 дней. */
+      voice: {
+        total: number;
+        transcribed: number;
+      };
+    };
+    AdminAuditEntry: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      at: string;
+      /** @description Логин. */
+      admin: string;
+      /** @example master.created */
+      action: string;
+      /** @description Над чем (адрес мастера, телефон, логин). */
+      target: string | null;
+      summary: string;
+    };
+    AdminSystem: {
+      environment: string;
+      database: boolean;
+      outbox: {
+        /** @description События, ещё не отправленные в брокер. */
+        pending: number;
+        oldest_seconds: number | null;
+      };
+      jobs: {
+        scheduled: number;
+        /** @description Просрочены более чем на 5 минут. */
+        overdue: number;
+      };
+      features: {
+        agent: boolean;
+        speech: boolean;
+        push: boolean;
+      };
+    };
   };
   responses: {
     /** @description Настройки после изменения. */
@@ -1509,6 +2025,11 @@ export interface components {
     };
   };
   parameters: {
+    MasterId: string;
+    ClientId: string;
+    AdminId: string;
+    /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
+    CsrfToken: string;
     ChallengeId: string;
     MasterSlug: string;
     ConversationId: string;
@@ -2606,6 +3127,539 @@ export interface operations {
         };
         content?: never;
       };
+    };
+  };
+  adminLogin: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminLoginInput'];
+      };
+    };
+    responses: {
+      /** @description Вход выполнен. */
+      200: {
+        headers: {
+          'Set-Cookie'?: string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminSession'];
+        };
+      };
+      401: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+      429: components['responses']['Problem'];
+    };
+  };
+  adminMe: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Сессия жива. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminSession'];
+        };
+      };
+      401: components['responses']['Problem'];
+    };
+  };
+  adminLogout: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
+        'X-CSRF-Token': components['parameters']['CsrfToken'];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Сессия закрыта. */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components['responses']['Problem'];
+    };
+  };
+  adminChangePassword: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
+        'X-CSRF-Token': components['parameters']['CsrfToken'];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminPasswordChange'];
+      };
+    };
+    responses: {
+      /** @description Пароль изменён. */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  adminDashboard: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Итоги и ряды за 30 дней. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminDashboard'];
+        };
+      };
+      401: components['responses']['Problem'];
+    };
+  };
+  adminListMasters: {
+    parameters: {
+      query?: {
+        /** @description Поиск по адресу, имени, телефону владельца. */
+        q?: string;
+        status?: components['schemas']['MasterStatus'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Мастера (новые сверху). */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: components['schemas']['AdminMasterRow'][];
+          };
+        };
+      };
+      401: components['responses']['Problem'];
+    };
+  };
+  adminCreateMaster: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
+        'X-CSRF-Token': components['parameters']['CsrfToken'];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminMasterInput'];
+      };
+    };
+    responses: {
+      /** @description Мастер заведён. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMasterDetail'];
+        };
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  adminGetMaster: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        master_id: components['parameters']['MasterId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Мастер. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMasterDetail'];
+        };
+      };
+      401: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+    };
+  };
+  adminSetMasterOwner: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
+        'X-CSRF-Token': components['parameters']['CsrfToken'];
+      };
+      path: {
+        master_id: components['parameters']['MasterId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @example +77011234567 */
+          phone: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Мастер. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMasterDetail'];
+        };
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  adminSetMasterPublication: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
+        'X-CSRF-Token': components['parameters']['CsrfToken'];
+      };
+      path: {
+        master_id: components['parameters']['MasterId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          published: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Мастер. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMasterDetail'];
+        };
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+    };
+  };
+  adminSetMasterAgent: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
+        'X-CSRF-Token': components['parameters']['CsrfToken'];
+      };
+      path: {
+        master_id: components['parameters']['MasterId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          enabled: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Мастер. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMasterDetail'];
+        };
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+    };
+  };
+  adminListClients: {
+    parameters: {
+      query?: {
+        /** @description Цифры телефона. */
+        q?: string;
+        blocked?: boolean;
+        limit?: components['parameters']['Limit'];
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Клиенты (новые сверху). */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: components['schemas']['AdminClientRow'][];
+            total: number;
+          };
+        };
+      };
+      401: components['responses']['Problem'];
+    };
+  };
+  adminSetClientBlock: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
+        'X-CSRF-Token': components['parameters']['CsrfToken'];
+      };
+      path: {
+        client_id: components['parameters']['ClientId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          blocked: boolean;
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Клиент. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminClientRow'];
+        };
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+    };
+  };
+  adminAgentReport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Отчёт за 14 дней. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminAgentReport'];
+        };
+      };
+      401: components['responses']['Problem'];
+    };
+  };
+  adminListAdmins: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Администраторы. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: components['schemas']['AdminAccount'][];
+          };
+        };
+      };
+      401: components['responses']['Problem'];
+    };
+  };
+  adminCreateAdmin: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
+        'X-CSRF-Token': components['parameters']['CsrfToken'];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AdminAccountInput'];
+      };
+    };
+    responses: {
+      /** @description Администратор. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminAccount'];
+        };
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  adminUpdateAdmin: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
+        'X-CSRF-Token': components['parameters']['CsrfToken'];
+      };
+      path: {
+        admin_id: components['parameters']['AdminId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          active?: boolean;
+          password?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Администратор. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminAccount'];
+        };
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  adminAudit: {
+    parameters: {
+      query?: {
+        /** @description Курсор — `id` самой старой загруженной записи. */
+        before?: string;
+        limit?: components['parameters']['Limit'];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Записи (новые сверху). */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: components['schemas']['AdminAuditEntry'][];
+            has_more: boolean;
+          };
+        };
+      };
+      401: components['responses']['Problem'];
+    };
+  };
+  adminSystem: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Состояние. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminSystem'];
+        };
+      };
+      401: components['responses']['Problem'];
     };
   };
 }

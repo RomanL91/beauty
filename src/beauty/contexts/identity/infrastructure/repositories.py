@@ -16,7 +16,7 @@ from beauty.contexts.identity.domain.repositories import (
     ClientSessionRepository,
 )
 from beauty.contexts.identity.domain.value_objects import AuthNonce, PhoneNumber, TelegramUserId
-from beauty.contexts.identity.infrastructure.tables import auth_challenges, client_accounts
+from beauty.contexts.identity.infrastructure.tables import auth_challenges, client_accounts, client_sessions
 from beauty.shared.infrastructure.db.repository import SqlAlchemyRepository
 
 
@@ -73,3 +73,13 @@ class SqlAlchemyClientSessionRepository(SqlAlchemyRepository[ClientSession], Cli
     async def get(self, session_id: UUID) -> ClientSession | None:
         """По первичному ключу."""
         return self._seen(await self._session.get(ClientSession, session_id))
+
+    async def active_of(self, account_id: UUID) -> list[ClientSession]:
+        """Неотозванные сессии учётной записи."""
+        statement = select(ClientSession).where(
+            client_sessions.c.account_id == account_id, client_sessions.c.revoked_at.is_(None)
+        )
+        sessions = list((await self._session.execute(statement)).scalars())
+        for session in sessions:
+            self._seen(session)
+        return sessions

@@ -1,5 +1,9 @@
 """Команды Identity — по модулю на сценарий: сообщение + его обработчик."""
 
+from beauty.contexts.identity.application.commands.block_account import (
+    SetAccountBlocked,
+    SetAccountBlockedHandler,
+)
 from beauty.contexts.identity.application.commands.claim_challenge import (
     ClaimChallenge,
     ClaimChallengeHandler,
@@ -39,6 +43,8 @@ __all__ = [
     "RefreshSessionHandler",
     "RevokeSession",
     "RevokeSessionHandler",
+    "SetAccountBlocked",
+    "SetAccountBlockedHandler",
     "StartTelegramAuth",
     "StartTelegramAuthHandler",
 ]

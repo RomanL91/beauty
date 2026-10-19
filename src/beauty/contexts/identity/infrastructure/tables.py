@@ -63,6 +63,8 @@ client_accounts = Table(
     Column("telegram_user_id", TelegramUserIdType, nullable=False, unique=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+    Column("blocked_at", DateTime(timezone=True), comment="заблокирован хозяином сервиса"),
+    Column("blocked_reason", Text),
     Column("last_authenticated_at", DateTime(timezone=True)),
     Column("version", Integer, nullable=False),
     schema=SCHEMA,

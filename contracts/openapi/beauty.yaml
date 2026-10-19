@@ -40,6 +40,10 @@ tags:
     description: Поручения мастера ИИ-агенту (кабинет; появятся вместе с агентом).
   - name: push
     description: Подписки Web Push.
+  - name: admin
+    description: |
+      Админ-панель хозяина сервиса (`admin.<домен>`). Вход — логин и пароль; сессия —
+      httpOnly-cookie `bk_admin`, изменяющие запросы — с заголовком `X-CSRF-Token`.
 security:
   - bearerAuth: []
 
@@ -954,6 +958,418 @@ webhooks:
         '201':
           description: Push-сервис принял сообщение.
 
+  /admin/auth/login:
+    post:
+      tags: [admin]
+      operationId: adminLogin
+      summary: Вход администратора
+      description: |
+        Логин и пароль. Ставит httpOnly-cookie `bk_admin` (путь `/api/v1/admin`) и отдаёт
+        CSRF-токен для заголовка `X-CSRF-Token` изменяющих запросов. Неверный логин и
+        неверный пароль — одинаковый 401 `invalid_credentials`; 5 ошибок подряд — 429
+        `admin_locked` на 15 минут.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminLoginInput' }
+      responses:
+        '200':
+          description: Вход выполнен.
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminSession' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+  /admin/auth/me:
+    get:
+      tags: [admin]
+      operationId: adminMe
+      summary: Текущий администратор и CSRF-токен сессии
+      security: [{ adminCookie: [] }]
+      responses:
+        '200':
+          description: Сессия жива.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminSession' }
+        '401': { $ref: '#/components/responses/Problem' }
+  /admin/auth/logout:
+    post:
+      tags: [admin]
+      operationId: adminLogout
+      summary: Выйти (сессия отзывается)
+      security: [{ adminCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/CsrfToken' }]
+      responses:
+        '204': { description: Сессия закрыта. }
+        '401': { $ref: '#/components/responses/Problem' }
+  /admin/auth/password:
+    post:
+      tags: [admin]
+      operationId: adminChangePassword
+      summary: Сменить свой пароль (другие сессии отзываются)
+      security: [{ adminCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/CsrfToken' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminPasswordChange' }
+      responses:
+        '204': { description: Пароль изменён. }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /admin/dashboard:
+    get:
+      tags: [admin]
+      operationId: adminDashboard
+      summary: Сводка сервиса
+      security: [{ adminCookie: [] }]
+      responses:
+        '200':
+          description: Итоги и ряды за 30 дней.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDashboard' }
+        '401': { $ref: '#/components/responses/Problem' }
+  /admin/masters:
+    get:
+      tags: [admin]
+      operationId: adminListMasters
+      summary: Мастера
+      security: [{ adminCookie: [] }]
+      parameters:
+        - name: q
+          in: query
+          description: Поиск по адресу, имени, телефону владельца.
+          schema: { type: string, maxLength: 100 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/MasterStatus' }
+      responses:
+        '200':
+          description: Мастера (новые сверху).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminMasterRow' }
+        '401': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [admin]
+      operationId: adminCreateMaster
+      summary: Завести мастера (страница — черновик)
+      security: [{ adminCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/CsrfToken' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminMasterInput' }
+      responses:
+        '201':
+          description: Мастер заведён.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminMasterDetail' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /admin/masters/{master_id}:
+    get:
+      tags: [admin]
+      operationId: adminGetMaster
+      summary: Карточка мастера
+      security: [{ adminCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/MasterId' }]
+      responses:
+        '200':
+          description: Мастер.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminMasterDetail' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /admin/masters/{master_id}/owner:
+    put:
+      tags: [admin]
+      operationId: adminSetMasterOwner
+      summary: Телефон владельца (кабинет открывается этому номеру Telegram)
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/MasterId' }
+        - { $ref: '#/components/parameters/CsrfToken' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, example: '+77011234567' }
+      responses:
+        '200':
+          description: Мастер.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminMasterDetail' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /admin/masters/{master_id}/publication:
+    put:
+      tags: [admin]
+      operationId: adminSetMasterPublication
+      summary: Опубликовать или скрыть страницу
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/MasterId' }
+        - { $ref: '#/components/parameters/CsrfToken' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [published]
+              properties:
+                published: { type: boolean }
+      responses:
+        '200':
+          description: Мастер.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminMasterDetail' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /admin/masters/{master_id}/agent:
+    put:
+      tags: [admin]
+      operationId: adminSetMasterAgent
+      summary: Включить или выключить ИИ-администратора мастера
+      description: Только для подключённого агента; подключение — командой `beauty agent provision <slug>`.
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/MasterId' }
+        - { $ref: '#/components/parameters/CsrfToken' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+      responses:
+        '200':
+          description: Мастер.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminMasterDetail' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /admin/clients:
+    get:
+      tags: [admin]
+      operationId: adminListClients
+      summary: Клиенты платформы
+      security: [{ adminCookie: [] }]
+      parameters:
+        - name: q
+          in: query
+          description: Цифры телефона.
+          schema: { type: string, maxLength: 20 }
+        - name: blocked
+          in: query
+          schema: { type: boolean }
+        - { $ref: '#/components/parameters/Limit' }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: Клиенты (новые сверху).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminClientRow' }
+                  total: { type: integer }
+        '401': { $ref: '#/components/responses/Problem' }
+  /admin/clients/{client_id}/block:
+    put:
+      tags: [admin]
+      operationId: adminSetClientBlock
+      summary: Заблокировать или разблокировать клиента
+      description: Блокировка отзывает все сессии; вход и обновление сессии — 403 `account_blocked`.
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ClientId' }
+        - { $ref: '#/components/parameters/CsrfToken' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blocked]
+              properties:
+                blocked: { type: boolean }
+                reason: { type: string, maxLength: 300 }
+      responses:
+        '200':
+          description: Клиент.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminClientRow' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /admin/agent:
+    get:
+      tags: [admin]
+      operationId: adminAgentReport
+      summary: ИИ-администратор — настройки, ходы, сбои, голосовые
+      security: [{ adminCookie: [] }]
+      responses:
+        '200':
+          description: Отчёт за 14 дней.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminAgentReport' }
+        '401': { $ref: '#/components/responses/Problem' }
+  /admin/admins:
+    get:
+      tags: [admin]
+      operationId: adminListAdmins
+      summary: Администраторы
+      security: [{ adminCookie: [] }]
+      responses:
+        '200':
+          description: Администраторы.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminAccount' }
+        '401': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [admin]
+      operationId: adminCreateAdmin
+      summary: Добавить администратора
+      security: [{ adminCookie: [] }]
+      parameters: [{ $ref: '#/components/parameters/CsrfToken' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminAccountInput' }
+      responses:
+        '201':
+          description: Администратор.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminAccount' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /admin/admins/{admin_id}:
+    patch:
+      tags: [admin]
+      operationId: adminUpdateAdmin
+      summary: Включить/отключить администратора или задать ему пароль
+      description: Отключение и новый пароль отзывают его сессии; себя отключить нельзя (409 `cannot_disable_self`).
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/AdminId' }
+        - { $ref: '#/components/parameters/CsrfToken' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                active: { type: boolean }
+                password: { type: string, minLength: 10, maxLength: 200 }
+      responses:
+        '200':
+          description: Администратор.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminAccount' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /admin/audit:
+    get:
+      tags: [admin]
+      operationId: adminAudit
+      summary: Журнал действий администраторов
+      security: [{ adminCookie: [] }]
+      parameters:
+        - name: before
+          in: query
+          description: Курсор — `id` самой старой загруженной записи.
+          schema: { type: string, format: uuid }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: Записи (новые сверху).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, has_more]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminAuditEntry' }
+                  has_more: { type: boolean }
+        '401': { $ref: '#/components/responses/Problem' }
+  /admin/system:
+    get:
+      tags: [admin]
+      operationId: adminSystem
+      summary: Состояние системы
+      security: [{ adminCookie: [] }]
+      responses:
+        '200':
+          description: Состояние.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminSystem' }
+        '401': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -968,8 +1384,33 @@ components:
       type: apiKey
       in: cookie
       name: bk_refresh
+    adminCookie:
+      type: apiKey
+      in: cookie
+      name: bk_admin
 
   parameters:
+    MasterId:
+      name: master_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ClientId:
+      name: client_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AdminId:
+      name: admin_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`).
+      schema: { type: string }
     ChallengeId:
       name: challenge_id
       in: path
@@ -1742,3 +2183,239 @@ components:
           properties:
             p256dh: { type: string }
             auth: { type: string }
+    AdminLoginInput:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string, minLength: 1, maxLength: 64 }
+        password: { type: string, minLength: 1, maxLength: 200 }
+    AdminPasswordChange:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password: { type: string, maxLength: 200 }
+        new_password: { type: string, minLength: 10, maxLength: 200 }
+    AdminAccount:
+      type: object
+      required: [id, login, display_name, active, created_at, last_login_at]
+      properties:
+        id: { type: string, format: uuid }
+        login: { type: string }
+        display_name: { type: string }
+        active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        last_login_at: { type: [string, 'null'], format: date-time }
+    AdminAccountInput:
+      type: object
+      required: [login, display_name, password]
+      properties:
+        login: { type: string, pattern: '^[a-z0-9._-]{3,64}$' }
+        display_name: { type: string, minLength: 1, maxLength: 80 }
+        password: { type: string, minLength: 10, maxLength: 200 }
+    AdminSession:
+      type: object
+      required: [admin, csrf_token, expires_at]
+      properties:
+        admin: { $ref: '#/components/schemas/AdminAccount' }
+        csrf_token: { type: string }
+        expires_at: { type: string, format: date-time }
+    DailyPoint:
+      type: object
+      required: [date, requested, confirmed, cancelled, new_clients, messages, agent_turns, agent_failures]
+      properties:
+        date: { type: string, format: date }
+        requested: { type: integer, description: 'Новые заявки.' }
+        confirmed: { type: integer, description: 'Подтверждённые записи.' }
+        cancelled: { type: integer, description: 'Отменённые и отклонённые.' }
+        new_clients: { type: integer }
+        messages: { type: integer, description: 'Сообщения клиентов.' }
+        agent_turns: { type: integer }
+        agent_failures: { type: integer }
+    AdminDashboard:
+      type: object
+      required: [totals, days]
+      properties:
+        totals:
+          type: object
+          required: [masters, published, agents_enabled, clients, blocked_clients, upcoming_appointments, pending_requests, conversations]
+          properties:
+            masters: { type: integer }
+            published: { type: integer }
+            agents_enabled: { type: integer }
+            clients: { type: integer }
+            blocked_clients: { type: integer }
+            upcoming_appointments: { type: integer, description: 'Подтверждённые записи впереди.' }
+            pending_requests: { type: integer, description: 'Заявки, ждущие мастера.' }
+            conversations: { type: integer }
+        days:
+          type: array
+          description: 30 дней по UTC, по возрастанию.
+          items: { $ref: '#/components/schemas/DailyPoint' }
+    MasterStatus:
+      type: string
+      enum: [draft, published]
+    AgentState:
+      type: string
+      enum: [not_connected, enabled, disabled]
+      description: '`not_connected` — профиль Hermes не создан (`beauty agent provision <slug>`).'
+    AdminMasterRow:
+      type: object
+      required: [id, slug, display_name, specialty, status, owner_phone, agent, services, appointments_30d, created_at, last_activity_at]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        display_name: { type: string }
+        specialty: { type: string }
+        status: { $ref: '#/components/schemas/MasterStatus' }
+        owner_phone: { type: [string, 'null'] }
+        agent: { $ref: '#/components/schemas/AgentState' }
+        services: { type: integer }
+        appointments_30d: { type: integer }
+        created_at: { type: string, format: date-time }
+        last_activity_at: { type: [string, 'null'], format: date-time }
+    AdminMasterInput:
+      type: object
+      required: [slug, display_name, name_forms, timezone]
+      properties:
+        slug: { type: string, pattern: '^[a-z0-9-]{2,40}$' }
+        display_name: { type: string, minLength: 1, maxLength: 80 }
+        name_forms: { $ref: '#/components/schemas/NameForms' }
+        specialty: { type: string, maxLength: 120 }
+        timezone: { type: string, example: Asia/Almaty }
+        owner_phone: { type: [string, 'null'], example: '+77011234567' }
+    AdminUpcoming:
+      type: object
+      required: [id, start, status, service, client]
+      properties:
+        id: { type: string, format: uuid }
+        start: { type: string, format: date-time }
+        status: { type: string, enum: [requested, confirmed] }
+        service: { type: string }
+        client: { type: string, description: 'Телефон клиента.' }
+    AdminMasterDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminMasterRow'
+        - type: object
+          required: [page, published_at, publish_blockers, agent_command, stats, upcoming]
+          properties:
+            page: { $ref: '#/components/schemas/MasterPage' }
+            published_at: { type: [string, 'null'], format: date-time }
+            publish_blockers:
+              type: array
+              items: { type: string }
+            agent_command:
+              type: [string, 'null']
+              description: Команда подключения агента (если не подключён).
+            stats:
+              type: object
+              required: [clients, conversations, requested, confirmed, cancelled, completed, agent_turns, agent_failures, handoffs]
+              description: За 30 дней (клиенты и переписки — всего).
+              properties:
+                clients: { type: integer }
+                conversations: { type: integer }
+                requested: { type: integer }
+                confirmed: { type: integer }
+                cancelled: { type: integer }
+                completed: { type: integer }
+                agent_turns: { type: integer }
+                agent_failures: { type: integer }
+                handoffs: { type: integer }
+            upcoming:
+              type: array
+              items: { $ref: '#/components/schemas/AdminUpcoming' }
+    AdminClientRow:
+      type: object
+      required: [id, phone, created_at, last_login_at, masters, appointments, blocked, blocked_reason]
+      properties:
+        id: { type: string, format: uuid }
+        phone: { type: string }
+        created_at: { type: string, format: date-time }
+        last_login_at: { type: [string, 'null'], format: date-time }
+        masters:
+          type: array
+          description: Адреса мастеров, с кем есть переписка.
+          items: { type: string }
+        appointments: { type: integer }
+        blocked: { type: boolean }
+        blocked_reason: { type: [string, 'null'] }
+    AgentDay:
+      type: object
+      required: [date, front_desk, office, failures, handoffs, avg_seconds, p95_seconds]
+      properties:
+        date: { type: string, format: date }
+        front_desk: { type: integer }
+        office: { type: integer }
+        failures: { type: integer }
+        handoffs: { type: integer }
+        avg_seconds: { type: [number, 'null'] }
+        p95_seconds: { type: [number, 'null'] }
+    AgentFailure:
+      type: object
+      required: [at, master, face, status, seconds]
+      properties:
+        at: { type: string, format: date-time }
+        master: { type: string, description: 'Адрес страницы мастера.' }
+        face: { type: string, enum: [front_desk, back_office] }
+        status: { type: string }
+        seconds: { type: number }
+    AdminAgentReport:
+      type: object
+      required: [runtime, model, speech, days, failures, voice]
+      properties:
+        runtime: { type: string, enum: ['off', hermes] }
+        model: { type: string }
+        speech:
+          type: object
+          required: [provider, model]
+          properties:
+            provider: { type: string, enum: ['off', openrouter, fake] }
+            model: { type: string }
+        days:
+          type: array
+          items: { $ref: '#/components/schemas/AgentDay' }
+        failures:
+          type: array
+          description: Последние сбои (до 20).
+          items: { $ref: '#/components/schemas/AgentFailure' }
+        voice:
+          type: object
+          required: [total, transcribed]
+          description: Голосовые клиентов и поручения за 14 дней.
+          properties:
+            total: { type: integer }
+            transcribed: { type: integer }
+    AdminAuditEntry:
+      type: object
+      required: [id, at, admin, action, target, summary]
+      properties:
+        id: { type: string, format: uuid }
+        at: { type: string, format: date-time }
+        admin: { type: string, description: 'Логин.' }
+        action: { type: string, example: master.created }
+        target: { type: [string, 'null'], description: 'Над чем (адрес мастера, телефон, логин).' }
+        summary: { type: string }
+    AdminSystem:
+      type: object
+      required: [environment, database, outbox, jobs, features]
+      properties:
+        environment: { type: string }
+        database: { type: boolean }
+        outbox:
+          type: object
+          required: [pending, oldest_seconds]
+          properties:
+            pending: { type: integer, description: 'События, ещё не отправленные в брокер.' }
+            oldest_seconds: { type: [number, 'null'] }
+        jobs:
+          type: object
+          required: [scheduled, overdue]
+          properties:
+            scheduled: { type: integer }
+            overdue: { type: integer, description: 'Просрочены более чем на 5 минут.' }
+        features:
+          type: object
+          required: [agent, speech, push]
+          properties:
+            agent: { type: boolean }
+            speech: { type: boolean }
+            push: { type: boolean }

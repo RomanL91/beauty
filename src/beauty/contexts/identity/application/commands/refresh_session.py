@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from beauty.contexts.identity.application.dto import SessionTokens
-from beauty.contexts.identity.application.errors import InvalidSessionError, SessionReuseError
+from beauty.contexts.identity.application.errors import (
+    AccountBlockedError,
+    InvalidSessionError,
+    SessionReuseError,
+)
 from beauty.contexts.identity.application.ports import AccessTokenIssuer, SecretGenerator
 from beauty.contexts.identity.application.services.refresh_token import RefreshToken
 from beauty.contexts.identity.application.uow import IdentityUnitOfWork
@@ -51,6 +55,11 @@ class RefreshSessionHandler(Handler[RefreshSession, SessionTokens]):
             session = await uow.sessions.get(presented.session_id)
             if session is None:
                 raise InvalidSessionError()
+            account = await uow.accounts.get(session.account_id)
+            if account is not None and account.blocked:
+                session.revoke(now, "account_blocked")
+                await uow.commit()
+                raise AccountBlockedError()
             try:
                 outcome = session.rotate(
                     presented.secret, HashedSecret.of(new_secret), now, self._refresh_ttl

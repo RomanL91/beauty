@@ -12,7 +12,9 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+from beauty.contexts.admin.application import ports as admin_ports
 from beauty.contexts.agent.application import ports as agent_ports
+from beauty.contexts.agent.application.commands import SetAgentEnabled
 from beauty.contexts.booking.application.commands import (
     CancelAppointment,
     CancelAppointmentByMaster,
@@ -63,20 +65,30 @@ from beauty.contexts.conversations.application.queries import (
     ListInbox,
 )
 from beauty.contexts.conversations.domain.content import OfferedSlot
+from beauty.contexts.identity.application.commands import SetAccountBlocked
 from beauty.contexts.identity.application.queries import ClientNotFoundError, GetClientContact
 from beauty.contexts.notifications.application import ports as notification_ports
 from beauty.contexts.tenancy.application import errors as tenancy_errors
-from beauty.contexts.tenancy.application.commands import ChangeDayOff
+from beauty.contexts.tenancy.application.commands import (
+    AssignOwner,
+    ChangeDayOff,
+    PublishMaster,
+    RegisterMaster,
+    UnpublishMaster,
+    UpdateMasterProfile,
+)
 from beauty.contexts.tenancy.application.ports import BusyTimeSource
 from beauty.contexts.tenancy.application.queries import (
     CheckBookableSlot,
     FindMasterByOwner,
     FindMasterId,
     GetMasterPage,
+    GetMasterSettings,
     GetWorkingCalendar,
     ListFreeSlots,
 )
 from beauty.contexts.tenancy.domain.slots import TimeInterval
+from beauty.contexts.tenancy.presentation.api.schemas import MasterSettingsResponse
 from beauty.shared.application.mediator import Mediator
 
 type MediatorProvider = Callable[[], Mediator]
@@ -443,3 +455,75 @@ class NotificationsDirectory(notification_ports.Directory):
         except ConversationNotFoundError:
             return None
         return str(summary.display_name)
+
+
+class AdminPlatform(admin_ports.Platform):
+    """Admin → Tenancy, Agent, Identity: изменения от имени хозяина сервиса."""
+
+    def __init__(self, mediator: MediatorProvider) -> None:
+        """Получить медиатор (лениво)."""
+        self._mediator = mediator
+
+    async def register_master(self, draft: admin_ports.MasterDraft) -> UUID:
+        """Регистрация (черновик), специализация, владелец."""
+        mediator = self._mediator()
+        master_id: UUID = await mediator.send(
+            RegisterMaster(
+                draft.slug,
+                draft.display_name,
+                draft.name_nominative,
+                draft.name_genitive,
+                draft.name_dative,
+                draft.timezone,
+            )
+        )
+        if draft.specialty.strip():
+            await mediator.send(
+                UpdateMasterProfile(
+                    master_id=master_id,
+                    display_name=draft.display_name,
+                    name_nominative=draft.name_nominative,
+                    name_genitive=draft.name_genitive,
+                    name_dative=draft.name_dative,
+                    specialty=draft.specialty.strip(),
+                    address="",
+                    about="",
+                    timezone=draft.timezone,
+                )
+            )
+        if draft.owner_phone:
+            await mediator.send(AssignOwner(draft.slug, draft.owner_phone))
+        return master_id
+
+    async def set_owner(self, master_id: UUID, phone: str) -> None:
+        """Владелец по адресу страницы."""
+        mediator = self._mediator()
+        settings = await mediator.send(GetMasterSettings(master_id))
+        await mediator.send(AssignOwner(settings.page.slug, phone))
+
+    async def set_published(self, master_id: UUID, published: bool) -> None:
+        """Публикация по правилам Tenancy."""
+        command = PublishMaster(master_id) if published else UnpublishMaster(master_id)
+        await self._mediator().send(command)
+
+    async def set_agent(self, master_id: UUID, enabled: bool) -> None:
+        """Агент мастера (профиль Hermes должен быть подключён)."""
+        await self._mediator().send(SetAgentEnabled(master_id, enabled))
+
+    async def set_client_blocked(self, client_id: UUID, blocked: bool, reason: str | None) -> None:
+        """Блокировка в Identity."""
+        await self._mediator().send(SetAccountBlocked(client_id, blocked, reason))
+
+
+def admin_master_settings(mediator: MediatorProvider) -> Callable[[UUID], Any]:
+    """Настройки страницы мастера в форме контракта ``MasterSettings`` (для отчётов панели)."""
+
+    async def read(master_id: UUID) -> dict[str, Any] | None:
+        try:
+            view = await mediator().send(GetMasterSettings(master_id))
+        except tenancy_errors.MasterNotFoundError:
+            return None
+        body: dict[str, Any] = MasterSettingsResponse.of(view).model_dump(mode="json")
+        return body
+
+    return read

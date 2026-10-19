@@ -6,8 +6,9 @@ from typing import ClassVar
 
 from beauty.contexts.agent.domain.office import OfficeMessage
 from beauty.contexts.agent.domain.profile import AgentProfile
+from beauty.contexts.agent.domain.run import AgentRun
 from beauty.contexts.agent.domain.ticket import RunTicket
-from beauty.contexts.agent.infrastructure.tables import office_messages, profiles, tickets
+from beauty.contexts.agent.infrastructure.tables import office_messages, profiles, runs, tickets
 from beauty.shared.infrastructure.db.metadata import mapper_registry
 
 
@@ -23,6 +24,7 @@ class AgentOrmMapper:
             return
         mapper_registry.map_imperatively(AgentProfile, profiles, version_id_col=profiles.c.version)
         mapper_registry.map_imperatively(RunTicket, tickets, version_id_col=tickets.c.version)
+        mapper_registry.map_imperatively(AgentRun, runs)
         mapper_registry.map_imperatively(
             OfficeMessage, office_messages, version_id_col=office_messages.c.version
         )

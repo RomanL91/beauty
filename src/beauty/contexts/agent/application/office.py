@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
@@ -12,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 from beauty.contexts.agent.application.instructions import catalog_digest, office_instructions, turn_input
 from beauty.contexts.agent.application.ports import AgentRuntime, MasterBriefs, RunRequest
+from beauty.contexts.agent.application.run_log import log_run
 from beauty.contexts.agent.application.uow import AgentUnitOfWork
 from beauty.contexts.agent.domain.errors import UnknownChoiceOption
 from beauty.contexts.agent.domain.office import (
@@ -234,6 +236,7 @@ class RunOfficeTurnHandler(Handler[RunOfficeTurn, None]):
             == now.astimezone(ZoneInfo(master.timezone)).date()
         )
         day = now.astimezone(ZoneInfo(master.timezone)).date()
+        started = time.monotonic()
         outcome = await self._runtime.run(
             RunRequest(
                 profile_name=seat[0],
@@ -244,6 +247,7 @@ class RunOfficeTurnHandler(Handler[RunOfficeTurn, None]):
                 idempotency_key=message.idempotency_key,
             )
         )
+        await log_run(self._uow_factory, ticket, outcome, time.monotonic() - started)
         if not outcome.ok:
             logger.warning("Ход кабинета %s: %s", seat[0], outcome.status)
             await self._post(message.master_id, OfficeSystem(FAILURE_REPLY, OfficeTone.WARNING))
