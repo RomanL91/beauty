@@ -22,8 +22,8 @@ def dump_office(content: OfficeContent) -> dict[str, Any]:
     match content:
         case OfficeText(text):
             body = {"text": text}
-        case OfficeVoice(audio_key, duration):
-            body = {"audio_key": audio_key, "duration": duration}
+        case OfficeVoice(audio_key, duration, transcript):
+            body = {"audio_key": audio_key, "duration": duration, "transcript": transcript}
         case OfficeChoice(text, options, detail, selected):
             body = {
                 "text": text,
@@ -42,7 +42,10 @@ def load_office(raw: dict[str, Any]) -> OfficeContent:
     if kind == "text":
         return OfficeText(str(raw["text"]))
     if kind == "voice":
-        return OfficeVoice(str(raw["audio_key"]), float(raw["duration"]))
+        transcript = raw.get("transcript")
+        return OfficeVoice(
+            str(raw["audio_key"]), float(raw["duration"]), None if transcript is None else str(transcript)
+        )
     if kind == "choice":
         return OfficeChoice(
             str(raw["text"]),

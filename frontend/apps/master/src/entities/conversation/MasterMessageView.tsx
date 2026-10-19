@@ -13,8 +13,11 @@ import {
   formatDayShort,
   formatDuration,
   formatTime,
+  useNow,
 } from '@beauty/ui';
 import styles from './MasterMessage.module.css';
+
+const TRANSCRIPT_WAIT_MS = 2 * 60_000;
 
 /** Действия из ленты диалога. */
 export interface DialogActions {
@@ -104,7 +107,11 @@ export function MasterMessageView({
             <div className={styles.voiceCol}>
               <span className={styles.voiceLabel}>
                 Голосовое {formatDuration(message.duration)}
-                {message.transcript ? ' · расшифровка' : ' · расшифровываем…'}
+                {message.transcript ? (
+                  ' · расшифровка'
+                ) : (
+                  <TranscriptPending createdAt={message.created_at} />
+                )}
               </span>
               {message.transcript && <span>«{message.transcript}»</span>}
             </div>
@@ -184,4 +191,10 @@ function DialogBookingCard({
       )}
     </div>
   );
+}
+
+/** Расшифровка ещё идёт — первые минуты после отправки (дальше её уже не будет). */
+function TranscriptPending({ createdAt }: { readonly createdAt: string }) {
+  const now = useNow(15_000);
+  return now - Date.parse(createdAt) < TRANSCRIPT_WAIT_MS ? ' · расшифровываем…' : null;
 }

@@ -74,3 +74,21 @@ class MessageAdded(DomainEvent):
     kind: str
     preview: str
     handler: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class VoiceTranscribed(DomainEvent):
+    """Голосовое расшифровано (``text=None`` — расшифровать не удалось или сервис выключен).
+
+    Подписчик — ИИ-администратор: голосовое клиента он разбирает по этому событию, а не
+    по ``ClientMessagePosted``.
+    """
+
+    routing_key = "conversations.voice.transcribed"
+
+    conversation_id: UUID
+    master_id: UUID
+    client_id: UUID
+    message_id: UUID
+    author: str
+    text: str | None

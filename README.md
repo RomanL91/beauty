@@ -66,7 +66,7 @@ src/beauty/
 migrations/                         # Alembic (async)
 spikes/hermes/                      # кит спайка Hermes (см. его README)
 devtools/fake_llm.py                # сценарная OpenAI-совместимая «модель» для прогона агента без ключа LLM
-tests/unit | tests/integration      # 271 тест; интеграционные — на реальном PostgreSQL
+tests/unit | tests/integration      # 284 теста; интеграционные — на реальном PostgreSQL
 ```
 
 ## Вход клиента через Telegram
@@ -148,6 +148,11 @@ docker compose run --rm agent-setup "beauty agent provision <slug>"  # аген�
 docker compose run --rm agent-setup "beauty agent bootstrap"         # смена модели → шаблон и все профили
 ```
 
+Расшифровка голосовых (клиентов и поручений мастера): `BEAUTY_SPEECH__PROVIDER=openrouter` —
+тот же ключ OpenRouter, что у агента, модель `BEAUTY_SPEECH__MODEL` (по умолчанию
+`openai/whisper-large-v3`); `fake` — сценарная фраза для стенда без ключа. Расшифровывает
+worker в фоне; текст появляется под голосовым, агент отвечает по нему.
+
 Ход: клиент пишет → `worker` (консьюмер `agent.front_desk`, single active consumer) →
 Runs API Hermes (`/p/<профиль>/v1/runs`) → инструменты `beauty-tools` по MCP (токен профиля
 + короткий тикет хода) → ответ ИИ в чате. Не вышло (модель молчит, таймаут) — диалог
@@ -217,7 +222,8 @@ BEAUTY_TEST_DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/postgres p
    сообщения, вопросы агента, ответы на поручения; напоминание за сутки или за 2 ч).
 7. ~~Самостоятельная настройка мастера~~ — сделана (профиль, фото, услуги, график с
    перерывами, выходные, правила записи, публикация — в кабинете на реальном API).
-8. Расшифровка голосовых (клиента и мастера).
+8. ~~Расшифровка голосовых~~ — сделана (голосовые клиентов и поручения мастера: OpenRouter
+   `/audio/transcriptions`, текст под голосовым, агент отвечает по расшифровке).
 9. Подготовка к продакшену: деплой и TLS `*.beautiful.kz`, бэкапы, мониторинг (в том
    числе латентности хода агента), rate limiting.
 

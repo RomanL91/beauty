@@ -30,6 +30,7 @@ from beauty.contexts.conversations.application.commands.post import (
     TextBody,
     VoiceBody,
 )
+from beauty.contexts.conversations.application.commands.voice import TranscribeVoice, TranscribeVoiceHandler
 
 __all__ = [
     "AssistClient",
@@ -58,5 +59,7 @@ __all__ = [
     "SyncAppointment",
     "SyncAppointmentHandler",
     "TextBody",
+    "TranscribeVoice",
+    "TranscribeVoiceHandler",
     "VoiceBody",
 ]

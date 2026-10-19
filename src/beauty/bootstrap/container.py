@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import logging
 from functools import cached_property
 from pathlib import Path
 
@@ -44,6 +45,7 @@ from beauty.contexts.notifications.module import NotificationsDependencies, Noti
 from beauty.contexts.tenancy.module import TenancyDependencies, TenancyModule
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.application.middleware import ConcurrencyRetryMiddleware, LoggingMiddleware
+from beauty.shared.application.speech import SpeechToText, VoiceTranscriber
 from beauty.shared.domain.clock import Clock, SystemClock
 from beauty.shared.domain.ids import IdGenerator, default_id_generator
 from beauty.shared.infrastructure.config import Settings
@@ -59,10 +61,17 @@ from beauty.shared.infrastructure.realtime.bridge import TopicResolver
 from beauty.shared.infrastructure.realtime.hub import RealtimeHub
 from beauty.shared.infrastructure.scheduling.registry import JobHandlerRegistry
 from beauty.shared.infrastructure.scheduling.scheduler import JobRequest
+from beauty.shared.infrastructure.speech import (
+    DisabledSpeechToText,
+    OpenRouterSpeechToText,
+    ScriptedSpeechToText,
+)
 from beauty.shared.infrastructure.storage.local import LocalFileStorage
 from beauty.shared.infrastructure.storage.signing import SignedMediaUrls
 from beauty.shared.infrastructure.web.auth import BearerAuth, MasterAuth
 from beauty.shared.infrastructure.web.errors import HttpErrorMapper
+
+logger = logging.getLogger(__name__)
 
 
 class ApplicationContainer:
@@ -256,6 +265,7 @@ class ApplicationContainer:
                 catalog=TenancyMasterCatalog(lambda: self.mediator),
                 booking=BookingFrontDesk(lambda: self.mediator),
                 contacts=IdentityClientDirectory(lambda: self.mediator),
+                transcriber=self.voice_transcriber,
                 poll_interval=self.settings.http.sse_poll_interval,
                 stream_max_duration=self.settings.http.sse_max_duration,
             )
@@ -315,9 +325,38 @@ class ApplicationContainer:
                 ids=self.id_generator,
                 storage=self.file_storage,
                 media=self.media_urls,
+                transcriber=self.voice_transcriber,
                 ticket_ttl=settings.ticket_ttl,
             )
         )
+
+    @cached_property
+    def speech(self) -> SpeechToText:
+        """Распознавание голосовых: OpenRouter, сценарное или выключенное (``BEAUTY_SPEECH__*``)."""
+        settings = self.settings.speech
+        if settings.provider == "openrouter":
+            key = (
+                settings.api_key.get_secret_value() or self.settings.agent.provider_api_key.get_secret_value()
+            )
+            if not key:
+                logger.warning("Распознавание речи: нет ключа OpenRouter — выключено")
+                return DisabledSpeechToText()
+            return OpenRouterSpeechToText(
+                httpx.AsyncClient(timeout=httpx.Timeout(settings.timeout, connect=5.0)),
+                api_key=key,
+                model=settings.model,
+                base_url=settings.base_url,
+                language=settings.language,
+                zdr=settings.zdr,
+            )
+        if settings.provider == "fake":
+            return ScriptedSpeechToText(settings.fake_text)
+        return DisabledSpeechToText()
+
+    @cached_property
+    def voice_transcriber(self) -> VoiceTranscriber:
+        """Расшифровка голосовых из хранилища."""
+        return VoiceTranscriber(self.file_storage, self.speech)
 
     @cached_property
     def push_http(self) -> httpx.AsyncClient:

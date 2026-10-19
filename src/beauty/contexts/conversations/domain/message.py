@@ -13,6 +13,7 @@ from beauty.contexts.conversations.domain.content import (
     BookingCardContent,
     MessageContent,
     SlotOfferContent,
+    VoiceContent,
     kind_of,
 )
 from beauty.contexts.conversations.domain.errors import NotAnOffer, OfferAlreadyUsed, SlotNotOffered
@@ -106,6 +107,15 @@ class Message(AggregateRoot):
         self.content = replace(offer, selected_start=slot.start)
         self.updated_at = now
         return self.content
+
+    def attach_transcript(self, transcript: str, now: datetime) -> bool:
+        """Расшифровка голосового; уже расшифрованное не меняется (``False``)."""
+        voice = self.content
+        if not isinstance(voice, VoiceContent) or voice.transcript is not None:
+            return False
+        self.content = replace(voice, transcript=transcript)
+        self.updated_at = now
+        return True
 
     def refresh_appointment(self, revision: int, appointment: Mapping[str, Any], now: datetime) -> bool:
         """Обновить снимок записи в карточке; более старая ревизия игнорируется."""

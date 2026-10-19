@@ -27,6 +27,8 @@ from beauty.contexts.agent.application.office import (
     ListOfficeMessagesHandler,
     RunOfficeTurn,
     RunOfficeTurnHandler,
+    TranscribeOfficeTask,
+    TranscribeOfficeTaskHandler,
 )
 from beauty.contexts.agent.application.office_tools import OfficeToolkit
 from beauty.contexts.agent.application.ports import (
@@ -38,19 +40,22 @@ from beauty.contexts.agent.application.ports import (
     ProfileProvisioner,
 )
 from beauty.contexts.agent.application.toolkit import FrontDeskToolkit
+from beauty.contexts.agent.domain.events import OfficeTaskGiven
 from beauty.contexts.agent.infrastructure.mapping import AgentOrmMapper
 from beauty.contexts.agent.infrastructure.uow import SqlAlchemyAgentUnitOfWork
 from beauty.contexts.agent.presentation.api.controller import office_router
 from beauty.contexts.agent.presentation.api.render import OfficeRenderer
 from beauty.contexts.agent.presentation.consumers import (
-    CLIENT_MESSAGES,
+    FRONT_DESK_EVENTS,
     OFFICE_EVENTS,
     BackOfficeConsumer,
     FrontDeskConsumer,
+    OfficeVoiceConsumer,
 )
 from beauty.contexts.agent.presentation.mcp_server import BeautyToolsServer, McpApplication, OfficeToolsServer
 from beauty.contexts.agent.presentation.realtime import OfficeFeedResolver
 from beauty.shared.application.mediator import Mediator
+from beauty.shared.application.speech import VoiceTranscriber
 from beauty.shared.application.storage import FileStorage
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
@@ -90,6 +95,7 @@ class AgentDependencies:
     ids: IdGenerator
     storage: FileStorage
     media: SignedMediaUrls
+    transcriber: VoiceTranscriber
     ticket_ttl: timedelta
 
 
@@ -124,15 +130,22 @@ class AgentModule:
                 self._uow, deps.runtime, deps.masters, deps.clock, deps.ids, deps.ticket_ttl
             ),
         )
+        mediator.register(
+            TranscribeOfficeTask, lambda: TranscribeOfficeTaskHandler(self._uow, deps.transcriber, deps.clock)
+        )
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
+
+    def office_transcribe_handler(self, transcriber: VoiceTranscriber) -> TranscribeOfficeTaskHandler:
+        """Обработчик расшифровки поручений с этим распознавателем (в тестах — сценарным)."""
+        return TranscribeOfficeTaskHandler(self._uow, transcriber, self._deps.clock)
 
     def subscriptions(self, mediator: Mediator) -> tuple[EventSubscription, ...]:
         """Консьюмеры ресепшна и кабинета: по одному активному — ходы каждой роли идут по очереди."""
         return (
             EventSubscription(
                 ConsumerQueueSpec(
-                    name="agent.front_desk", binding_keys=(CLIENT_MESSAGES,), single_active_consumer=True
+                    name="agent.front_desk", binding_keys=FRONT_DESK_EVENTS, single_active_consumer=True
                 ),
                 FrontDeskConsumer(mediator),
                 ambient_transaction=False,
@@ -142,6 +155,11 @@ class AgentModule:
                     name="agent.back_office", binding_keys=OFFICE_EVENTS, single_active_consumer=True
                 ),
                 BackOfficeConsumer(mediator),
+                ambient_transaction=False,
+            ),
+            EventSubscription(  # распознавание — внешний сервис: без общей транзакции на время вызова
+                ConsumerQueueSpec(name="agent.office_voice", binding_keys=(OfficeTaskGiven.routing_key,)),
+                OfficeVoiceConsumer(mediator),
                 ambient_transaction=False,
             ),
         )

@@ -159,8 +159,10 @@ class ScriptedOfficeConsumer(IntegrationEventHandler):
         )
 
     async def handle(self, envelope: EventEnvelope) -> None:
-        """Ход по событию."""
-        await self._handler.handle(BackOfficeConsumer.command(envelope))
+        """Ход по событию (голосовое поручение ждёт расшифровки)."""
+        command = BackOfficeConsumer.command(envelope)
+        if command is not None:
+            await self._handler.handle(command)
 
 
 def office_pump(container: ApplicationContainer, runtime: AgentRuntime) -> EventPump:

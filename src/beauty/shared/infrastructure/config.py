@@ -87,6 +87,24 @@ class PushSettings(BaseModel):
     ttl: int = 86_400
 
 
+class SpeechSettings(BaseModel):
+    """Распознавание голосовых (клиентов и поручений мастера).
+
+    ``openrouter`` — ``/audio/transcriptions`` OpenRouter; ключ — ``api_key`` или, если он
+    пуст, ключ провайдера агента (``BEAUTY_AGENT__PROVIDER_API_KEY``). ``fake`` — любая
+    запись расшифровывается фразой ``fake_text`` (разработка, стенд без ключа).
+    """
+
+    provider: str = Field(default="off", pattern="^(off|openrouter|fake)$")
+    model: str = "openai/whisper-large-v3"
+    base_url: str = "https://openrouter.ai/api/v1"
+    api_key: SecretStr = SecretStr("")
+    language: str | None = None
+    zdr: bool = True
+    timeout: float = 60.0
+    fake_text: str = "Здравствуйте! Можно записаться на массаж спины завтра?"
+
+
 class AgentSettings(BaseModel):
     """ИИ-администратор: runtime Hermes и MCP-сервер ``beauty-tools``."""
 
@@ -140,3 +158,4 @@ class Settings(BaseSettings):
     http: HttpSettings = HttpSettings()
     agent: AgentSettings = AgentSettings()
     push: PushSettings = PushSettings()
+    speech: SpeechSettings = SpeechSettings()

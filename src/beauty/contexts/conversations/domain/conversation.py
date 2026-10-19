@@ -30,7 +30,12 @@ from beauty.contexts.conversations.domain.content import (
     VoiceContent,
     kind_of,
 )
-from beauty.contexts.conversations.domain.events import ConversationChanged, FeedAppended, MessageAdded
+from beauty.contexts.conversations.domain.events import (
+    ConversationChanged,
+    FeedAppended,
+    MessageAdded,
+    VoiceTranscribed,
+)
 from beauty.contexts.conversations.domain.message import Message
 from beauty.shared.domain.aggregate import AggregateRoot
 
@@ -144,6 +149,22 @@ class Conversation(AggregateRoot):
                 )
             )
         return self.last_event_seq
+
+    def voice_transcribed(self, message: Message, transcript: str | None, now: datetime) -> None:
+        """Итог расшифровки голосового: текст — в ленту (обновлением), итог — событием."""
+        if transcript is not None and message.attach_transcript(transcript, now):
+            self.record(message, FeedChange.UPDATED, now)
+        self._record(
+            VoiceTranscribed(
+                occurred_at=now,
+                conversation_id=self.id,
+                master_id=self.master_id,
+                client_id=self.client_id,
+                message_id=message.id,
+                author=message.author.value,
+                text=transcript,
+            )
+        )
 
     # ─────────────────────────── сводка мастера ───────────────────────────
 

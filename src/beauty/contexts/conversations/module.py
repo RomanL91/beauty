@@ -28,6 +28,8 @@ from beauty.contexts.conversations.application.commands import (
     SetConversationHandlerHandler,
     SyncAppointment,
     SyncAppointmentHandler,
+    TranscribeVoice,
+    TranscribeVoiceHandler,
 )
 from beauty.contexts.conversations.application.ports import BookingDesk, ClientContacts, MasterCatalog
 from beauty.contexts.conversations.application.queries import (
@@ -53,8 +55,10 @@ from beauty.contexts.conversations.application.queries import (
 from beauty.contexts.conversations.infrastructure.consumers import (
     APPOINTMENTS,
     CLIENT_MESSAGES,
+    MESSAGES_ADDED,
     AppointmentConsumer,
     ClientMessageConsumer,
+    VoiceConsumer,
 )
 from beauty.contexts.conversations.infrastructure.jobs import PruneFeedJob
 from beauty.contexts.conversations.infrastructure.mapping import ConversationsOrmMapper
@@ -65,6 +69,7 @@ from beauty.contexts.conversations.presentation.api.cabinet import cabinet_route
 from beauty.contexts.conversations.presentation.api.controller import ConversationsApiController
 from beauty.contexts.conversations.presentation.api.render import MessageRenderer
 from beauty.shared.application.mediator import Mediator
+from beauty.shared.application.speech import VoiceTranscriber
 from beauty.shared.application.storage import FileStorage
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
@@ -106,6 +111,7 @@ class ConversationsDependencies:
     catalog: MasterCatalog
     booking: BookingDesk
     contacts: ClientContacts
+    transcriber: VoiceTranscriber
     poll_interval: float
     stream_max_duration: float = 600.0
 
@@ -149,9 +155,14 @@ class ConversationsModule:
         mediator.register(GetConversationState, lambda: GetConversationStateHandler(self._reader))
         mediator.register(PostAgentReply, lambda: PostAgentReplyHandler(self._uow(), clock, ids))
         mediator.register(HandOffToMaster, lambda: HandOffToMasterHandler(self._uow(), clock, ids))
+        mediator.register(TranscribeVoice, lambda: TranscribeVoiceHandler(self._uow, deps.transcriber, clock))
         mediator.register(PostOnMasterBehalf, lambda: PostOnMasterBehalfHandler(self._uow(), clock, ids))
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
+
+    def transcribe_handler(self, transcriber: VoiceTranscriber) -> TranscribeVoiceHandler:
+        """Обработчик расшифровки с этим распознавателем (в тестах — сценарным)."""
+        return TranscribeVoiceHandler(self._uow, transcriber, self._deps.clock)
 
     def subscriptions(self, mediator: Mediator) -> tuple[EventSubscription, ...]:
         """Консьюмеры контекста."""
@@ -163,6 +174,11 @@ class ConversationsModule:
             EventSubscription(
                 ConsumerQueueSpec(name="conversations.appointments", binding_keys=(APPOINTMENTS,)),
                 AppointmentConsumer(mediator),
+            ),
+            EventSubscription(  # распознавание — внешний сервис: без общей транзакции на время вызова
+                ConsumerQueueSpec(name="conversations.voice", binding_keys=(MESSAGES_ADDED,)),
+                VoiceConsumer(mediator),
+                ambient_transaction=False,
             ),
         )
 

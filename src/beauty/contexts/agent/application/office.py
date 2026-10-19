@@ -24,6 +24,7 @@ from beauty.contexts.agent.domain.office import (
 )
 from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
 from beauty.shared.application.cqrs import Command, Handler, Query
+from beauty.shared.application.speech import VoiceTranscriber
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
 
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 type Snapshot = dict[str, Any]
 
 NOT_CONNECTED = "ИИ-администратор пока не подключён — поручение выполнить некому."
-VOICE_REPLY = "Голосовые поручения я пока не разбираю — напишите, пожалуйста, текстом."
+VOICE_REPLY = "Не получилось разобрать голосовое — повторите, пожалуйста, или напишите текстом."
 FAILURE_REPLY = "Не получилось выполнить поручение — попробуйте ещё раз или сделайте это в графике."
 
 
@@ -76,6 +77,38 @@ class GiveOfficeTaskHandler(Handler[GiveOfficeTask, Snapshot]):
             uow.office.add(task)
             await uow.commit()
         return task.snapshot()
+
+
+@dataclass(frozen=True, slots=True)
+class TranscribeOfficeTask(Command[None]):
+    """Расшифровать голосовое поручение (из события ``OfficeTaskGiven``)."""
+
+    master_id: UUID
+    message_id: UUID
+
+
+class TranscribeOfficeTaskHandler(Handler[TranscribeOfficeTask, None]):
+    """Файл → распознавание → текст в ленту и агенту на ход (две короткие транзакции)."""
+
+    def __init__(
+        self, uow_factory: Callable[[], AgentUnitOfWork], transcriber: VoiceTranscriber, clock: Clock
+    ) -> None:
+        """Получить зависимости."""
+        self._uow_factory = uow_factory
+        self._transcriber = transcriber
+        self._clock = clock
+
+    async def handle(self, message: TranscribeOfficeTask) -> None:
+        """Расшифровать; уже расшифрованное — no-op."""
+        async with self._uow_factory() as uow:
+            task = await uow.office.get(message.master_id, message.message_id)
+        if task is None or not isinstance(task.content, OfficeVoice) or task.content.transcript is not None:
+            return
+        transcript = await self._transcriber.transcript(task.content.audio_key)
+        async with self._uow_factory() as uow:
+            stored = await uow.office.get(message.master_id, message.message_id)
+            if stored is not None and stored.transcribed(transcript, self._clock.now()):
+                await uow.commit()
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,4 +1,4 @@
-"""Консьюмеры Conversations: сообщения клиентов и изменения записей."""
+"""Консьюмеры Conversations: сообщения клиентов, голосовые на расшифровку, изменения записей."""
 
 from __future__ import annotations
 
@@ -6,13 +6,14 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from beauty.contexts.conversations.application.commands import AssistClient, SyncAppointment
+from beauty.contexts.conversations.application.commands import AssistClient, SyncAppointment, TranscribeVoice
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.infrastructure.messaging.handler import IntegrationEventHandler
 from beauty.shared.infrastructure.outbox.envelope import EventEnvelope
 
 CLIENT_MESSAGES = "conversations.client.message_posted"
 APPOINTMENTS = "booking.appointment.*"
+MESSAGES_ADDED = "conversations.message.added"
 
 
 def _uuid(value: Any) -> UUID | None:
@@ -40,6 +41,19 @@ class ClientMessageConsumer(IntegrationEventHandler):
                 start=None if start is None else datetime.fromisoformat(str(start)),
             )
         )
+
+
+class VoiceConsumer(IntegrationEventHandler):
+    """Новое голосовое → расшифровка."""
+
+    def __init__(self, mediator: Mediator) -> None:
+        """Получить медиатор."""
+        self._mediator = mediator
+
+    async def handle(self, envelope: EventEnvelope) -> None:
+        """Только голосовые."""
+        if envelope.payload.get("kind") == "voice":
+            await self._mediator.send(TranscribeVoice(UUID(str(envelope.payload["message_id"]))))
 
 
 class AppointmentConsumer(IntegrationEventHandler):

@@ -45,3 +45,14 @@ class OfficeChoiceAnswered(DomainEvent):
     message_id: UUID
     question: str
     answer: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class OfficeVoiceTranscribed(DomainEvent):
+    """Голосовое поручение расшифровано (``text=None`` — не вышло): агенту на ход."""
+
+    routing_key = "agent.office.voice_transcribed"
+
+    master_id: UUID
+    message_id: UUID
+    text: str | None

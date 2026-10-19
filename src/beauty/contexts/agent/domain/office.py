@@ -8,14 +8,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
 from beauty.contexts.agent.domain.errors import ChoiceAlreadyAnswered, UnknownChoiceOption
-from beauty.contexts.agent.domain.events import OfficeChoiceAnswered, OfficeFeedChanged, OfficeTaskGiven
+from beauty.contexts.agent.domain.events import (
+    OfficeChoiceAnswered,
+    OfficeFeedChanged,
+    OfficeTaskGiven,
+    OfficeVoiceTranscribed,
+)
 from beauty.shared.domain.aggregate import AggregateRoot
 
 MAX_OPTIONS = 4
@@ -45,10 +50,11 @@ class OfficeText:
 
 @dataclass(frozen=True, slots=True)
 class OfficeVoice:
-    """Голосовое мастера (расшифровки пока нет)."""
+    """Голосовое мастера; расшифровка приходит позже (``None`` — ещё нет или не вышло)."""
 
     audio_key: str
     duration: float
+    transcript: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,6 +207,25 @@ class OfficeMessage(AggregateRoot):
         )
         return True
 
+    def transcribed(self, transcript: str | None, now: datetime) -> bool:
+        """Итог расшифровки голосового поручения: текст — в ленту, итог — агенту на ход.
+
+        Уже расшифрованное (повтор) — no-op (``False``).
+        """
+        voice = self.content
+        if not isinstance(voice, OfficeVoice) or voice.transcript is not None:
+            return False
+        if transcript is not None:
+            self.content = replace(voice, transcript=transcript)
+            self.updated_at = now
+            self._changed("message.updated", now)
+        self._record(
+            OfficeVoiceTranscribed(
+                occurred_at=now, master_id=self.master_id, message_id=self.id, text=transcript
+            )
+        )
+        return True
+
     def snapshot(self) -> dict[str, Any]:
         """Сообщение в форме контракта (голосовое — с ``audio_key`` вместо ссылки)."""
         payload: dict[str, Any] = {
@@ -215,8 +240,8 @@ class OfficeMessage(AggregateRoot):
         match self.content:
             case OfficeText(text):
                 payload["text"] = text
-            case OfficeVoice(audio_key, duration):
-                payload |= {"audio_key": audio_key, "duration": duration, "transcript": None}
+            case OfficeVoice(audio_key, duration, transcript):
+                payload |= {"audio_key": audio_key, "duration": duration, "transcript": transcript}
             case OfficeChoice(text, options, detail, selected):
                 payload |= {
                     "choice_id": str(self.id),
