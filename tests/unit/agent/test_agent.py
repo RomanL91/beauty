@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import timedelta
 from uuid import UUID, uuid4
 
@@ -14,8 +15,8 @@ from beauty.contexts.agent.application.commands import (
     AnswerClientHandler,
 )
 from beauty.contexts.agent.application.errors import UnknownProfileTokenError
-from beauty.contexts.agent.application.instructions import front_desk_instructions
-from beauty.contexts.agent.application.ports import RunOutcome, RunRequest
+from beauty.contexts.agent.application.instructions import CATALOG_NOTE, front_desk_instructions
+from beauty.contexts.agent.application.ports import RunOutcome, RunRequest, ServiceBrief
 from beauty.contexts.agent.application.toolkit import FrontDeskToolkit
 from beauty.contexts.agent.domain.errors import InvalidTicket
 from beauty.contexts.agent.domain.profile import AgentProfile
@@ -54,6 +55,7 @@ class World:
         )
         self.conversations = RecordingConversations(handler)
         self.booking = FakeBooking(clock.now())
+        self.masters = Masters()
 
     def uow(self) -> InMemoryAgentUnitOfWork:
         """Unit of Work."""
@@ -66,7 +68,7 @@ class World:
     async def answer(self, runtime: ScriptedRuntime, text: str | None = "Хочу на массаж завтра") -> None:
         """Ход ресепшна."""
         handler = AnswerClientHandler(
-            self.uow, runtime, Masters(), self.conversations, self.clock, timedelta(minutes=10)
+            self.uow, runtime, self.masters, self.conversations, self.clock, timedelta(minutes=10)
         )
         await handler.handle(AnswerClient(CONVERSATION, CONVERSATION, text))
 
@@ -204,6 +206,35 @@ async def test_ticket_of_previous_turn_acts_as_current(clock: FrozenClock) -> No
     clock.advance(timedelta(minutes=11))
     with pytest.raises(InvalidTicket):
         await tools.authorize(TOKEN, None, stale.id)
+
+
+async def test_turn_after_page_change_says_old_catalog_is_stale(clock: FrozenClock) -> None:
+    """История сессии хранит прошлые перечни услуг: после правки страницы ход начинается
+    с заметки, что верен только перечень инструкций этого хода."""
+    world = World(clock)
+    runtime = ScriptedRuntime()
+
+    async def ask() -> RunRequest:
+        clock.advance(timedelta(minutes=1))
+        await world.answer(runtime, "Какие у вас услуги?")
+        return runtime.requests[-1]
+
+    first = await ask()
+    assert first.input == "Какие у вас услуги?"  # первый ход нити — без заметки
+
+    facial = ServiceBrief(uuid4(), "Массаж лица", 45, 1_000_000)
+    world.masters.current = replace(BRIEF, services=(SERVICE, facial))
+    added = await ask()
+    assert added.input == f"{CATALOG_NOTE}\n\nКакие у вас услуги?"
+    assert "Массаж лица — 45 мин, 10 000 ₸" in added.instructions
+
+    assert (await ask()).input == "Какие у вас услуги?"  # страница та же — без заметки
+
+    world.masters.current = BRIEF
+    removed = await ask()
+    assert removed.input.startswith(CATALOG_NOTE)
+    assert "Массаж лица" not in removed.instructions
+    assert "верь только этому списку" in removed.instructions
 
 
 def test_instructions_carry_catalog_and_ticket(clock: FrozenClock) -> None:

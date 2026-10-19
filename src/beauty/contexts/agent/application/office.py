@@ -10,7 +10,7 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from beauty.contexts.agent.application.instructions import office_instructions
+from beauty.contexts.agent.application.instructions import catalog_digest, office_instructions, turn_input
 from beauty.contexts.agent.application.ports import AgentRuntime, MasterBriefs, RunRequest
 from beauty.contexts.agent.application.uow import AgentUnitOfWork
 from beauty.contexts.agent.domain.errors import UnknownChoiceOption
@@ -181,21 +181,32 @@ class RunOfficeTurnHandler(Handler[RunOfficeTurn, None]):
         if message.input is None:
             await self._post(message.master_id, OfficeText(VOICE_REPLY))
             return
-        now = self._clock.now()
-        ticket = RunTicket.issue_office(master_id=message.master_id, now=now, ttl=self._ticket_ttl)
-        async with self._uow_factory() as uow:
-            uow.tickets.add(ticket)
-            await uow.commit()
         master = await self._masters.brief(message.master_id)
         if master is None:
             return
+        now = self._clock.now()
+        catalog = catalog_digest(master)
+        ticket = RunTicket.issue_office(
+            master_id=message.master_id, now=now, ttl=self._ticket_ttl, catalog=catalog
+        )
+        async with self._uow_factory() as uow:
+            previous = await uow.tickets.latest(message.master_id, AgentFace.BACK_OFFICE, None)
+            uow.tickets.add(ticket)
+            await uow.commit()
+        # Сессия кабинета — на день: заметка нужна, только если прошлый ход был в ней же.
+        changed = (
+            previous is not None
+            and previous.catalog != catalog
+            and previous.created_at.astimezone(ZoneInfo(master.timezone)).date()
+            == now.astimezone(ZoneInfo(master.timezone)).date()
+        )
         day = now.astimezone(ZoneInfo(master.timezone)).date()
         outcome = await self._runtime.run(
             RunRequest(
                 profile_name=seat[0],
                 api_key=seat[1],
                 session_id=f"office-{message.master_id}-{day.isoformat()}",
-                input=message.input,
+                input=turn_input(message.input, catalog_changed=changed),
                 instructions=office_instructions(master, ticket.id, now),
                 idempotency_key=message.idempotency_key,
             )

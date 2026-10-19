@@ -9,7 +9,11 @@ from datetime import timedelta
 from uuid import UUID
 
 from beauty.contexts.agent.application.errors import AgentNotProvisionedError
-from beauty.contexts.agent.application.instructions import front_desk_instructions
+from beauty.contexts.agent.application.instructions import (
+    catalog_digest,
+    front_desk_instructions,
+    turn_input,
+)
 from beauty.contexts.agent.application.ports import (
     AgentRuntime,
     Conversations,
@@ -164,25 +168,30 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
         if message.text is None:
             await self._conversations.hand_off(message.conversation_id, VOICE_NOTE)
             return
+        master = await self._masters.brief(state.master_id)
+        if master is None:
+            return
+        catalog = catalog_digest(master)
         ticket = RunTicket.issue(
             master_id=state.master_id,
             conversation_id=message.conversation_id,
             client_id=state.client_id,
             now=self._clock.now(),
             ttl=self._ticket_ttl,
+            catalog=catalog,
         )
         async with self._new_uow() as uow:  # отдельно: другие UoW не вкладываются в открытый
+            previous = await uow.tickets.latest(
+                state.master_id, AgentFace.FRONT_DESK, message.conversation_id
+            )
             uow.tickets.add(ticket)
             await uow.commit()
-        master = await self._masters.brief(state.master_id)
-        if master is None:
-            return
         outcome = await self._runtime.run(
             RunRequest(
                 profile_name=seat[0],
                 api_key=seat[1],
                 session_id=str(message.conversation_id),
-                input=message.text,
+                input=turn_input(message.text, catalog_changed=_changed(previous, catalog)),
                 instructions=front_desk_instructions(master, state.client_name, ticket.id, self._clock.now()),
                 idempotency_key=str(message.message_id),
             )
@@ -200,3 +209,8 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
 
     def _new_uow(self) -> AgentUnitOfWork:
         return self._uow_factory()
+
+
+def _changed(previous: RunTicket | None, catalog: str) -> bool:
+    """Страница мастера изменилась после прошлого хода этой нити (первый ход — нет)."""
+    return previous is not None and previous.catalog != catalog

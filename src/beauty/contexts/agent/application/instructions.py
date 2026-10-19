@@ -3,10 +3,17 @@
 Всё, что модель могла бы спросить инструментом, но что не меняется за ход, — каталог,
 цены, адрес, правила, «сейчас» — даём текстом: каждый лишний вызов инструмента — это
 лишний вызов LLM (итоги спайка: p50 хода 39 с при трёх вызовах).
+
+Инструкции свежие на каждом ходе, но история сессии Hermes хранит прошлые ответы агента —
+с прежними услугами и ценами, и модель охотно повторяет их, а не инструкции. Поэтому
+инструкции прямо говорят, что верен только их перечень, а ход после правки страницы
+начинается со служебной заметки об этом (``turn_input``): она стоит рядом с вопросом и
+остаётся в истории отметкой «с этого места каталог другой».
 """
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -29,6 +36,27 @@ def _services(master: MasterBrief) -> str:
     )
 
 
+CATALOG_NOTE = (
+    "[Служебная заметка, не от клиента: после прошлого ответа мастер изменил страницу — "
+    "услуги, цены или правила. Верны только данные из инструкций этого хода; перечни, цены "
+    "и правила, названные выше в переписке, устарели — не повторяй их.]"
+)
+_CURRENT = (
+    "Услуги — актуальный перечень на этот ход (услуги, цены и правила, названные раньше в "
+    "переписке, могли устареть: верь только этому списку):"
+)
+
+
+def catalog_digest(master: MasterBrief) -> str:
+    """Отпечаток всего, что агент знает о мастере из инструкций (кроме «сейчас» и тикета)."""
+    return hashlib.sha256(repr(master).encode()).hexdigest()[:16]
+
+
+def turn_input(text: str, *, catalog_changed: bool) -> str:
+    """Реплика хода: после правки страницы — со служебной заметкой впереди."""
+    return f"{CATALOG_NOTE}\n\n{text}" if catalog_changed else text
+
+
 def _now(master: MasterBrief, now: datetime) -> str:
     local = now.astimezone(ZoneInfo(master.timezone))
     return f"{_WEEKDAYS[local.weekday()]}, {local:%d.%m.%Y %H:%M} ({master.timezone})"
@@ -44,7 +72,7 @@ def front_desk_instructions(master: MasterBrief, client_name: str, ticket: str, 
 Тикет хода: {ticket} — передавай его без изменений в каждый инструмент.
 
 Адрес: {master.address or "уточните у мастера"}.
-Услуги:
+{_CURRENT}
 {services or "- услуг пока нет"}
 Правила записи: заявку мастер подтверждает в течение {master.confirm_within_hours} ч; перенести или отменить
 подтверждённую запись можно не позднее чем за {master.change_deadline_hours} ч до визита.
@@ -66,7 +94,7 @@ def office_instructions(master: MasterBrief, ticket: str, now: datetime) -> str:
 Сейчас: {_now(master, now)}. Даты в инструментах — YYYY-MM-DD в поясе мастера.
 Тикет хода: {ticket} — передавай его без изменений в каждый инструмент.
 
-Услуги:
+{_CURRENT}
 {_services(master) or "- услуг пока нет"}
 
 Как работать:

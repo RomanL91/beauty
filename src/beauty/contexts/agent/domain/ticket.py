@@ -40,8 +40,13 @@ class RunTicket(AggregateRoot):
         client_id: UUID | None,
         expires_at: datetime,
         created_at: datetime,
+        catalog: str | None = None,
     ) -> None:
-        """Создать тикет (используйте ``issue``)."""
+        """Создать тикет (используйте ``issue``).
+
+        ``catalog`` — отпечаток страницы мастера (услуги, цены, правила), которую агент
+        видел в инструкциях хода: по нему следующий ход узнаёт, что страница изменилась.
+        """
         self.id = ticket_id
         self.master_id = master_id
         self.face = face
@@ -51,6 +56,7 @@ class RunTicket(AggregateRoot):
         self.handed_off = False
         self.asked_master = False
         self.created_at = created_at
+        self.catalog = catalog
 
     @classmethod
     def issue(
@@ -61,14 +67,19 @@ class RunTicket(AggregateRoot):
         client_id: UUID,
         now: datetime,
         ttl: timedelta,
+        catalog: str | None = None,
     ) -> RunTicket:
         """Новый тикет ресепшна: ``t-`` и 8 символов (≈ 40 бит случайности)."""
-        return cls(_new_id(), master_id, AgentFace.FRONT_DESK, conversation_id, client_id, now + ttl, now)
+        return cls(
+            _new_id(), master_id, AgentFace.FRONT_DESK, conversation_id, client_id, now + ttl, now, catalog
+        )
 
     @classmethod
-    def issue_office(cls, *, master_id: UUID, now: datetime, ttl: timedelta) -> RunTicket:
+    def issue_office(
+        cls, *, master_id: UUID, now: datetime, ttl: timedelta, catalog: str | None = None
+    ) -> RunTicket:
         """Новый тикет кабинета: агент действует от имени мастера, клиента у хода нет."""
-        return cls(_new_id(), master_id, AgentFace.BACK_OFFICE, None, None, now + ttl, now)
+        return cls(_new_id(), master_id, AgentFace.BACK_OFFICE, None, None, now + ttl, now, catalog)
 
     def check(self, master_id: UUID, face: AgentFace, now: datetime) -> None:
         """Тикет годится этому мастеру и этой роли сейчас."""

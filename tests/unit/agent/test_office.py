@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
 
 from beauty.contexts.agent.application.errors import UnknownProfileTokenError
+from beauty.contexts.agent.application.instructions import CATALOG_NOTE
 from beauty.contexts.agent.application.office import (
     FAILURE_REPLY,
     NOT_CONNECTED,
@@ -33,6 +35,7 @@ from beauty.shared.domain.ids import UuidV7Generator
 from beauty.shared.domain.secrets import HashedSecret
 from tests.fakes import FrozenClock
 from tests.unit.agent.fakes import (
+    BRIEF,
     CLIENT,
     CONVERSATION,
     MASTER,
@@ -66,6 +69,7 @@ class Office:
             profile.attach_office("m-alisa-office", "office-runs", OFFICE_TOKEN, NOW)
         self.store.profiles[MASTER] = profile
         self.cabinet = FakeCabinet()
+        self.masters = Masters()
 
     def uow(self) -> InMemoryAgentUnitOfWork:
         """Unit of Work."""
@@ -77,7 +81,9 @@ class Office:
 
     def turn(self, runtime: ScriptedRuntime) -> RunOfficeTurnHandler:
         """Обработчик хода кабинета."""
-        return RunOfficeTurnHandler(self.uow, runtime, Masters(), self.clock, self.ids, timedelta(minutes=10))
+        return RunOfficeTurnHandler(
+            self.uow, runtime, self.masters, self.clock, self.ids, timedelta(minutes=10)
+        )
 
     def feed(self) -> list[OfficeMessage]:
         """Лента по порядку."""
@@ -202,6 +208,24 @@ async def test_turn_runs_in_office_profile_and_replies() -> None:
     assert ticket.face is AgentFace.BACK_OFFICE
     assert f"Тикет хода: {ticket.id}" in request.instructions
     assert [(m.author.value, m.snapshot()["text"]) for m in world.feed()] == [("agent", "Завтра две записи.")]
+
+
+async def test_office_turn_after_page_change_in_same_day_session() -> None:
+    """Правка страницы между поручениями одного дня — заметка; новый день — новая сессия, без неё."""
+    world = Office()
+    runtime = ScriptedRuntime(lambda _request: _text("Готово."))
+
+    async def task(key: str) -> str:
+        world.clock.advance(timedelta(minutes=5))
+        await world.turn(runtime).handle(RunOfficeTurn(MASTER, "Какие у меня услуги?", key))
+        return runtime.requests[-1].input
+
+    assert await task("a") == "Какие у меня услуги?"
+    world.masters.current = replace(BRIEF, services=())
+    assert (await task("b")).startswith(CATALOG_NOTE)
+    world.masters.current = BRIEF
+    world.clock.advance(timedelta(days=1))
+    assert await task("c") == "Какие у меня услуги?"
 
 
 async def test_turn_that_asked_master_posts_only_the_card() -> None:

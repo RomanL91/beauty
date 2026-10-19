@@ -46,6 +46,7 @@ tickets = Table(
     Column("expires_at", DateTime(timezone=True), nullable=False),
     Column("handed_off", Boolean, nullable=False),
     Column("asked_master", Boolean, nullable=False, server_default=text("false")),
+    Column("catalog", Text, comment="отпечаток страницы мастера в инструкциях хода"),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("version", Integer, nullable=False),
     schema="agent",

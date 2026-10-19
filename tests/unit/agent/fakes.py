@@ -150,11 +150,15 @@ class InMemoryAgentUnitOfWork(AgentUnitOfWork):
 
 
 class Masters(MasterBriefs):
-    """Один мастер."""
+    """Один мастер; ``current`` — его страница сейчас (тест может её править)."""
+
+    def __init__(self, current: MasterBrief = BRIEF) -> None:
+        """Страница мастера."""
+        self.current = current
 
     async def brief(self, master_id: UUID) -> MasterBrief | None:
         """Мастер или ``None``."""
-        return BRIEF if master_id == MASTER else None
+        return self.current if master_id == MASTER else None
 
 
 class RecordingConversations(Conversations):
