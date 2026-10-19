@@ -62,11 +62,13 @@ export function BarChart({
   return (
     <figure className={styles.figure} aria-labelledby={titleId}>
       <figcaption className={styles.caption}>
-        <span id={titleId} className={styles.title}>
-          {title}
-        </span>
-        <span className={styles.total}>
-          {count(total, unit)} за {points.length} дн.
+        <span className={styles.heading}>
+          <span id={titleId} className={styles.title}>
+            {title}
+          </span>
+          <span className={styles.total}>
+            {count(total, unit)} за {points.length} дн.
+          </span>
         </span>
         <button type="button" className={styles.toggle} onClick={() => setTable((t) => !t)}>
           {table ? 'График' : 'Таблица'}

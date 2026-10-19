@@ -36,7 +36,7 @@ export function ClientsPage() {
         <div>
           <h1 className={ui.h1}>Клиенты</h1>
           <p className={ui.muted}>
-            Все учётные записи платформы
+            {query || blockedOnly ? 'Найдено' : 'Все учётные записи платформы'}
             {clients.data ? ` — ${formatNumber(clients.data.total)}` : ''}.
           </p>
         </div>

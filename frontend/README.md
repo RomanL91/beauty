@@ -1,9 +1,10 @@
-# Фронтенд beautiful.kz — два PWA
+# Фронтенд beautiful.kz — три PWA
 
 | Приложение                                  | Адрес (dev)                 | Адрес (docker)               | Прод                  |
 | ------------------------------------------- | --------------------------- | ---------------------------- | --------------------- |
 | `apps/client` — страница мастера, вход, чат | http://alisa.localhost:5173 | http://alisa.localhost:8080  | `<slug>.beautiful.kz` |
 | `apps/master` — график, чаты, поручения     | http://localhost:5174       | http://master.localhost:8080 | `master.beautiful.kz` |
+| `apps/admin` — панель хозяина сервиса       | http://localhost:5175       | http://admin.localhost:8080  | `admin.beautiful.kz`  |
 
 Макеты и токены — `docs/design/mockups/`, ТЗ — `docs/tasks/frontend-iteration-1.md`,
 отчёт итерации — `docs/frontend/iteration-1-report.md`. Контракт API —
@@ -48,6 +49,7 @@ VITE_MOCK_AUTH=1 pnpm -C frontend dev      # то же без бэкенда: в
 
 ```
 apps/client, apps/master   app / pages / widgets / features / entities / shared
+apps/admin                 app / pages / widgets / shared — desktop-first, графики на SVG
 packages/api               типы из контракта (openapi-typescript), HttpCore на openapi-fetch,
                            SSE поверх fetch, порты *Gateway и Http*-адаптеры, модель ленты
 packages/mocks             in-memory «бэкенд» с фикстурами по макетам + MSW-обработчики,
@@ -59,12 +61,16 @@ e2e                        Playwright: сценарии и скриншоты 39
 
 Компоненты зависят только от портов (`AuthGateway`, `MasterGateway`,
 `ConversationGateway`, `ScheduleGateway`, `InboxGateway`, `AssistantGateway`,
-`MasterEventsGateway`, `MasterSettingsGateway`, `PushGateway`); адаптеры собирает `AppContainer`
+`MasterEventsGateway`, `MasterSettingsGateway`, `PushGateway`, `AdminGateway`); адаптеры собирает `AppContainer`
 (`apps/*/src/app/container.ts`) и отдаёт через React context.
 
 Сессия: access-токен только в памяти (`SessionStore`), refresh — httpOnly-cookie;
 при 401 — один общий refresh на все параллельные запросы, повтор запроса; отказ refresh
 (или 401 после него) — выход и экран входа.
+
+Панель хозяина живёт на своей сессии: httpOnly-cookie `bk_admin` (путь `/api/v1/admin`)
+и CSRF-токен в памяти — его возвращают вход и `GET /admin/auth/me`, изменяющие запросы
+шлют его в `X-CSRF-Token`. В mock-режиме вход — `owner` / `beauty-admin-2026`.
 
 ## Проверки
 
@@ -74,7 +80,7 @@ pnpm -C frontend format:check     # Prettier
 pnpm -C frontend typecheck        # tsc --noEmit во всех пакетах
 pnpm -C frontend test             # Vitest: пакеты (Node) и приложения (jsdom)
 pnpm -C frontend contract:check   # redocly lint + типы актуальны относительно контракта
-pnpm -C frontend e2e              # Playwright на mock-режиме (поднимает оба dev-сервера)
+pnpm -C frontend e2e              # Playwright на mock-режиме (поднимает все dev-серверы)
 ```
 
 Изменили контракт → `pnpm -C frontend gen:api`: типы перегенерируются, и всё, что
@@ -84,7 +90,7 @@ E2E используют Chromium из Playwright; свой бинарник —
 
 ## Docker
 
-`docker compose up --build` в корне собирает `frontend/Dockerfile` (обе сборки) и
-поднимает `web` (nginx, порт 8080): `master.*` → кабинет, `<slug>.*` → страница
+`docker compose up --build` в корне собирает `frontend/Dockerfile` (три сборки) и
+поднимает `web` (nginx, порт 8080): `admin.*` → панель хозяина (noindex), `master.*` → кабинет, `<slug>.*` → страница
 мастера, `/api` → сервис `api` (без буферизации — для SSE). Push: передайте
 `VITE_VAPID_PUBLIC_KEY` в окружение compose.
