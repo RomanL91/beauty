@@ -40,7 +40,7 @@ from beauty.contexts.agent.application.ports import (
     RunRequest,
 )
 from beauty.contexts.agent.domain.profile import AgentProfile
-from beauty.contexts.agent.domain.ticket import AgentFace
+from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
 from beauty.contexts.agent.infrastructure.uow import SqlAlchemyAgentUnitOfWork
 from beauty.entrypoints.api import ApiApplicationFactory
 from tests.integration.contract import assert_matches_schema
@@ -284,3 +284,33 @@ async def test_provision_adds_office_to_existing_profile(
     assert await handler.handle(ProvisionAgent(alisa.master_id)) == "m-alisa"
     assert await handler.handle(ProvisionAgent(alisa.master_id)) == "m-alisa"
     assert provisioner.created == ["m-alisa-office"]
+
+
+async def test_latest_ticket_of_thread(container: ApplicationContainer, alisa: AgentProfile) -> None:
+    """Последний тикет переписки (ресепшн) и кабинета (переписки нет) — по времени выдачи."""
+    now = container.clock.now()
+    conversation = uuid4()
+
+    def front(at: timedelta) -> RunTicket:
+        return RunTicket.issue(
+            master_id=alisa.master_id,
+            conversation_id=conversation,
+            client_id=uuid4(),
+            now=now + at,
+            ttl=timedelta(minutes=10),
+        )
+
+    stale, current = front(timedelta()), front(timedelta(minutes=1))
+    office = RunTicket.issue_office(master_id=alisa.master_id, now=now, ttl=timedelta(minutes=10))
+    async with SqlAlchemyAgentUnitOfWork(container.session_factory, container.outbox_writer) as uow:
+        for ticket in (current, stale, office):
+            uow.tickets.add(ticket)
+        await uow.commit()
+    async with SqlAlchemyAgentUnitOfWork(container.session_factory, container.outbox_writer) as uow:
+        latest = await uow.tickets.latest(alisa.master_id, AgentFace.FRONT_DESK, conversation)
+        latest_office = await uow.tickets.latest(alisa.master_id, AgentFace.BACK_OFFICE, None)
+        assert latest is not None
+        assert latest.id == current.id
+        assert latest_office is not None
+        assert latest_office.id == office.id
+        assert await uow.tickets.latest(alisa.master_id, AgentFace.FRONT_DESK, uuid4()) is None

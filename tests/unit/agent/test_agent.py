@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -171,6 +172,38 @@ async def test_tool_authorization(clock: FrozenClock) -> None:
     clock.advance(timedelta(minutes=11))
     with pytest.raises(InvalidTicket):
         await tools.authorize(TOKEN, None, ticket.id)
+
+
+async def test_ticket_of_previous_turn_acts_as_current(clock: FrozenClock) -> None:
+    """Модель повторяет тикет прошлого хода из истории — действует тикет текущего хода той же переписки."""
+    world = World(clock)
+    tools = world.toolkit()
+
+    def issue(conversation: UUID) -> RunTicket:
+        ticket = RunTicket.issue(
+            master_id=MASTER,
+            conversation_id=conversation,
+            client_id=CLIENT,
+            now=clock.now(),
+            ttl=timedelta(minutes=10),
+        )
+        world.store.tickets[ticket.id] = ticket
+        return ticket
+
+    stale = issue(CONVERSATION)
+    clock.advance(timedelta(hours=2))
+    with pytest.raises(InvalidTicket):
+        await tools.authorize(TOKEN, None, stale.id)
+    current = issue(CONVERSATION)
+    clock.advance(timedelta(seconds=1))
+    other = issue(uuid4())
+
+    assert (await tools.authorize(TOKEN, None, stale.id)).ticket_id == current.id
+    assert (await tools.authorize(TOKEN, None, current.id)).ticket_id == current.id
+    assert (await tools.authorize(TOKEN, None, other.id)).ticket_id == other.id
+    clock.advance(timedelta(minutes=11))
+    with pytest.raises(InvalidTicket):
+        await tools.authorize(TOKEN, None, stale.id)
 
 
 def test_instructions_carry_catalog_and_ticket(clock: FrozenClock) -> None:

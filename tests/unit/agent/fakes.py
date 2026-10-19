@@ -33,7 +33,7 @@ from beauty.contexts.agent.domain.repositories import (
     OfficeMessageRepository,
     RunTicketRepository,
 )
-from beauty.contexts.agent.domain.ticket import RunTicket
+from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
 from beauty.shared.domain.secrets import HashedSecret
 
 MASTER = UUID(int=1)
@@ -77,6 +77,16 @@ class _Tickets(RunTicketRepository):
 
     async def get(self, ticket_id: str) -> RunTicket | None:
         return self._store.tickets.get(ticket_id)
+
+    async def latest(
+        self, master_id: UUID, face: AgentFace, conversation_id: UUID | None
+    ) -> RunTicket | None:
+        thread = [
+            t
+            for t in self._store.tickets.values()
+            if (t.master_id, t.face, t.conversation_id) == (master_id, face, conversation_id)
+        ]
+        return max(thread, key=lambda t: t.created_at, default=None)
 
 
 class _Office(OfficeMessageRepository):

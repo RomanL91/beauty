@@ -7,7 +7,7 @@ from uuid import UUID
 
 from beauty.contexts.agent.domain.office import OfficeMessage
 from beauty.contexts.agent.domain.profile import AgentProfile
-from beauty.contexts.agent.domain.ticket import RunTicket
+from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
 from beauty.shared.domain.secrets import HashedSecret
 
 
@@ -37,6 +37,12 @@ class RunTicketRepository(ABC):
     @abstractmethod
     async def get(self, ticket_id: str) -> RunTicket | None:
         """Тикет по id."""
+
+    @abstractmethod
+    async def latest(
+        self, master_id: UUID, face: AgentFace, conversation_id: UUID | None
+    ) -> RunTicket | None:
+        """Последний тикет нити: переписки ресепшна или (``None``) кабинета мастера."""
 
 
 class OfficeMessageRepository(ABC):

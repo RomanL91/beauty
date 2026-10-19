@@ -53,5 +53,9 @@ class ToolAccess:
             ticket = await uow.tickets.get(ticket_id.strip())
             if ticket is None:
                 raise InvalidTicket()
+            if ticket.master_id == profile.master_id and ticket.face is face:
+                # Модель берёт тикет прошлого хода из истории сессии: права у нити те же,
+                # действует тикет её последнего хода (ходы одной нити идут по одному).
+                ticket = await uow.tickets.latest(profile.master_id, face, ticket.conversation_id) or ticket
             ticket.check(profile.master_id, face, self._clock.now())
             return Grant(profile.master_id, ticket.id, face, ticket.conversation_id, ticket.client_id)

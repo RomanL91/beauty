@@ -13,8 +13,8 @@ from beauty.contexts.agent.domain.repositories import (
     OfficeMessageRepository,
     RunTicketRepository,
 )
-from beauty.contexts.agent.domain.ticket import RunTicket
-from beauty.contexts.agent.infrastructure.tables import office_messages, profiles
+from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
+from beauty.contexts.agent.infrastructure.tables import office_messages, profiles, tickets
 from beauty.shared.domain.secrets import HashedSecret
 from beauty.shared.infrastructure.db.repository import SqlAlchemyRepository
 
@@ -40,6 +40,22 @@ class SqlAlchemyRunTicketRepository(SqlAlchemyRepository[RunTicket], RunTicketRe
     async def get(self, ticket_id: str) -> RunTicket | None:
         """По id."""
         return self._seen(await self._session.get(RunTicket, ticket_id))
+
+    async def latest(
+        self, master_id: UUID, face: AgentFace, conversation_id: UUID | None
+    ) -> RunTicket | None:
+        """Самый поздний по ``created_at``."""
+        statement = (
+            select(RunTicket)
+            .where(
+                tickets.c.master_id == master_id,
+                tickets.c.face == face,
+                tickets.c.conversation_id.is_not_distinct_from(conversation_id),
+            )
+            .order_by(tickets.c.created_at.desc())
+            .limit(1)
+        )
+        return self._seen((await self._session.execute(statement)).scalar_one_or_none())
 
 
 class SqlAlchemyOfficeMessageRepository(SqlAlchemyRepository[OfficeMessage], OfficeMessageRepository):
