@@ -77,6 +77,16 @@ def _announcements(master: MasterBrief) -> str:
     return f"Недавние объявления мастера (разосланы всем клиентам — на них можно ссылаться):\n{lines}\n"
 
 
+def _removed(master: MasterBrief) -> str:
+    if not master.removed_services:
+        return ""
+    titles = ", ".join(f"«{_one_line(title)}»" for title in master.removed_services)
+    return (
+        f"Мастер недавно убрал услуги: {titles} — их больше нет: не предлагай и не записывай; "
+        "спросят — скажи, что эту услугу мастер больше не оказывает.\n"
+    )
+
+
 def _about(master: MasterBrief) -> str:
     if not master.about:
         return ""
@@ -104,8 +114,8 @@ def front_desk_instructions(
 Адрес: {master.address or "уточните у мастера"}.
 {_about(master)}{_CURRENT}
 {services or "- услуг пока нет"}
-Правила записи: заявку мастер подтверждает в течение {master.confirm_within_hours} ч; перенести или отменить
-подтверждённую запись можно не позднее чем за {master.change_deadline_hours} ч до визита.
+{_removed(master)}Правила записи: заявку мастер подтверждает в течение {master.confirm_within_hours} ч;
+перенести или отменить подтверждённую запись — не позднее чем за {master.change_deadline_hours} ч до визита.
 {_announcements(master)}
 Как работать:
 - Ответ клиенту — итоговым текстом хода: коротко, тепло, на языке клиента.
@@ -143,7 +153,7 @@ def office_instructions(master: MasterBrief, ticket: str, now: datetime) -> str:
 
 {_CURRENT}
 {_services(master) or "- услуг пока нет"}
-
+{_removed(master)}
 Как работать:
 - Выполняй поручение инструментами и коротко отчитайся, что сделано. Ответ — итоговым
   текстом хода, по-деловому; можно выделять главное **жирным**.

@@ -166,6 +166,17 @@ class StoreReaders(MasterPageReader, AvailabilityReader, MasterDirectory):
         """Названия активных услуг."""
         return frozenset(s.title for s in self._store.masters[master_id].active_services)
 
+    async def removed_service_titles(self, master_id: UUID, since: datetime) -> tuple[str, ...]:
+        """Убранные с ``since``, кроме вернувшихся названий; свежие первыми."""
+        master = self._store.masters[master_id]
+        active = {s.title.casefold() for s in master.active_services}
+        removed = sorted(
+            (s for s in master.services if s.archived_at is not None and s.archived_at >= since),
+            key=lambda s: s.archived_at or since,
+            reverse=True,
+        )
+        return tuple(dict.fromkeys(s.title for s in removed if s.title.casefold() not in active))
+
 
 class AvailabilityAdapter(AvailabilityReader):
     """``AvailabilityReader`` над ``StoreReaders`` (у портов одинаковое имя метода)."""

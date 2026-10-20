@@ -103,6 +103,7 @@ from beauty.contexts.tenancy.application.queries import (
     GetMasterSettings,
     GetWorkingCalendar,
     ListFreeSlots,
+    ListRemovedServices,
 )
 from beauty.contexts.tenancy.domain.slots import TimeInterval
 from beauty.contexts.tenancy.presentation.api.schemas import MasterSettingsResponse
@@ -314,6 +315,7 @@ class AgentMasters(agent_ports.MasterBriefs):
                 + (" (с фото)" if item.has_photo else "")
                 for item in await self._mediator().send(RecentAnnouncements(master_id))
             ),
+            removed_services=await self._mediator().send(ListRemovedServices(master_id)),
         )
 
 

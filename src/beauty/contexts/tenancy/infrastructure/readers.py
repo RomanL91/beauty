@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -184,3 +185,22 @@ class SqlMasterDirectory(_Reader, MasterDirectory):
         async with self._session_factory() as session:
             rows = await self._active_services(session, master_id)
         return frozenset(row.title for row in rows)
+
+    async def removed_service_titles(self, master_id: UUID, since: datetime) -> tuple[str, ...]:
+        """Убранные с ``since``; название, которое снова есть среди активных, — не в счёт."""
+        statement = (
+            select(master_services.c.title)
+            .where(master_services.c.master_id == master_id, master_services.c.archived_at >= since)
+            .order_by(master_services.c.archived_at.desc())
+        )
+        async with self._session_factory() as session:
+            removed = (await session.execute(statement)).scalars().all()
+            active = {row.title.casefold() for row in await self._active_services(session, master_id)}
+        seen: set[str] = set()
+        titles: list[str] = []
+        for title in removed:
+            key = title.casefold()
+            if key not in active and key not in seen:
+                seen.add(key)
+                titles.append(title)
+        return tuple(titles)

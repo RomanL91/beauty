@@ -32,6 +32,7 @@ from beauty.contexts.agent.application.commands import (
     ProvisionAgent,
     ProvisionAgentHandler,
 )
+from beauty.contexts.agent.application.instructions import CATALOG_NOTE
 from beauty.contexts.agent.application.ports import (
     AgentRuntime,
     ProfileProvisioner,
@@ -282,6 +283,34 @@ async def test_client_named_in_chat_signs_the_card(
     runtime = McpScriptRuntime(mcp_app, reply)
     await answer(container, runtime, client, "Хочу на массаж")
     assert "Мася" in runtime.requests[0].instructions
+
+
+async def test_removed_service_is_named_in_next_turn(
+    http: httpx.AsyncClient, container: ApplicationContainer, mcp_app: McpServerFactory, alisa: AgentProfile
+) -> None:
+    """Мастер добавил и убрал «Тестовую» → агент её не предлагает; вернул — снова в перечне."""
+    client = await new_client(http, container, 7033)
+    master = {"Authorization": f"Bearer {await login(http, container.mediator, 7002, OWNER_PHONE[1:])}"}
+    service = {"title": "Тестовая", "duration_min": 30, "price": None}
+    added = (await http.post(f"{API}/me/services", json=service, headers=master)).json()
+    test_id = next(s["id"] for s in added["page"]["services"] if s["title"] == "Тестовая")
+
+    async def reply(_call: ToolCall, _ticket: str, _text: str) -> str:
+        return "Хорошо"
+
+    runtime = McpScriptRuntime(mcp_app, reply)
+    await answer(container, runtime, client, "Какие услуги есть?")
+    assert "- Тестовая" in runtime.requests[-1].instructions
+    assert (await http.delete(f"{API}/me/services/{test_id}", headers=master)).status_code == 200
+    await answer(container, runtime, client, "А тестовая есть?")
+    turn = runtime.requests[-1]
+    assert turn.input.startswith(CATALOG_NOTE)
+    assert "- Тестовая" not in turn.instructions
+    assert "Мастер недавно убрал услуги: «Тестовая»" in turn.instructions
+
+    assert (await http.post(f"{API}/me/services", json=service, headers=master)).status_code == 201
+    await answer(container, runtime, client, "А теперь?")
+    assert "недавно убрал" not in runtime.requests[-1].instructions
 
 
 async def test_mcp_rejects_foreign_or_bad_credentials(

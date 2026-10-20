@@ -57,6 +57,8 @@ from beauty.contexts.tenancy.application.queries import (
     GetWorkingCalendarHandler,
     ListFreeSlots,
     ListFreeSlotsHandler,
+    ListRemovedServices,
+    ListRemovedServicesHandler,
     ListServiceTitles,
     ListServiceTitlesHandler,
 )
@@ -154,6 +156,7 @@ class TenancyModule:
         mediator.register(GetWorkingCalendar, lambda: GetWorkingCalendarHandler(self._availability_reader))
         mediator.register(AssignOwner, lambda: AssignOwnerHandler(self._uow(), clock))
         mediator.register(ListServiceTitles, lambda: ListServiceTitlesHandler(self._directory))
+        mediator.register(ListRemovedServices, lambda: ListRemovedServicesHandler(self._directory, clock))
         mediator.register(
             ListFreeSlots,
             lambda: ListFreeSlotsHandler(self._availability_reader, self._busy, self._finder, clock),

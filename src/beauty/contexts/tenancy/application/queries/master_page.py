@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 from uuid import UUID
 
 from beauty.contexts.tenancy.application.dto import MasterPageView
 from beauty.contexts.tenancy.application.errors import MasterNotFoundError
 from beauty.contexts.tenancy.application.ports import MasterDirectory, MasterPageReader, MasterRef
 from beauty.shared.application.cqrs import Handler, Query
+from beauty.shared.domain.clock import Clock
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +79,31 @@ class ListServiceTitlesHandler(Handler[ListServiceTitles, frozenset[str]]):
     async def handle(self, message: ListServiceTitles) -> frozenset[str]:
         """Вернуть названия."""
         return await self._directory.active_service_titles(message.master_id)
+
+
+@dataclass(frozen=True, slots=True)
+class ListRemovedServices(Query[tuple[str, ...]]):
+    """Названия услуг, которые мастер убрал за последние ``days`` дней (свежие первыми).
+
+    Нужны агенту: в истории переписки они могли звучать как актуальные.
+    """
+
+    master_id: UUID
+    days: int = 30
+
+
+class ListRemovedServicesHandler(Handler[ListRemovedServices, tuple[str, ...]]):
+    """Читает убранные услуги из каталога."""
+
+    def __init__(self, directory: MasterDirectory, clock: Clock) -> None:
+        """Получить каталог и часы."""
+        self._directory = directory
+        self._clock = clock
+
+    async def handle(self, message: ListRemovedServices) -> tuple[str, ...]:
+        """Вернуть названия."""
+        since = self._clock.now() - timedelta(days=message.days)
+        return await self._directory.removed_service_titles(message.master_id, since)
 
 
 @dataclass(frozen=True, slots=True)

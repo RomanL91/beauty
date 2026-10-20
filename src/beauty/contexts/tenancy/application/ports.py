@@ -72,3 +72,7 @@ class MasterDirectory(ABC):
     @abstractmethod
     async def active_service_titles(self, master_id: UUID) -> frozenset[str]:
         """Названия активных услуг (черновика тоже)."""
+
+    @abstractmethod
+    async def removed_service_titles(self, master_id: UUID, since: datetime) -> tuple[str, ...]:
+        """Названия услуг, убранных с ``since`` (свежие первыми), которых нет среди активных."""

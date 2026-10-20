@@ -43,6 +43,8 @@ class MasterBrief:
     about: str = ""
     announcements: tuple[str, ...] = ()
     """Недавние объявления мастера клиентам: «20.10: текст»."""
+    removed_services: tuple[str, ...] = ()
+    """Услуги, которые мастер недавно убрал: в истории переписки они могли звучать."""
 
 
 class MasterBriefs(ABC):

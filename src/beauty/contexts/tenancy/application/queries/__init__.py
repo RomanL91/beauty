@@ -17,6 +17,8 @@ from beauty.contexts.tenancy.application.queries.master_page import (
     FindMasterIdHandler,
     GetMasterPage,
     GetMasterPageHandler,
+    ListRemovedServices,
+    ListRemovedServicesHandler,
     ListServiceTitles,
     ListServiceTitlesHandler,
 )
@@ -37,6 +39,8 @@ __all__ = [
     "GetWorkingCalendarHandler",
     "ListFreeSlots",
     "ListFreeSlotsHandler",
+    "ListRemovedServices",
+    "ListRemovedServicesHandler",
     "ListServiceTitles",
     "ListServiceTitlesHandler",
 ]

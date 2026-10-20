@@ -41,6 +41,8 @@ from beauty.contexts.tenancy.application.queries import (
     GetMasterPageHandler,
     ListFreeSlots,
     ListFreeSlotsHandler,
+    ListRemovedServices,
+    ListRemovedServicesHandler,
 )
 from beauty.contexts.tenancy.domain.errors import InvalidMasterSlug, InvalidProfile
 from beauty.contexts.tenancy.domain.events import MasterPublished, MasterRegistered
@@ -147,6 +149,25 @@ async def test_service_commands(world: World) -> None:
         await AddServiceHandler(world.uow(), world.clock, world.ids).handle(
             AddService(uuid4(), "x", 30, None)
         )
+
+
+async def test_removed_services_for_agent(world: World) -> None:
+    """Убранные за 30 дней — агенту; вернувшееся название и старые — не в счёт."""
+    master_id, short, long = await world.published_master()
+    removed = ListRemovedServicesHandler(world.readers, world.clock)
+    await AddServiceHandler(world.uow(), world.clock, world.ids).handle(
+        AddService(master_id, "Тестовая", 30, None)
+    )
+    await ArchiveServiceHandler(world.uow(), world.clock).handle(ArchiveService(master_id, short))
+    world.clock.advance(timedelta(days=1))
+    await ArchiveServiceHandler(world.uow(), world.clock).handle(ArchiveService(master_id, long))
+    assert await removed.handle(ListRemovedServices(master_id)) == ("Чистка лица", "Массаж спины")
+    await AddServiceHandler(world.uow(), world.clock, world.ids).handle(
+        AddService(master_id, "массаж СПИНЫ", 40, None)
+    )
+    assert await removed.handle(ListRemovedServices(master_id)) == ("Чистка лица",)
+    world.clock.advance(timedelta(days=31))
+    assert await removed.handle(ListRemovedServices(master_id)) == ()
 
 
 async def test_portfolio_and_days_off(world: World) -> None:

@@ -15,7 +15,11 @@ from beauty.contexts.agent.application.commands import (
     AnswerClientHandler,
 )
 from beauty.contexts.agent.application.errors import UnknownProfileTokenError
-from beauty.contexts.agent.application.instructions import CATALOG_NOTE, front_desk_instructions
+from beauty.contexts.agent.application.instructions import (
+    CATALOG_NOTE,
+    front_desk_instructions,
+    office_instructions,
+)
 from beauty.contexts.agent.application.ports import RunOutcome, RunRequest, ServiceBrief
 from beauty.contexts.agent.application.toolkit import FrontDeskToolkit
 from beauty.contexts.agent.domain.errors import InvalidTicket
@@ -334,6 +338,17 @@ async def test_client_name_from_conversation_signs_the_card(clock: FrozenClock) 
     await world.answer(runtime, "Можно просто Мася")
     assert world.clients.names[CLIENT] == "Мася"
     assert "set_client_name" in runtime.requests[0].instructions
+
+
+def test_instructions_name_removed_services(clock: FrozenClock) -> None:
+    """Убранные услуги названы явно в обоих лицах: в истории переписки они могли звучать."""
+    master = replace(BRIEF, removed_services=("Тестовая",))
+    for text in (
+        front_desk_instructions(master, "Клиент", "t-abcdefgh", clock.now()),
+        office_instructions(master, "t-abcdefgh", clock.now()),
+    ):
+        assert "Мастер недавно убрал услуги: «Тестовая» — их больше нет" in text
+    assert "недавно убрал" not in front_desk_instructions(BRIEF, "Клиент", "t-abcdefgh", clock.now())
 
 
 def test_instructions_carry_recent_announcements(clock: FrozenClock) -> None:
