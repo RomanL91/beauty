@@ -39,6 +39,7 @@ START = re.compile(r'\\?"start\\?"\s*:\s*\\?"([^"\\]+)')
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 NOW = re.compile(r"Сейчас: [^,]+, (\d{2})\.(\d{2})\.(\d{4})")
 OFFICE_MARK = "С тобой говорит сам мастер"
+INTERVIEW = re.compile(r"мастер добавил услугу «([^»]+)»")
 BOOKING_WORDS = ("запиш", "записа", "окн", "свобод", "массаж", "маникюр", "стриж")
 
 app = FastAPI(title="fake-llm")
@@ -134,6 +135,8 @@ def booking(turn: Turn, ticket: str) -> Step:
         return call("book_appointment", {"ticket": ticket, "service_id": service, "start": slot.group(1)})
     booked = START.search(turn.results["book_appointment"])
     when = booked.group(1)[:16].replace("T", " в ") if booked else "ближайшее окно"
+    if "confirmed" in turn.results["book_appointment"]:
+        return answer(f"Записала вас на {when} — запись подтверждена, карточка уже в чате.")
     return answer(f"Записала вас на {when}. Мастер подтвердит заявку — карточка уже в чате.")
 
 
@@ -158,10 +161,41 @@ def schedule(turn: Turn, ticket: str, target: date) -> Step:
     return answer(f"На {target.isoformat()} записей: {len(visits)} — {', '.join(visits)}.")
 
 
+def interview(turn: Turn, ticket: str) -> Step:
+    """Мастер добавил услугу — первый вопрос интервью карточкой."""
+    title = INTERVIEW.search(turn.user)
+    question = {
+        "ticket": ticket,
+        "question": f"«{title.group(1) if title else 'Новая услуга'}»: в какие дни её делаете?",
+        "options": ["В любой рабочий день", "Только в определённые дни", "Пропустить"],
+    }
+    return once(turn, "ask_master", question, "Уточняю у вас.")
+
+
+def teach(turn: Turn, ticket: str) -> Step | None:
+    """Мастер учит агента: интервью о новой услуге, «запомни: …», «записывай сам»."""
+    text = turn.user.lower()
+    if INTERVIEW.search(turn.user):
+        return interview(turn, ticket)
+    if text.startswith("мастер выбрал") and "в какие дни" in text:
+        return answer("Понял. В какие именно дни и сколько клиентов в день? Напишите «запомни: …».")
+    if text.startswith("запомни"):
+        practice = {"ticket": ticket, "text": turn.user.split(":", 1)[-1].strip()}
+        return once(turn, "remember_practice", practice, "Запомнил — ресепшн будет так записывать.")
+    if "записывай сам" in text:
+        autonomy = {"ticket": ticket, "on": True}
+        return once(turn, "set_booking_autonomy", autonomy, "Хорошо — записываю клиентов сразу.")
+    return None
+
+
 def office(turn: Turn, ticket: str) -> Step:
-    """Кабинет: «что у меня завтра?», «закрой воскресенье» (с вопросом мастеру), ответ на вопрос."""
+    """Кабинет: обучение, «что у меня завтра?», «закрой воскресенье» (с вопросом мастеру),
+    ответ на вопрос."""
     today = turn.today()
     text = turn.user.lower()
+    taught = teach(turn, ticket)
+    if taught is not None:
+        return taught
     if text.startswith("мастер выбрал"):
         return answered(turn, ticket)
     if "закр" in text or "выходн" in text:
