@@ -1537,6 +1537,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
+        description: { type: string, maxLength: 1000, description: 'Описание мастера: для кого, как проходит, противопоказания (пусто — нет описания). Его же читает ИИ-администратор. Есть на странице мастера и в настройках; в записях не приходит.' }
         duration_min: { type: integer, minimum: 5 }
         price:
           oneOf:
@@ -1617,6 +1618,7 @@ components:
       required: [title, duration_min, price]
       properties:
         title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 1000, description: 'Не передано — пусто.' }
         duration_min: { type: integer, minimum: 5, maximum: 480, multipleOf: 5 }
         price:
           oneOf:

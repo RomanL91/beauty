@@ -1176,6 +1176,8 @@ export interface components {
       /** Format: uuid */
       id: string;
       title: string;
+      /** @description Описание мастера: для кого, как проходит, противопоказания (пусто — нет описания). Его же читает ИИ-администратор. Есть на странице мастера и в настройках; в записях не приходит. */
+      description?: string;
       duration_min: number;
       price: components['schemas']['Money'] | null;
     };
@@ -1238,6 +1240,8 @@ export interface components {
     };
     ServiceInput: {
       title: string;
+      /** @description Не передано — пусто. */
+      description?: string;
       duration_min: number;
       price: components['schemas']['Money'] | null;
     };

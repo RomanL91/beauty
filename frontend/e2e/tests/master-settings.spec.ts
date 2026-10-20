@@ -42,6 +42,9 @@ test('мастер: настройки — профиль, услуга, гра�
   await sheet.getByRole('button', { name: 'Добавить' }).click();
   await expect(sheet.getByText('Сумма в тенге, например 12000')).toBeVisible();
   await sheet.getByRole('textbox', { name: 'Цена, ₸' }).fill('10 000');
+  await sheet
+    .getByRole('textbox', { name: 'Описание' })
+    .fill('Лимфодренаж и лифтинг. Не делаю при розацеа и свежем ботоксе.');
   await shot(page, 'master-settings-service', false);
   await sheet.getByRole('button', { name: 'Добавить' }).click();
   await expect(page.getByText('Услуга добавлена')).toBeVisible();

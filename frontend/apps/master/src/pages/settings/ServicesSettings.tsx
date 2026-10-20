@@ -5,6 +5,7 @@ import {
   SelectField,
   Sheet,
   StateView,
+  TextArea,
   TextField,
   formatMinutes,
   formatMoney,
@@ -97,6 +98,7 @@ function ServiceForm({
 }) {
   const current = editing.kind === 'edit' ? editing.service : null;
   const [title, setTitle] = useState(current?.title ?? '');
+  const [description, setDescription] = useState(current?.description ?? '');
   const [duration, setDuration] = useState(current?.duration_min ?? 60);
   const [price, setPrice] = useState(tengeText(current?.price ?? null));
   const [touched, setTouched] = useState(false);
@@ -123,7 +125,12 @@ function ServiceForm({
     setTouched(true);
     if (!title.trim() || parsedPrice === undefined) return;
     save.mutate(
-      { title: title.trim(), duration_min: duration, price: parsedPrice },
+      {
+        title: title.trim(),
+        description: description.trim(),
+        duration_min: duration,
+        price: parsedPrice,
+      },
       { onSuccess: onDone },
     );
   };
@@ -155,6 +162,15 @@ function ServiceForm({
         />
       </div>
       <p className={styles.muted}>Без цены клиент увидит «цена по запросу».</p>
+      <TextArea
+        label="Описание"
+        value={description}
+        maxLength={1000}
+        rows={4}
+        placeholder="Для кого, как проходит, сколько процедур в курсе, противопоказания"
+        hint="Клиент увидит его на странице, ИИ-администратор отвечает по нему на вопросы."
+        onChange={(e) => setDescription(e.target.value)}
+      />
       <FormError
         text={
           error && !['invalid_service_duration', 'invalid_money'].includes(error.code)

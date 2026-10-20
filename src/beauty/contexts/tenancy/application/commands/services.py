@@ -22,6 +22,7 @@ class AddService(Command[UUID]):
     title: str
     duration_min: int
     price_amount: int | None
+    description: str = ""
 
 
 class AddServiceHandler(Handler[AddService, UUID]):
@@ -39,7 +40,9 @@ class AddServiceHandler(Handler[AddService, UUID]):
         price = None if message.price_amount is None else Money(message.price_amount)
         async with self._uow as uow:
             master = await load_master(uow, message.master_id)
-            service = master.add_service(self._ids.new(), message.title, duration, price, self._clock.now())
+            service = master.add_service(
+                self._ids.new(), message.title, duration, price, self._clock.now(), message.description
+            )
             await uow.commit()
             return service.id
 
@@ -53,6 +56,7 @@ class UpdateService(Command[None]):
     title: str
     duration_min: int
     price_amount: int | None
+    description: str = ""
 
 
 class UpdateServiceHandler(Handler[UpdateService, None]):
@@ -70,7 +74,9 @@ class UpdateServiceHandler(Handler[UpdateService, None]):
         async with self._uow as uow:
             master = await load_master(uow, message.master_id)
             try:
-                master.update_service(message.service_id, message.title, duration, price, self._clock.now())
+                master.update_service(
+                    message.service_id, message.title, duration, price, self._clock.now(), message.description
+                )
             except UnknownService as error:
                 raise as_service_not_found(error) from error
             await uow.commit()

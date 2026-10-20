@@ -28,11 +28,17 @@ logger = logging.getLogger(__name__)
 
 DEMO_SLUG = "alisa"
 
-_SERVICES: tuple[tuple[str, int, int], ...] = (
-    ("Классический массаж спины", 40, 9_000_00),
-    ("Антицеллюлитный массаж", 60, 12_000_00),
-    ("Чистка лица комбинированная", 90, 15_000_00),
-    ("Уходовая процедура", 60, 11_000_00),
+_SERVICES: tuple[tuple[str, int, int, str], ...] = (
+    ("Классический массаж спины", 40, 9_000_00, "Снимает напряжение в спине и шее после сидячей работы."),
+    (
+        "Антицеллюлитный массаж",
+        60,
+        12_000_00,
+        "Интенсивный ручной массаж бёдер, ягодиц и живота; курс — 10 процедур через день. "
+        "Не делаю при беременности, варикозе, воспалениях кожи и в первые дни цикла.",
+    ),
+    ("Чистка лица комбинированная", 90, 15_000_00, "Ультразвук и ручная чистка, маска и успокаивающий уход."),
+    ("Уходовая процедура", 60, 11_000_00, ""),
 )
 
 _DAY = ((time(10), time(15)), (time(15, 30), time(19)))
@@ -103,8 +109,14 @@ class DemoMasterSeeder:
     async def _ensure_services(self, master_id: UUID) -> None:
         """Добавить недостающие услуги (по названию)."""
         existing = await self._mediator.send(ListServiceTitles(master_id))
-        for title, minutes, price in _SERVICES:
+        for title, minutes, price, description in _SERVICES:
             if title not in existing:
                 await self._mediator.send(
-                    AddService(master_id=master_id, title=title, duration_min=minutes, price_amount=price)
+                    AddService(
+                        master_id=master_id,
+                        title=title,
+                        duration_min=minutes,
+                        price_amount=price,
+                        description=description,
+                    )
                 )

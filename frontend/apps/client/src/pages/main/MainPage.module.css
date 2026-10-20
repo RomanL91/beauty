@@ -164,6 +164,32 @@
   color: var(--c-text-muted);
 }
 
+.serviceAbout {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--c-text-2);
+  white-space: pre-line;
+}
+
+.clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.more {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-accent);
+}
+
 .gallery {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

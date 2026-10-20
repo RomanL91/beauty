@@ -15,6 +15,7 @@ class ServiceView:
     title: str
     duration_min: int
     price_amount: int | None
+    description: str = ""
 
 
 @dataclass(frozen=True, slots=True)

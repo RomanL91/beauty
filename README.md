@@ -159,13 +159,20 @@ Push-уведомления: `docker compose run --rm api push keys` печат�
 # и модель — OpenRouter (BEAUTY_AGENT__PROVIDER_API_KEY) или сценарная, см. .env.example
 docker compose --profile agent up -d --build                     # + --profile fake-llm без ключа LLM
 docker compose run --rm agent-setup "beauty agent provision <slug>"  # агент другому мастеру
-docker compose run --rm agent-setup "beauty agent bootstrap"         # смена модели → шаблон и все профили
+docker compose run --rm agent-setup "beauty agent bootstrap"         # смена модели или релиз → шаблоны, профили, SOUL.md
 ```
 
 Расшифровка голосовых (клиентов и поручений мастера): `BEAUTY_SPEECH__PROVIDER=openrouter` —
 тот же ключ OpenRouter, что у агента, модель `BEAUTY_SPEECH__MODEL` (по умолчанию
 `openai/whisper-large-v3`); `fake` — сценарная фраза для стенда без ключа. Расшифровывает
 worker в фоне; текст появляется под голосовым, агент отвечает по нему.
+
+Что агент знает о мастере: адрес, «О себе», услуги с ценами и описаниями (мастер пишет их в
+кабинете: для кого, как проходит, противопоказания) и правила записи — в инструкциях каждого
+хода. О процедурах он консультирует сам — по описаниям мастера и общим знаниям (о здоровье —
+без диагнозов и гарантий); мастеру передаёт только то, что решает мастер: скидки, особые
+условия, жалобы. После обновления правил агента (новый релиз) — `beauty agent bootstrap`:
+он переписывает SOUL.md уже подключённых мастеров.
 
 Ход: клиент пишет → `worker` (консьюмер `agent.front_desk`, single active consumer) →
 Runs API Hermes (`/p/<профиль>/v1/runs`) → инструменты `beauty-tools` по MCP (токен профиля

@@ -118,13 +118,15 @@ def cabinet_router(
     @router.post("/services", status_code=201, summary="Добавить услугу")
     async def add_service(body: ServiceInput, master_id: master) -> JSONResponse:
         price = None if body.price is None else body.price.amount
-        await mediator.send(AddService(master_id, body.title, body.duration_min, price))
+        await mediator.send(AddService(master_id, body.title, body.duration_min, price, body.description))
         return await settings(master_id, status_code=201)
 
     @router.put("/services/{service_id}", summary="Изменить услугу")
     async def update_service(service_id: UUID, body: ServiceInput, master_id: master) -> JSONResponse:
         price = None if body.price is None else body.price.amount
-        await mediator.send(UpdateService(master_id, service_id, body.title, body.duration_min, price))
+        await mediator.send(
+            UpdateService(master_id, service_id, body.title, body.duration_min, price, body.description)
+        )
         return await settings(master_id)
 
     @router.delete("/services/{service_id}", summary="Убрать услугу")

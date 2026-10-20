@@ -269,10 +269,12 @@ class AgentMasters(agent_ports.MasterBriefs):
             address=page.address,
             timezone=page.timezone,
             services=tuple(
-                agent_ports.ServiceBrief(s.id, s.title, s.duration_min, s.price_amount) for s in page.services
+                agent_ports.ServiceBrief(s.id, s.title, s.duration_min, s.price_amount, s.description)
+                for s in page.services
             ),
             confirm_within_hours=page.confirm_within_hours,
             change_deadline_hours=page.change_deadline_hours,
+            about=page.about,
         )
 
 

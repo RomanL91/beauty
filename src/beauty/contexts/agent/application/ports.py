@@ -25,6 +25,7 @@ class ServiceBrief:
     title: str
     duration_min: int
     price_amount: int | None
+    description: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +40,7 @@ class MasterBrief:
     services: tuple[ServiceBrief, ...]
     confirm_within_hours: int
     change_deadline_hours: int
+    about: str = ""
 
 
 class MasterBriefs(ABC):

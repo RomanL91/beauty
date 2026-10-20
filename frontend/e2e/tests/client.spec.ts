@@ -7,6 +7,12 @@ test('(а) клиент: страница → «Записаться» → вх�
   await page.goto(CLIENT);
   await expect(page.getByRole('heading', { name: 'Алиса Мельникова' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Ближайшие окна' })).toBeVisible();
+  await expect(page.getByText(/Снимает напряжение в спине и шее/)).toBeVisible();
+  const more = page.getByRole('button', { name: 'Подробнее' });
+  await expect(more).toHaveCount(1); // длинное описание антицеллюлитного свёрнуто
+  await more.click();
+  await expect(page.getByText(/Не делаю при беременности, варикозе/)).toBeVisible();
+  await page.getByRole('button', { name: 'Свернуть' }).click();
   await expect(
     page.getByRole('link', { name: /^(Сегодня|Завтра|Пн|Вт|Ср|Чт|Пт|Сб|Вс) \d\d:\d\d$/ }).first(),
   ).toBeVisible();

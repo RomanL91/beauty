@@ -251,3 +251,31 @@ def test_instructions_carry_catalog_and_ticket(clock: FrozenClock) -> None:
     assert f"service_id: {SERVICE.id}" in text
     assert "Массаж спины — 60 мин, 12 000 ₸" in text
     assert "четверг, 15.10.2026 17:00 (Asia/Almaty)" in text
+
+
+def test_instructions_carry_master_knowledge_and_consulting_rules(clock: FrozenClock) -> None:
+    """Агент консультирует по процедурам сам — по словам мастера и общим знаниям, — а мастеру
+    передаёт только то, что решает мастер, и сразу, без «передать?»."""
+    described = replace(SERVICE, description="Курс — 10 процедур.\nНе делаю при варикозе.")
+    master = replace(BRIEF, services=(described,), about="Восемь лет\nработаю с телом.")
+    text = front_desk_instructions(master, "Клиент", "t-abcdefgh", clock.now())
+    assert "О себе (слова мастера со страницы): Восемь лет работаю с телом." in text
+    assert "  Описание мастера: Курс — 10 процедур. Не делаю при варикозе." in text
+    assert "типичные противопоказания" in text
+    assert "Не отвечай «у меня нет информации»" in text
+    assert "не спрашивая клиента «передать?»" in text
+    assert "или ты не уверен" not in text  # прежнее правило уводило любой вопрос мастеру
+
+    bare = front_desk_instructions(BRIEF, "Клиент", "t-abcdefgh", clock.now())
+    assert "О себе" not in bare
+    assert "Описание мастера" not in bare
+
+
+async def test_new_service_description_marks_catalog_changed(clock: FrozenClock) -> None:
+    world = World(clock)
+    runtime = ScriptedRuntime()
+    await world.answer(runtime, "Что за массаж?")
+    clock.advance(timedelta(minutes=1))
+    world.masters.current = replace(BRIEF, services=(replace(SERVICE, description="Расслабляющий"),))
+    await world.answer(runtime, "Что за массаж?")
+    assert runtime.requests[-1].input.startswith(CATALOG_NOTE)

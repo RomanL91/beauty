@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import select
+
+from beauty.bootstrap.adapters import AgentMasters
 from beauty.bootstrap.container import ApplicationContainer
 from beauty.contexts.agent.application.commands import OFFICE_SUFFIX, PROFILE_PREFIX
 from beauty.contexts.agent.domain.ticket import AgentFace
-from beauty.contexts.agent.infrastructure.hermes import ROLE_OVERLAYS, HermesTemplate
+from beauty.contexts.agent.infrastructure.hermes import ROLE_OVERLAYS, ROLE_SOULS, HermesTemplate
+from beauty.contexts.agent.infrastructure.tables import profiles as profile_rows
 
 
 class AgentOperator:
@@ -19,7 +23,7 @@ class AgentOperator:
 
     async def bootstrap(self) -> list[str]:
         """Создать или обновить шаблоны ресепшна и кабинета (модель, тулсеты, MCP) и довести
-        до них уже созданные профили мастеров; вернуть имена этих профилей."""
+        до них уже созданные профили мастеров вместе с SOUL.md; вернуть имена этих профилей."""
         settings = self._container.settings.agent
         model: dict[str, Any] = {"provider": settings.provider, "default": settings.model}
         if settings.base_url:
@@ -57,4 +61,24 @@ class AgentOperator:
             )
             await template.ensure()
             template.sync(profiles)
+        await self._refresh_souls()
         return masters
+
+    async def _refresh_souls(self) -> None:
+        """Переписать SOUL.md профилей мастеров по текущим правилам ролей: провижининг пишет
+        его только при создании профиля, а правила агента меняются с релизами."""
+        statement = select(profile_rows.c.id, profile_rows.c.profile_name, profile_rows.c.office_profile_name)
+        async with self._container.session_factory() as session:
+            rows = (await session.execute(statement)).all()
+        masters = AgentMasters(lambda: self._container.mediator)
+        files = self._container.hermes_files
+        for row in rows:
+            brief = await masters.brief(row.id)
+            if brief is None:
+                continue
+            for profile, face in (
+                (row.profile_name, AgentFace.FRONT_DESK),
+                (row.office_profile_name, AgentFace.BACK_OFFICE),
+            ):
+                if profile and files.exists(profile):
+                    files.write_soul(profile, ROLE_SOULS[face].format(name=brief.name))

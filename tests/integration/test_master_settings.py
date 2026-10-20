@@ -98,10 +98,24 @@ async def test_services_hours_days_off_and_rules(http: httpx.AsyncClient, master
     service = {"title": "Массаж лица", "duration_min": 45, "price": {"amount": 1_000_000, "currency": "KZT"}}
     added = await ok(await http.post(f"{API}/me/services", json=service, headers=master), 201)
     new = next(s for s in added["page"]["services"] if s["title"] == "Массаж лица")
+    assert new["description"] == ""
+    about = "  Лимфодренаж и лифтинг.\nНе делаю при розацеа.  "
     changed = await ok(
-        await http.put(f"{API}/me/services/{new['id']}", json={**service, "price": None}, headers=master)
+        await http.put(
+            f"{API}/me/services/{new['id']}",
+            json={**service, "price": None, "description": about},
+            headers=master,
+        )
     )
-    assert next(s for s in changed["page"]["services"] if s["id"] == new["id"])["price"] is None
+    updated = next(s for s in changed["page"]["services"] if s["id"] == new["id"])
+    assert (updated["price"], updated["description"]) == (
+        None,
+        "Лимфодренаж и лифтинг.\nНе делаю при розацеа.",
+    )
+    too_long = await http.put(
+        f"{API}/me/services/{new['id']}", json={**service, "description": "x" * 1001}, headers=master
+    )
+    assert problem(too_long) == (422, "validation_error")
     archived = await ok(await http.delete(f"{API}/me/services/{new['id']}", headers=master))
     assert all(s["id"] != new["id"] for s in archived["page"]["services"])
     bad_duration = await http.post(f"{API}/me/services", json={**service, "duration_min": 7}, headers=master)

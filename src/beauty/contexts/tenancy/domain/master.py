@@ -46,6 +46,7 @@ from beauty.shared.domain.aggregate import AggregateRoot, Entity
 from beauty.shared.domain.events import DomainEvent
 
 MAX_ACTIVE_SERVICES = 50
+SERVICE_DESCRIPTION_MAX = 1000
 MAX_PHOTOS = 30
 MAX_DAYS_OFF = 366
 _E164 = re.compile(r"^\+[1-9]\d{9,14}$")
@@ -78,11 +79,18 @@ class Service(Entity):
     """Услуга мастера."""
 
     def __init__(
-        self, service_id: UUID, title: str, duration: ServiceDuration, price: Money | None, position: int
+        self,
+        service_id: UUID,
+        title: str,
+        duration: ServiceDuration,
+        price: Money | None,
+        position: int,
+        description: str = "",
     ) -> None:
         """Создать услугу (только через ``Master.add_service``)."""
         self.id = service_id
         self.title = _text(title, field="название услуги", max_length=120, required=True)
+        self.description = _text(description, field="описание услуги", max_length=SERVICE_DESCRIPTION_MAX)
         self.duration = duration
         self.price = price
         self.position = position
@@ -239,13 +247,19 @@ class Master(AggregateRoot):
         return sorted((s for s in self.services if s.is_active), key=lambda s: s.position)
 
     def add_service(
-        self, service_id: UUID, title: str, duration: ServiceDuration, price: Money | None, now: datetime
+        self,
+        service_id: UUID,
+        title: str,
+        duration: ServiceDuration,
+        price: Money | None,
+        now: datetime,
+        description: str = "",
     ) -> Service:
         """Добавить услугу в конец списка."""
         if len(self.active_services) >= MAX_ACTIVE_SERVICES:
             raise ServiceLimitReached(f"Не больше {MAX_ACTIVE_SERVICES} услуг")
         position = max((s.position for s in self.services), default=-1) + 1
-        service = Service(service_id, title, duration, price, position)
+        service = Service(service_id, title, duration, price, position, description)
         self.services.append(service)
         self._touch(
             now,
@@ -254,11 +268,18 @@ class Master(AggregateRoot):
         return service
 
     def update_service(
-        self, service_id: UUID, title: str, duration: ServiceDuration, price: Money | None, now: datetime
+        self,
+        service_id: UUID,
+        title: str,
+        duration: ServiceDuration,
+        price: Money | None,
+        now: datetime,
+        description: str = "",
     ) -> None:
-        """Изменить название, длительность или цену."""
+        """Изменить название, описание, длительность или цену."""
         service = self._active_service(service_id)
         service.title = _text(title, field="название услуги", max_length=120, required=True)
+        service.description = _text(description, field="описание услуги", max_length=SERVICE_DESCRIPTION_MAX)
         service.duration = duration
         service.price = price
         self._touch(

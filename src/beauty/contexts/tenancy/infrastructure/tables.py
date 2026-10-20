@@ -100,6 +100,13 @@ master_services = Table(
     Column("id", UUID(as_uuid=True), primary_key=True),
     Column("master_id", UUID(as_uuid=True), ForeignKey(masters.c.id, ondelete="CASCADE"), nullable=False),
     Column("title", Text, nullable=False),
+    Column(
+        "description",
+        Text,
+        nullable=False,
+        server_default="",
+        comment="для кого, как проходит, противопоказания; пусто — нет описания",
+    ),
     Column("duration_min", ServiceDurationType, nullable=False),
     Column("price_amount", PriceType, comment="тиыны; NULL — цена по запросу"),
     Column("position", Integer, nullable=False),

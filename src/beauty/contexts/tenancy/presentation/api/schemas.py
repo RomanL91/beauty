@@ -23,6 +23,7 @@ class ServiceResponse(BaseModel):
 
     id: UUID
     title: str
+    description: str
     duration_min: int
     price: MoneyResponse | None
 
@@ -83,6 +84,7 @@ class MasterPageResponse(BaseModel):
                 ServiceResponse(
                     id=s.id,
                     title=s.title,
+                    description=s.description,
                     duration_min=s.duration_min,
                     price=None if s.price_amount is None else MoneyResponse(amount=s.price_amount),
                 )
@@ -196,6 +198,7 @@ class ServiceInput(BaseModel):
     """``ServiceInput`` контракта."""
 
     title: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=1000)
     duration_min: int
     price: MoneyResponse | None
 

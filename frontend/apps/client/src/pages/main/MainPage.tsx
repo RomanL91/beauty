@@ -11,6 +11,7 @@ import {
   formatSlotShort,
   useOnline,
 } from '@beauty/ui';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { useMasterPage, useSlots } from '../../entities/master/queries';
 import { useSession } from '../../entities/session/use-session';
@@ -113,6 +114,7 @@ function MasterView({ master }: { readonly master: Master }) {
                 <div className={styles.serviceMeta}>
                   {s.duration_min} мин · {formatMoney(s.price)}
                 </div>
+                {s.description && <ServiceDescription text={s.description} />}
               </div>
               <Link
                 to={to({ serviceId: s.id })}
@@ -269,5 +271,27 @@ function MainSkeleton() {
         <Skeleton height={200} radius={18} />
       </div>
     </div>
+  );
+}
+
+const LONG_DESCRIPTION = 140;
+
+/** Описание услуги мастера: длинное — свёрнуто до трёх строк. */
+function ServiceDescription({ text }: { readonly text: string }) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > LONG_DESCRIPTION;
+  return (
+    <>
+      <p
+        className={long && !open ? `${styles.serviceAbout} ${styles.clamped}` : styles.serviceAbout}
+      >
+        {text}
+      </p>
+      {long && (
+        <button type="button" className={styles.more} onClick={() => setOpen((o) => !o)}>
+          {open ? 'Свернуть' : 'Подробнее'}
+        </button>
+      )}
+    </>
   );
 }

@@ -37,6 +37,13 @@ function required(value: string, field: string, max: number, code = 'invalid_pro
   return trimmed;
 }
 
+function optional(value: string, field: string, max: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length > max)
+    throw new MockProblem(422, 'validation_error', `Поле «${field}» — не длиннее ${max} символов`);
+  return trimmed;
+}
+
 /**
  * Настройки страницы мастера в моках: правки страницы `page` (её видят и клиентский мок,
  * и `GET /me`), рабочие часы, выходные даты, правила, публикация — с проверками, как у сервера.
@@ -260,6 +267,7 @@ export class MockSettings {
       throw new MockProblem(422, 'invalid_money', 'Некорректная цена');
     return {
       title: required(input.title, 'название услуги', 120, 'invalid_profile'),
+      description: optional(input.description ?? '', 'описание услуги', 1000),
       duration_min: duration,
       price: input.price ?? null,
     };

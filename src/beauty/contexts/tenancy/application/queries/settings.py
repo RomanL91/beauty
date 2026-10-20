@@ -49,7 +49,13 @@ def settings_of(master: Master) -> MasterSettingsView:
         avatar_url=master.avatar_url,
         about=master.about,
         services=tuple(
-            ServiceView(s.id, s.title, s.duration.minutes, None if s.price is None else s.price.amount)
+            ServiceView(
+                s.id,
+                s.title,
+                s.duration.minutes,
+                None if s.price is None else s.price.amount,
+                s.description,
+            )
             for s in master.active_services
         ),
         photos=tuple(PhotoView(p.id, p.url, p.alt) for p in master.photos),

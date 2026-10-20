@@ -296,11 +296,13 @@ describe('настройки страницы мастера', () => {
 
     const added = await settings.addService({
       title: 'Массаж лица',
+      description: '  Лифтинг и лимфодренаж. ',
       duration_min: 45,
       price: { amount: 1_000_000, currency: 'KZT' },
     });
     const service = added.page.services.find((s) => s.title === 'Массаж лица');
     expect(service?.price?.amount).toBe(1_000_000);
+    expect(service?.description).toBe('Лифтинг и лимфодренаж.');
     await expect(
       settings.addService({ title: 'x', duration_min: 7, price: null }),
     ).rejects.toMatchObject({ status: 422, code: 'invalid_service_duration' });

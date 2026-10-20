@@ -169,8 +169,14 @@ class TestMaster:
         second = master.add_service(uuid4(), "Чистка", ServiceDuration(90), None, clock.now())
         assert first.title == "Массаж"
         assert [s.position for s in master.active_services] == [0, 1]
-        master.update_service(second.id, "Чистка лица", ServiceDuration(60), Money(5), clock.now())
+        assert first.description == ""
+        master.update_service(
+            second.id, "Чистка лица", ServiceDuration(60), Money(5), clock.now(), "  Ультразвук и уход. "
+        )
         assert master.service(second.id).duration.minutes == 60
+        assert master.service(second.id).description == "Ультразвук и уход."
+        with pytest.raises(InvalidProfile):
+            master.add_service(uuid4(), "Пилинг", ServiceDuration(30), None, clock.now(), "x" * 1001)
         master.archive_service(first.id, clock.now())
         assert [s.id for s in master.active_services] == [second.id]
         with pytest.raises(UnknownService):

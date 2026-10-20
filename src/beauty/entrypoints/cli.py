@@ -130,7 +130,10 @@ class ProcessLauncher:
         try:
             if action == "bootstrap":
                 synced = await AgentOperator(container).bootstrap()
-                return f"Шаблон профиля Hermes готов; профилей мастеров приведено к нему: {len(synced)}"
+                return (
+                    "Шаблон профиля Hermes готов; профилей мастеров приведено к нему "
+                    f"(конфиг и SOUL.md): {len(synced)}"
+                )
             master_id = await container.mediator.send(FindMasterId(slug or ""))
             if master_id is None:
                 return f"Мастер {slug} не найден"

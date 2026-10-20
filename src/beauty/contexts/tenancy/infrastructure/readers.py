@@ -65,6 +65,7 @@ class _Reader:
                 master_services.c.title,
                 master_services.c.duration_min,
                 master_services.c.price_amount,
+                master_services.c.description,
             )
             .where(master_services.c.master_id == master_id, master_services.c.archived_at.is_(None))
             .order_by(master_services.c.position)
@@ -104,6 +105,7 @@ class SqlMasterPageReader(_Reader, MasterPageReader):
                     title=s.title,
                     duration_min=s.duration_min.minutes,
                     price_amount=None if s.price_amount is None else s.price_amount.amount,
+                    description=s.description,
                 )
                 for s in services
             ),
