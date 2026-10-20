@@ -317,6 +317,25 @@ async def test_turn_carries_client_notes_and_remembers_new_facts(clock: FrozenCl
     assert "remember_client" in request.instructions
 
 
+async def test_client_name_from_conversation_signs_the_card(clock: FrozenClock) -> None:
+    """«Зовите меня Мася» — агент ресепшна подписывает карточку клиента этим именем."""
+    world = World(clock)
+    tools = world.toolkit()
+
+    async def script(request: RunRequest) -> str:
+        ticket = request.instructions.split("Тикет хода: ")[1].split(" ")[0]
+        caller = await tools.authorize(TOKEN, "m-alisa", ticket)
+        done = await tools.set_client_name(caller, "  Мася ")
+        assert (done["ok"], done["name"]) == (True, "Мася"), done
+        assert not (await tools.set_client_name(caller, "  "))["ok"]
+        return "Хорошо, Мася!"
+
+    runtime = ScriptedRuntime(script)
+    await world.answer(runtime, "Можно просто Мася")
+    assert world.clients.names[CLIENT] == "Мася"
+    assert "set_client_name" in runtime.requests[0].instructions
+
+
 def test_instructions_carry_recent_announcements(clock: FrozenClock) -> None:
     master = replace(BRIEF, announcements=("20.10: С 1 ноября — массаж лица, −20% (с фото)",))
     text = front_desk_instructions(master, "Клиент", "t-abcdefgh", clock.now())

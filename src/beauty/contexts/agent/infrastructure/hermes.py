@@ -32,6 +32,8 @@ _ENV_LINE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=")
 TEMPLATE_OVERLAY = Path(__file__).with_name("hermes_template.yaml")
 OFFICE_TEMPLATE_OVERLAY = Path(__file__).with_name("hermes_office_template.yaml")
 
+TOOL_CACHE = "mcp_schema_cache.json"
+
 SOUL_TEMPLATE = """# Администратор мастера {name}
 
 Ты — администратор частного мастера по имени {name}: отвечаешь клиентам, консультируешь
@@ -142,6 +144,19 @@ class ProfileFiles:
         path.write_text("\n".join(result) + "\n", encoding="utf-8")
         self._finalize(path, 0o600)
 
+    def clear_tool_cache(self, profile: str) -> bool:
+        """Забыть закэшированные схемы MCP-инструментов профиля; вернуть, был ли кэш.
+
+        Hermes хранит список инструментов сервера в ``cache/mcp_schema_cache.json`` и сверяет
+        его только с адресом и фильтрами сервера — новые инструменты beauty без сброса кэша
+        модель может не увидеть.
+        """
+        path = self._root / profile / "cache" / TOOL_CACHE
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
     def write_soul(self, profile: str, content: str) -> None:
         """Записать SOUL.md."""
         path = self._root / profile / "SOUL.md"
@@ -209,6 +224,7 @@ class HermesTemplate:
         overlay = merge_config(overlay, {"model": dict(self._model)})
         self._files.write_config(profile, merge_config(self._files.read_config(profile), overlay))
         self._files.upsert_env(profile, self._env)
+        self._files.clear_tool_cache(profile)
 
 
 class HermesProvisioner(ProfileProvisioner):
@@ -226,6 +242,7 @@ class HermesProvisioner(ProfileProvisioner):
         """Создать профиль (существующий — обновить секреты и SOUL.md)."""
         if not self._files.exists(profile_name):
             await self._runner.run("profile", "create", profile_name, "--clone-from", self._templates[face])
+        self._files.clear_tool_cache(profile_name)  # клон уносит и кэш инструментов шаблона
         provisioned = ProvisionedProfile(secrets.token_urlsafe(32), secrets.token_urlsafe(32))
         self._files.upsert_env(
             profile_name,

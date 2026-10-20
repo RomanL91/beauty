@@ -51,15 +51,29 @@ test('мастер: рассылка с фото всем клиентам; ли
   await expect(page.getByText(/Вы: Объявление: С 1 ноября/).first()).toBeVisible();
 });
 
-test('мастер: «Разошли всем…» — агент готовит черновик, отправляет мастер', async ({ page }) => {
+test('мастер: «Разошли всем…» — агент отправляет сразу', async ({ page }) => {
   await page.goto(`${MASTER}/assistant`);
   await page
     .getByRole('textbox', { name: 'Поручение текстом' })
     .fill('Разошли всем: с 1 ноября массаж лица, первую неделю −20%');
   await page.getByRole('button', { name: 'Отправить поручение' }).click();
-  const card = page.getByRole('group', { name: 'Черновик рассылки' });
+  const card = page.getByRole('group', { name: 'Рассылка', exact: true });
   await expect(card).toContainText('С 1 ноября массаж лица, первую неделю −20%');
-  await expect(page.getByText(/сама разослать не могу/)).toBeVisible();
+  await expect(page.getByText(/Разослала объявление \d+ клиентам/)).toBeVisible();
+  await expect(card).toContainText(/Отправлено \d+ клиентам/, { timeout: 10_000 });
+  await card.scrollIntoViewIfNeeded();
+  await screenshot(page, 'master-assistant-broadcast-sent');
+});
+
+test('мастер: черновик рассылки от агента — фото и отправка кнопкой', async ({ page }) => {
+  await page.goto(`${MASTER}/assistant`);
+  await page
+    .getByRole('textbox', { name: 'Поручение текстом' })
+    .fill('Подготовь черновик рассылки, добавлю фото: с 1 ноября массаж лица');
+  await page.getByRole('button', { name: 'Отправить поручение' }).click();
+  const card = page.getByRole('group', { name: 'Черновик рассылки' });
+  await expect(card).toContainText('С 1 ноября массаж лица');
+  await expect(page.getByText(/Подготовила черновик/)).toBeVisible();
   await card.getByLabel('Файл фото для объявления').setInputFiles({
     name: 'sale.png',
     mimeType: 'image/png',
@@ -68,9 +82,10 @@ test('мастер: «Разошли всем…» — агент готовит
   await expect(page.getByText('Фото добавлено')).toBeVisible();
   await card.getByRole('button', { name: /^Отправить \d+ клиентам$/ }).click();
   await card.getByRole('button', { name: 'Да, отправить' }).click();
-  await expect(card).toContainText(/Отправлено \d+ клиентам/, { timeout: 10_000 });
+  const sent = page.getByRole('group', { name: 'Рассылка', exact: true });
+  await expect(sent).toContainText(/Отправлено \d+ клиентам/, { timeout: 10_000 });
   await expect(page.getByText('Рассылка отправляется')).toHaveCount(0, { timeout: 8000 });
-  await card.scrollIntoViewIfNeeded();
+  await sent.scrollIntoViewIfNeeded();
   await screenshot(page, 'master-assistant-broadcast');
 });
 

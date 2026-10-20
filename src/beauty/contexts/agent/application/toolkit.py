@@ -179,6 +179,17 @@ class FrontDeskToolkit:
             return {"ok": False, "error": str(error) or "Заметку сохранить не получилось"}
         return {"ok": True, "note": "Сохранено в карточке клиента; клиенту об этом говорить не нужно"}
 
+    async def set_client_name(self, caller: ToolCaller, name: str) -> dict[str, Any]:
+        """Имя клиента тикета в картотеке мастера — как клиент сам просит к нему обращаться."""
+        cleaned = " ".join(name.split())
+        if not cleaned:
+            return {"ok": False, "error": "Нужно имя, как клиент его назвал"}
+        try:
+            await self._clients.rename(caller.master_id, caller.client_id, cleaned)
+        except (ClientNotFoundError, NoteRefusedError) as error:
+            return {"ok": False, "error": str(error) or "Имя сохранить не получилось"}
+        return {"ok": True, "name": cleaned, "note": "Карточка подписана; обращайся к клиенту так"}
+
     async def handoff_to_master(self, caller: ToolCaller, summary: str) -> dict[str, Any]:
         """Передать диалог мастеру с кратким пересказом."""
         await self._conversations.hand_off(caller.conversation_id, f"Агент передал вам: {summary}")

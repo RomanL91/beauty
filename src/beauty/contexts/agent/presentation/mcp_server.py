@@ -101,6 +101,10 @@ class BeautyToolsServer:
             """Передать диалог мастеру: summary — краткий пересказ вопроса клиента для мастера."""
             return await toolkit.handoff_to_master(await caller(ctx, ticket, "handoff_to_master"), summary)
 
+        async def set_client_name(ticket: str, name: str, ctx: Context) -> dict[str, Any]:
+            """Подписать клиента в карточке мастера: как он себя назвал или просит к нему обращаться."""
+            return await toolkit.set_client_name(await caller(ctx, ticket, "set_client_name"), name)
+
         async def remember_client(ticket: str, note: str, ctx: Context) -> dict[str, Any]:
             """Сохранить в карточку клиента устойчивый факт о нём (аллергия, предпочтения, как обращаться).
 
@@ -117,6 +121,7 @@ class BeautyToolsServer:
                 cancel_appointment,
                 handoff_to_master,
                 remember_client,
+                set_client_name,
             ),
         )
 
@@ -187,11 +192,14 @@ class OfficeToolsServer:
             granted = await caller(ctx, ticket, "message_client")
             return await toolkit.message_client(granted, client_id, text)
 
-        async def prepare_broadcast(ticket: str, text: str, ctx: Context) -> dict[str, Any]:
-            """Подготовить рассылку всем клиентам мастера: text — готовое объявление (до 1000 символов).
+        async def send_broadcast(ticket: str, text: str, ctx: Context) -> dict[str, Any]:
+            """Разослать объявление всем клиентам мастера сразу: text — готовый текст (до 1000 символов)."""
+            granted = await caller(ctx, ticket, "send_broadcast")
+            return await toolkit.send_broadcast(granted, text)
 
-            Это черновик: мастер проверит и отправит сам кнопкой; отправить ты не можешь.
-            """
+        async def prepare_broadcast(ticket: str, text: str, ctx: Context) -> dict[str, Any]:
+            """Черновик рассылки (если мастер просит черновик или хочет приложить фото): мастер
+            добавит фото и отправит кнопкой в карточке."""
             granted = await caller(ctx, ticket, "prepare_broadcast")
             return await toolkit.prepare_broadcast(granted, text)
 
@@ -233,6 +241,7 @@ class OfficeToolsServer:
                 cancel_appointment,
                 set_day_off,
                 message_client,
+                send_broadcast,
                 prepare_broadcast,
                 client_card,
                 add_client_note,

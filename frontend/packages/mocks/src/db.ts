@@ -878,18 +878,25 @@ export class MockDb {
     if (lower.includes('разошли') || lower.includes('рассылк')) {
       const announcement = body.includes(':') ? body.slice(body.indexOf(':') + 1).trim() : body;
       const draft = this.broadcasts.draft(capitalize(announcement), 'agent');
+      // Как агент: «разошли» — сразу всем; черновик — если мастер о нём просит или хочет фото.
+      const wantsDraft = lower.includes('черновик') || lower.includes('фото');
+      let reply = `Подготовила черновик для ${draft.recipients} клиентов. Добавьте фото и нажмите «Отправить».`;
+      if (!wantsDraft) {
+        try {
+          const sent = this.broadcasts.send(draft.id);
+          reply = `Разослала объявление ${sent.recipients} клиентам — доставка идёт.`;
+        } catch (error) {
+          if (!(error instanceof MockProblem)) throw error;
+          reply = `Не получилось: ${error.title.toLowerCase()}. Черновик оставила здесь — отправите кнопкой, когда станет можно.`;
+        }
+      }
       this.#pushAssistant({
         ...base('agent', now),
         kind: 'broadcast',
         broadcast_id: draft.id,
         text: draft.text,
       });
-      this.#pushAssistant(
-        text(
-          base('agent', now),
-          `Подготовила черновик для ${draft.recipients} клиентов. Проверьте текст, добавьте фото, если нужно, и нажмите «Отправить» — сама разослать не могу.`,
-        ),
-      );
+      this.#pushAssistant(text(base('agent', now), reply));
       return;
     }
     if (lower.includes('завтра')) {

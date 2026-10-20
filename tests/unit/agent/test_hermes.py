@@ -104,6 +104,8 @@ async def test_template_and_existing_profiles_follow_settings(tmp_path: Path) ->
     (tmp_path / "m-alisa").mkdir()
     (tmp_path / "m-alisa" / ".env").write_text("API_SERVER_KEY=secret\nBEAUTY_MCP_TOKEN=token\n")
     (tmp_path / "m-alisa" / "config.yaml").write_text("model:\n  default: old\nmemory:\n  enabled: true\n")
+    (tmp_path / "m-alisa" / "cache").mkdir()
+    (tmp_path / "m-alisa" / "cache" / "mcp_schema_cache.json").write_text("{}")
     (tmp_path / "default").mkdir()
 
     template = HermesTemplate(
@@ -122,6 +124,8 @@ async def test_template_and_existing_profiles_follow_settings(tmp_path: Path) ->
         assert "terminal" in config["agent"]["disabled_toolsets"]
         assert config["mcp_servers"]["beauty"]["headers"]["Authorization"] == "Bearer ${BEAUTY_MCP_TOKEN}"
     alisa = tmp_path / "m-alisa"
+    assert not (alisa / "cache" / "mcp_schema_cache.json").exists()  # новые инструменты beauty видны
+    assert not files.clear_tool_cache("m-alisa")
     assert yaml.safe_load((alisa / "config.yaml").read_text())["memory"] == {"enabled": True}
     assert (alisa / ".env").read_text().splitlines() == [
         "API_SERVER_KEY=secret",

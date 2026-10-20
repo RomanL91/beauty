@@ -260,6 +260,30 @@ async def test_agent_remembers_client_fact_for_master(
     assert "- Аллергия на лаванду" in runtime.requests[0].instructions
 
 
+async def test_client_named_in_chat_signs_the_card(
+    http: httpx.AsyncClient, container: ApplicationContainer, mcp_app: McpServerFactory, alisa: AgentProfile
+) -> None:
+    """«Зовите меня Мася» → агент подписывает карточку через MCP; имя в «Клиентах» и в следующем ходе."""
+    client = await new_client(http, container, 7032)
+
+    async def rename(call: ToolCall, ticket: str, _text: str) -> str:
+        done = await call("set_client_name", {"ticket": ticket, "name": "Мася"})
+        assert done["ok"], done
+        return "Хорошо, Мася!"
+
+    await answer(container, McpScriptRuntime(mcp_app, rename), client, "Можно просто Мася")
+    master = {"Authorization": f"Bearer {await login(http, container.mediator, 7002, OWNER_PHONE[1:])}"}
+    page = (await http.get(f"{API}/me/clients", headers=master)).json()
+    assert [(c["display_name"], c["named"]) for c in page["items"]] == [("Мася", True)]
+
+    async def reply(_call: ToolCall, _ticket: str, _text: str) -> str:
+        return "Записала"
+
+    runtime = McpScriptRuntime(mcp_app, reply)
+    await answer(container, runtime, client, "Хочу на массаж")
+    assert "Мася" in runtime.requests[0].instructions
+
+
 async def test_mcp_rejects_foreign_or_bad_credentials(
     http: httpx.AsyncClient, container: ApplicationContainer, mcp_app: McpServerFactory, alisa: AgentProfile
 ) -> None:

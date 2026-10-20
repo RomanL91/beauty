@@ -57,8 +57,12 @@ test('мастер: клиенты — поиск, карточка, имя, з�
   await list.getByRole('link', { name: /Дарья К\./ }).click();
   await expect(page.getByText('Аллергия на лаванду — масла без неё')).toBeVisible();
   await expect(page.getByText('ИИ-администратор').first()).toBeVisible();
+  // Сегодняшняя заявка к полудню уходит в историю — считаем только прошедшие визиты.
   await expect(
-    page.getByRole('list', { name: 'История визитов' }).getByRole('listitem'),
+    page
+      .getByRole('list', { name: 'История визитов' })
+      .getByRole('listitem')
+      .filter({ hasText: 'Был' }),
   ).toHaveCount(2);
   await shot(page, 'master-client-card');
 });

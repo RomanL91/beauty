@@ -167,6 +167,7 @@ Push-уведомления: `docker compose run --rm api push keys` печат�
 docker compose --profile agent up -d --build                     # + --profile fake-llm без ключа LLM
 docker compose run --rm agent-setup "beauty agent provision <slug>"  # агент другому мастеру
 docker compose run --rm agent-setup "beauty agent bootstrap"         # смена модели или релиз → шаблоны, профили, SOUL.md
+docker compose restart hermes                                        # после bootstrap: шлюз перечитает инструменты
 ```
 
 Расшифровка голосовых (клиентов и поручений мастера): `BEAUTY_SPEECH__PROVIDER=openrouter` —
@@ -179,7 +180,14 @@ worker в фоне; текст появляется под голосовым, �
 хода. О процедурах он консультирует сам — по описаниям мастера и общим знаниям (о здоровье —
 без диагнозов и гарантий); мастеру передаёт только то, что решает мастер: скидки, особые
 условия, жалобы. После обновления правил агента (новый релиз) — `beauty agent bootstrap`:
-он переписывает SOUL.md уже подключённых мастеров.
+он переписывает SOUL.md уже подключённых мастеров и сбрасывает кэш схем MCP-инструментов
+в профилях (`cache/mcp_schema_cache.json` — Hermes не замечает по нему новые инструменты
+beauty), затем `docker compose restart hermes`, чтобы шлюз заново спросил инструменты.
+
+Агент — полноценный администратор: что мастер поручил, то он и делает. «Разошли всем…» —
+рассылка уходит сразу (`send_broadcast`; черновик с фото — по просьбе, `prepare_broadcast`);
+клиент назвался или попросил обращаться к нему иначе — ресепшн подписывает карточку
+(`set_client_name`).
 
 Ход: клиент пишет → `worker` (консьюмер `agent.front_desk`, single active consumer) →
 Runs API Hermes (`/p/<профиль>/v1/runs`) → инструменты `beauty-tools` по MCP (токен профиля

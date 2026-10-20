@@ -12,6 +12,7 @@ from beauty.contexts.agent.application.ports import (
     AppointmentSnapshot,
     Booking,
     BroadcastDraft,
+    BroadcastSent,
     Cabinet,
     ChangeRefusedError,
     ClientBook,
@@ -353,6 +354,19 @@ class FakeCabinet(Cabinet):
             raise ChangeRefusedError("Текст рассылки — от 1 до 1000 символов")
         self.actions.append(("broadcast", text))
         return BroadcastDraft(UUID(int=77), 3)
+
+    async def send_broadcast(self, master_id: UUID, text: str) -> BroadcastSent:
+        """Отправка; вторая за «сутки» — отказ по лимиту (черновик остаётся)."""
+        draft = await self.draft_broadcast(master_id, text)
+        if any(action == "sent" for action, _ in self.actions):
+            return BroadcastSent(
+                draft.id,
+                draft.recipients,
+                sent=False,
+                reason="Следующая рассылка — не раньше чем через сутки",
+            )
+        self.actions.append(("sent", text))
+        return BroadcastSent(draft.id, draft.recipients, sent=True)
 
 
 class FakeClientBook(ClientBook):

@@ -311,6 +311,36 @@ async def test_agent_prepares_broadcast_master_sends(
     ]
 
 
+async def test_agent_sends_broadcast_on_order(
+    http: httpx.AsyncClient, container: ApplicationContainer, master: dict[str, str], pump: EventPump
+) -> None:
+    """«Разошли всем…» → агент отправляет сразу; вторая за сутки — отказ, черновик в ленте."""
+    client = await new_client(http, container, 8032)
+    results: list[dict[str, object]] = []
+
+    async def script(call: ToolCall, ticket: str, text: str) -> str:
+        results.append(await call("send_broadcast", {"ticket": ticket, "text": text.split(": ", 1)[1]}))
+        return "Готово"
+
+    runtime = OfficeScript(container, script)
+    await give_task(http, master, "Разошли всем: с 1 ноября массаж лица")
+    await office_pump(container, runtime).drain()
+    await pump.drain()
+    assert (results[0]["ok"], results[0]["recipients"]) == (True, 1)
+    assert [m["text"] for m in await client.history() if m["kind"] == "announcement"] == [
+        "с 1 ноября массаж лица"
+    ]
+
+    await give_task(http, master, "Разошли всем: и ещё новость")
+    await office_pump(container, runtime).drain()
+    assert results[1]["ok"] is False
+    listed = (await http.get(f"{API}/me/broadcasts", headers=master)).json()
+    statuses = [(b["status"], b["origin"]) for b in listed["items"]][:2]
+    assert statuses == [("draft", "agent"), ("sent", "agent")]
+    cards = [m for m in await feed(http, master) if m["kind"] == "broadcast"]
+    assert len(cards) == 2
+
+
 async def test_master_cancels_through_agent_and_choice_starts_next_turn(
     http: httpx.AsyncClient, container: ApplicationContainer, master: dict[str, str], pump: EventPump
 ) -> None:

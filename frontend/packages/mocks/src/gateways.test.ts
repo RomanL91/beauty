@@ -22,7 +22,7 @@ import {
   type MasterEvent,
   type MessageOf,
 } from '@beauty/api';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 import {
   CONVERSATIONS,
   DARYA_REQUEST_ID,
@@ -352,6 +352,41 @@ describe('рассылки мастера', () => {
     });
     await broadcasts.discard(second.id);
     expect((await broadcasts.list()).next_at).not.toBeNull();
+  });
+
+  it('поручение «Разошли всем…» — агент отправляет сразу; вторая за сутки — черновик', async () => {
+    // Прошлый тест уже разослал сегодня — переносимся на двое суток вперёд.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.now() + 2 * 24 * 3600_000);
+    onTestFinished(() => void vi.useRealTimers());
+    const core = await signedIn();
+    const assistant = new HttpAssistantGateway(core);
+    const broadcasts = new HttpBroadcastsGateway(core);
+    const events: MasterEvent[] = [];
+    const stop = new HttpMasterEventsGateway(core).subscribe({ onEvent: (e) => events.push(e) });
+    const replies = () =>
+      events.flatMap((e) =>
+        e.type === 'message.created' && e.message.author === 'agent' && e.message.kind === 'text'
+          ? [e.message.text]
+          : [],
+      );
+    const order = async (body: string, count: number) => {
+      await assistant.sendText({ kind: 'text', client_id: crypto.randomUUID(), text: body });
+      return waitFor(() => replies()[count - 1]);
+    };
+
+    expect(await order('Разошли всем: скидка 20%', 1)).toMatch(/^Разослала объявление/);
+    expect((await broadcasts.list()).items[0]).toMatchObject({
+      text: 'Скидка 20%',
+      origin: 'agent',
+      status: 'sending',
+    });
+    expect(await order('Разошли всем: ещё новость', 2)).toMatch(/^Не получилось: не чаще/);
+    expect((await broadcasts.list()).items[0]).toMatchObject({
+      text: 'Ещё новость',
+      status: 'draft',
+    });
+    stop();
   });
 });
 

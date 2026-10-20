@@ -147,6 +147,16 @@ class BroadcastDraft:
     recipients: int
 
 
+@dataclass(frozen=True, slots=True)
+class BroadcastSent:
+    """Рассылка по поручению: отправлена или нет (почему — ``reason``; черновик остаётся)."""
+
+    id: UUID
+    recipients: int
+    sent: bool
+    reason: str | None = None
+
+
 class NoteRefusedError(Exception):
     """Картотека не приняла изменение (длина, лимит заметок) — текст для модели."""
 
@@ -223,6 +233,10 @@ class Cabinet(ABC):
     @abstractmethod
     async def draft_broadcast(self, master_id: UUID, text: str) -> BroadcastDraft:
         """Черновик рассылки от агента (отправляет мастер); неверный текст — ``ChangeRefusedError``."""
+
+    @abstractmethod
+    async def send_broadcast(self, master_id: UUID, text: str) -> BroadcastSent:
+        """Рассылка по поручению мастера — сразу всем клиентам; неверный текст — ``ChangeRefusedError``."""
 
 
 @dataclass(frozen=True, slots=True)

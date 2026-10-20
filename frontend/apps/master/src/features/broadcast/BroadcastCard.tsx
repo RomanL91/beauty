@@ -7,8 +7,8 @@ import { PhotoPicker } from './PhotoPicker';
 import styles from './Broadcast.module.css';
 
 /**
- * Черновик рассылки от агента в ленте поручений: текст и фото, «Отправить» — только здесь,
- * мастером. Состояние берётся с сервера (после отправки — «Отправляется N из M»).
+ * Рассылка агента в ленте поручений: отправленная по поручению — с ходом доставки; черновик
+ * (просили черновик или лимит не дал отправить) — с фото и «Отправить». Состояние — с сервера.
  */
 export function BroadcastCard({ message }: { readonly message: MessageOf<'broadcast'> }) {
   const broadcast = useBroadcast(message.broadcast_id);
@@ -20,12 +20,13 @@ export function BroadcastCard({ message }: { readonly message: MessageOf<'broadc
     );
   }
   const current = broadcast.data;
+  const label = current?.status === 'draft' || !current ? 'Черновик рассылки' : 'Рассылка';
   return (
     <MessageRow side="in" wide>
       <Bubble tone="surface" layout="flush">
-        <div className={styles.cardWrap} aria-label="Черновик рассылки" role="group">
+        <div className={styles.cardWrap} aria-label={label} role="group">
           <Announcement
-            label={current?.status === 'draft' || !current ? 'Черновик рассылки' : 'Рассылка'}
+            label={label}
             text={current?.text ?? message.text}
             photoUrl={current?.photo_url ?? null}
           />

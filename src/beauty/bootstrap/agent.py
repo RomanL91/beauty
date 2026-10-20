@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from sqlalchemy import select
@@ -12,6 +13,8 @@ from beauty.contexts.agent.application.commands import OFFICE_SUFFIX, PROFILE_PR
 from beauty.contexts.agent.domain.ticket import AgentFace
 from beauty.contexts.agent.infrastructure.hermes import ROLE_OVERLAYS, ROLE_SOULS, HermesTemplate
 from beauty.contexts.agent.infrastructure.tables import profiles as profile_rows
+
+logger = logging.getLogger(__name__)
 
 
 class AgentOperator:
@@ -62,6 +65,11 @@ class AgentOperator:
             await template.ensure()
             template.sync(profiles)
         await self._refresh_souls()
+        for profile in masters:  # шлюз перечитает конфиг и заново спросит инструменты у MCP
+            try:
+                await self._container.hermes_runner.run("-p", profile, "gateway", "restart")
+            except RuntimeError as error:
+                logger.warning("Профиль %s не перезапущен: %s", profile, error)
         return masters
 
     async def _refresh_souls(self) -> None:

@@ -382,14 +382,31 @@ async def test_office_client_card_notes_and_rename() -> None:
 
 
 async def test_prepare_broadcast_posts_card_for_master() -> None:
-    """Рассылку агент только готовит: черновик и карточка в ленте поручений; отправляет мастер."""
+    """Черновик по просьбе мастера (например, с фото): карточка в ленте; отправляет мастер."""
     world = Office()
     tools = world.tools()
     caller = await tools.authorize(OFFICE_TOKEN, None, world.office_ticket().id)
     done = await tools.prepare_broadcast(caller, "  С 1 ноября — массаж лица, −20% первую неделю ")
     assert (done["ok"], done["recipients"]) == (True, 3)
-    assert "Отправить сам ты не можешь" in done["note"]
+    assert "отправит кнопкой" in done["note"]
     (card,) = [m for m in world.store.office.values() if m.kind == "broadcast"]
     assert card.snapshot()["broadcast_id"] == str(UUID(int=77))
     assert card.snapshot()["text"] == "С 1 ноября — массаж лица, −20% первую неделю"
     assert not (await tools.prepare_broadcast(caller, " "))["ok"]
+
+
+async def test_send_broadcast_sends_right_away() -> None:
+    """«Разошли всем…» — рассылка уходит сразу; отказ по лимиту — причина и черновик в ленте."""
+    world = Office()
+    tools = world.tools()
+    caller = await tools.authorize(OFFICE_TOKEN, None, world.office_ticket().id)
+    done = await tools.send_broadcast(caller, "С 1 ноября — массаж лица")
+    assert (done["ok"], done["recipients"]) == (True, 3)
+    assert ("sent", "С 1 ноября — массаж лица") in world.cabinet.actions
+    again = await tools.send_broadcast(caller, "Ещё одна новость")
+    assert not again["ok"]
+    assert "сутки" in again["error"]
+    assert "Черновик в ленте" in again["note"]
+    cards = [m for m in world.store.office.values() if m.kind == "broadcast"]
+    assert len(cards) == 2
+    assert not (await tools.send_broadcast(caller, " "))["ok"]

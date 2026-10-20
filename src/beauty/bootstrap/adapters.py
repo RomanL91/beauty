@@ -55,6 +55,7 @@ from beauty.contexts.conversations.application.commands import (
     HandOffToMaster,
     PostAgentReply,
     PostOnMasterBehalf,
+    SendBroadcast,
     SetBroadcastsAllowed,
 )
 from beauty.contexts.conversations.application.errors import ConversationNotFoundError, SlotNotAvailableError
@@ -75,7 +76,12 @@ from beauty.contexts.conversations.application.queries import (
     RecentAnnouncements,
 )
 from beauty.contexts.conversations.domain.content import OfferedSlot
-from beauty.contexts.conversations.domain.errors import InvalidBroadcast
+from beauty.contexts.conversations.domain.errors import (
+    BroadcastCooldown,
+    BroadcastsBlocked,
+    InvalidBroadcast,
+    NoRecipients,
+)
 from beauty.contexts.identity.application.commands import SetAccountBlocked
 from beauty.contexts.identity.application.queries import ClientNotFoundError, GetClientContact
 from beauty.contexts.notifications.application import ports as notification_ports
@@ -471,6 +477,16 @@ class AgentCabinet(agent_ports.Cabinet):
             raise agent_ports.ChangeRefusedError(str(error)) from error
         view = await self._mediator().send(GetBroadcast(master_id, broadcast_id))
         return agent_ports.BroadcastDraft(broadcast_id, view.recipients)
+
+    async def send_broadcast(self, master_id: UUID, text: str) -> agent_ports.BroadcastSent:
+        """Черновик и сразу отправка; отказ (лимит, запрет, нет клиентов) — черновик остаётся мастеру."""
+        draft = await self.draft_broadcast(master_id, text)
+        try:
+            await self._mediator().send(SendBroadcast(master_id, draft.id))
+        except (BroadcastCooldown, BroadcastsBlocked, NoRecipients) as error:
+            return agent_ports.BroadcastSent(draft.id, draft.recipients, sent=False, reason=str(error))
+        view = await self._mediator().send(GetBroadcast(master_id, draft.id))
+        return agent_ports.BroadcastSent(draft.id, view.recipients, sent=True)
 
 
 class AgentClientBook(agent_ports.ClientBook):
