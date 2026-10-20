@@ -10,6 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from beauty.contexts.conversations.application.commands import (
     AssistClient,
     AssistClientHandler,
+    DeliverBroadcast,
+    DeliverBroadcastHandler,
+    DiscardBroadcast,
+    DiscardBroadcastHandler,
+    DraftBroadcast,
+    DraftBroadcastHandler,
+    EditBroadcast,
+    EditBroadcastHandler,
     HandOffToMaster,
     HandOffToMasterHandler,
     MarkConversationRead,
@@ -26,6 +34,12 @@ from beauty.contexts.conversations.application.commands import (
     PostOnMasterBehalfHandler,
     RenameConversationClient,
     RenameConversationClientHandler,
+    SendBroadcast,
+    SendBroadcastHandler,
+    SetBroadcastPhoto,
+    SetBroadcastPhotoHandler,
+    SetBroadcastsAllowed,
+    SetBroadcastsAllowedHandler,
     SetConversationHandler,
     SetConversationHandlerHandler,
     SyncAppointment,
@@ -37,6 +51,8 @@ from beauty.contexts.conversations.application.ports import BookingDesk, ClientC
 from beauty.contexts.conversations.application.queries import (
     FindConversationIds,
     FindConversationIdsHandler,
+    GetBroadcast,
+    GetBroadcastHandler,
     GetConversationState,
     GetConversationStateHandler,
     GetConversationSummary,
@@ -45,6 +61,8 @@ from beauty.contexts.conversations.application.queries import (
     GetMasterMessageHandler,
     GetMyConversation,
     GetMyConversationHandler,
+    ListBroadcasts,
+    ListBroadcastsHandler,
     ListInbox,
     ListInboxHandler,
     ListMasterMessages,
@@ -53,13 +71,18 @@ from beauty.contexts.conversations.application.queries import (
     ListMessagesHandler,
     ReadFeed,
     ReadFeedHandler,
+    RecentAnnouncements,
+    RecentAnnouncementsHandler,
 )
+from beauty.contexts.conversations.infrastructure.broadcast_reader import SqlBroadcastReader
 from beauty.contexts.conversations.infrastructure.consumers import (
     APPOINTMENTS,
+    BROADCASTS_STARTED,
     CLIENT_MESSAGES,
     CLIENTS_RENAMED,
     MESSAGES_ADDED,
     AppointmentConsumer,
+    BroadcastConsumer,
     ClientMessageConsumer,
     ClientRenamedConsumer,
     VoiceConsumer,
@@ -69,6 +92,7 @@ from beauty.contexts.conversations.infrastructure.mapping import ConversationsOr
 from beauty.contexts.conversations.infrastructure.readers import SqlConversationReader, SqlInboxReader
 from beauty.contexts.conversations.infrastructure.realtime import FeedTopicResolver, MasterTopicResolver
 from beauty.contexts.conversations.infrastructure.uow import SqlAlchemyConversationsUnitOfWork
+from beauty.contexts.conversations.presentation.api.broadcasts import broadcasts_router
 from beauty.contexts.conversations.presentation.api.cabinet import cabinet_router
 from beauty.contexts.conversations.presentation.api.controller import ConversationsApiController
 from beauty.contexts.conversations.presentation.api.render import MessageRenderer
@@ -98,6 +122,14 @@ _HTTP_STATUSES: dict[str, int] = {
     "invalid_message": 422,
     "invalid_voice": 422,
     "voice_too_large": 413,
+    "broadcast_not_found": 404,
+    "invalid_broadcast": 422,
+    "broadcast_not_draft": 409,
+    "no_recipients": 409,
+    "broadcasts_blocked": 403,
+    "broadcast_cooldown": 429,
+    "invalid_photo": 422,
+    "photo_too_large": 413,
 }
 
 
@@ -129,6 +161,7 @@ class ConversationsModule:
         self._deps = dependencies
         self._reader = SqlConversationReader(dependencies.session_factory)
         self._inbox = SqlInboxReader(dependencies.session_factory)
+        self._broadcasts = SqlBroadcastReader(dependencies.session_factory)
 
     def register(self, mediator: Mediator, http_errors: HttpErrorMapper) -> None:
         """Зарегистрировать обработчики и коды ошибок."""
@@ -164,6 +197,18 @@ class ConversationsModule:
         mediator.register(
             RenameConversationClient, lambda: RenameConversationClientHandler(self._uow(), clock)
         )
+        mediator.register(DraftBroadcast, lambda: DraftBroadcastHandler(self._uow(), clock, ids))
+        mediator.register(EditBroadcast, lambda: EditBroadcastHandler(self._uow(), clock))
+        mediator.register(
+            SetBroadcastPhoto, lambda: SetBroadcastPhotoHandler(self._uow(), deps.storage, clock)
+        )
+        mediator.register(DiscardBroadcast, lambda: DiscardBroadcastHandler(self._uow(), deps.storage))
+        mediator.register(SendBroadcast, lambda: SendBroadcastHandler(self._uow(), clock))
+        mediator.register(DeliverBroadcast, lambda: DeliverBroadcastHandler(self._uow, clock, ids))
+        mediator.register(SetBroadcastsAllowed, lambda: SetBroadcastsAllowedHandler(self._uow(), clock))
+        mediator.register(ListBroadcasts, lambda: ListBroadcastsHandler(self._broadcasts, clock))
+        mediator.register(GetBroadcast, lambda: GetBroadcastHandler(self._broadcasts))
+        mediator.register(RecentAnnouncements, lambda: RecentAnnouncementsHandler(self._broadcasts, clock))
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
 
@@ -190,6 +235,11 @@ class ConversationsModule:
             EventSubscription(
                 ConsumerQueueSpec(name="conversations.clientbook", binding_keys=(CLIENTS_RENAMED,)),
                 ClientRenamedConsumer(mediator),
+            ),
+            EventSubscription(  # доставка — порциями, по транзакции на порцию
+                ConsumerQueueSpec(name="conversations.broadcasts", binding_keys=(BROADCASTS_STARTED,)),
+                BroadcastConsumer(mediator),
+                ambient_transaction=False,
             ),
         )
 
@@ -222,6 +272,10 @@ class ConversationsModule:
         """HTTP-роутер кабинета мастера (чаты и поток событий)."""
         deps = self._deps
         return cabinet_router(mediator, auth, deps.hub, MessageRenderer(deps.media), deps.stream_max_duration)
+
+    def broadcasts_router(self, mediator: Mediator, auth: MasterAuth) -> APIRouter:
+        """HTTP-роутер рассылок кабинета."""
+        return broadcasts_router(mediator, auth, self._deps.storage, self._deps.media)
 
     def _uow(self) -> SqlAlchemyConversationsUnitOfWork:
         """Новый Unit of Work на каждый обработчик."""

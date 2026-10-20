@@ -18,7 +18,7 @@ from beauty.shared.application.phrases import capitalize, day_phrase, time_label
 
 MAX_BODY = 140
 
-TO_CLIENT_MESSAGE_KINDS = frozenset({"text", "slot_offer"})
+TO_CLIENT_MESSAGE_KINDS = frozenset({"text", "slot_offer", "announcement"})
 FROM_CLIENT_MESSAGE_KINDS = frozenset({"text", "voice"})
 
 
@@ -145,6 +145,8 @@ def office_notifications(payload: Mapping[str, Any]) -> list[Notification]:
     if payload.get("change") != "message.created" or message.get("author") != "agent":
         return []
     text = _short(str(message.get("text") or ""))
+    if message.get("kind") == "broadcast":
+        text = "Черновик рассылки готов — проверьте и отправьте"
     if not text:
         return []
     audience = Audience(PushApp.MASTER, UUID(str(payload["master_id"])))

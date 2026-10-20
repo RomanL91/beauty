@@ -10,6 +10,8 @@ from typing import Any
 from uuid import UUID
 
 from beauty.contexts.conversations.application.dto import (
+    AnnouncementView,
+    BroadcastView,
     ConversationState,
     ConversationSummaryView,
     ConversationView,
@@ -138,3 +140,27 @@ class InboxReader(ABC):
         self, conversation_id: UUID, master_id: UUID, before: UUID | None, limit: int
     ) -> MessagePageView | None:
         """История диалога своего мастера."""
+
+
+class BroadcastReader(ABC):
+    """Рассылки мастера (SQL → DTO)."""
+
+    @abstractmethod
+    async def broadcasts(self, master_id: UUID, limit: int) -> list[BroadcastView]:
+        """Свежие сверху; у черновиков ``recipients`` — сколько получат сейчас."""
+
+    @abstractmethod
+    async def broadcast(self, master_id: UUID, broadcast_id: UUID) -> BroadcastView | None:
+        """Рассылка своего мастера."""
+
+    @abstractmethod
+    async def last_started(self, master_id: UUID) -> datetime | None:
+        """Последнее начало отправки."""
+
+    @abstractmethod
+    async def blocked(self, master_id: UUID) -> bool:
+        """Запрещены ли рассылки."""
+
+    @abstractmethod
+    async def announcements(self, master_id: UUID, since: datetime) -> list[AnnouncementView]:
+        """Отправленные с ``since``, свежие сверху."""

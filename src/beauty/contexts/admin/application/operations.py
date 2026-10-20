@@ -159,6 +159,29 @@ class SetMasterAgentHandler(_Audited, Handler[SetMasterAgent, Report]):
 
 
 @dataclass(frozen=True, slots=True)
+class SetMasterBroadcasts(Command[Report]):
+    """Разрешить или запретить мастеру рассылки."""
+
+    actor: AdminActor
+    master_id: UUID
+    allowed: bool
+
+
+class SetMasterBroadcastsHandler(_Audited, Handler[SetMasterBroadcasts, Report]):
+    """Запрет — в Conversations; уже идущая рассылка доставляется до конца."""
+
+    async def handle(self, message: SetMasterBroadcasts) -> Report:
+        """Применить."""
+        await self._master(message.master_id)
+        await self._platform.set_broadcasts(message.master_id, message.allowed)
+        after = await self._master(message.master_id)
+        action = "broadcasts.allowed" if message.allowed else "broadcasts.blocked"
+        summary = "Разрешил рассылки" if message.allowed else "Запретил рассылки"
+        await self._audit(message.actor, action, str(after["slug"]), summary)
+        return after
+
+
+@dataclass(frozen=True, slots=True)
 class SetClientBlock(Command[Report]):
     """Заблокировать или разблокировать клиента."""
 

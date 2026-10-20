@@ -187,6 +187,14 @@ class OfficeToolsServer:
             granted = await caller(ctx, ticket, "message_client")
             return await toolkit.message_client(granted, client_id, text)
 
+        async def prepare_broadcast(ticket: str, text: str, ctx: Context) -> dict[str, Any]:
+            """Подготовить рассылку всем клиентам мастера: text — готовое объявление (до 1000 символов).
+
+            Это черновик: мастер проверит и отправит сам кнопкой; отправить ты не можешь.
+            """
+            granted = await caller(ctx, ticket, "prepare_broadcast")
+            return await toolkit.prepare_broadcast(granted, text)
+
         async def client_card(ticket: str, client_id: str, ctx: Context) -> dict[str, Any]:
             """Карточка клиента: имя, визиты, ближайшие записи и заметки (client_id — из find_clients)."""
             return await toolkit.client_card(await caller(ctx, ticket, "client_card"), client_id)
@@ -225,6 +233,7 @@ class OfficeToolsServer:
                 cancel_appointment,
                 set_day_off,
                 message_client,
+                prepare_broadcast,
                 client_card,
                 add_client_note,
                 rename_client,

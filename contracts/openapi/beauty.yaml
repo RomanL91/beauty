@@ -906,6 +906,120 @@ paths:
         '401': { $ref: '#/components/responses/Problem' }
         '403': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
+  /me/broadcasts:
+    get:
+      tags: [master]
+      operationId: listMyBroadcasts
+      summary: Рассылки мастера
+      description: Черновики и отправленные, свежие сверху (до 30), и можно ли отправить сейчас.
+      responses:
+        '200':
+          description: Рассылки.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BroadcastList' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [master]
+      operationId: draftMyBroadcast
+      summary: Черновик рассылки
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BroadcastInput' }
+      responses:
+        '201': { $ref: '#/components/responses/Broadcast' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/broadcasts/{broadcast_id}:
+    parameters:
+      - $ref: '#/components/parameters/BroadcastId'
+    get:
+      tags: [master]
+      operationId: getMyBroadcast
+      summary: Рассылка
+      responses:
+        '200': { $ref: '#/components/responses/Broadcast' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [master]
+      operationId: editMyBroadcast
+      summary: Изменить текст черновика
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BroadcastInput' }
+      responses:
+        '200': { $ref: '#/components/responses/Broadcast' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [master]
+      operationId: discardMyBroadcast
+      summary: Удалить черновик
+      responses:
+        '204': { description: Удалён. }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /me/broadcasts/{broadcast_id}/photo:
+    parameters:
+      - $ref: '#/components/parameters/BroadcastId'
+    put:
+      tags: [master]
+      operationId: setMyBroadcastPhoto
+      summary: Фото к черновику
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/PhotoUpload' }
+      responses:
+        '200': { $ref: '#/components/responses/Broadcast' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [master]
+      operationId: removeMyBroadcastPhoto
+      summary: Убрать фото
+      responses:
+        '200': { $ref: '#/components/responses/Broadcast' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /me/broadcasts/{broadcast_id}/send:
+    parameters:
+      - $ref: '#/components/parameters/BroadcastId'
+    post:
+      tags: [master]
+      operationId: sendMyBroadcast
+      summary: Отправить рассылку всем клиентам
+      description: |
+        Доставка — в фоне порциями; статус `sending` → `sent`. Одна рассылка за 24 часа
+        (`broadcast_cooldown`, 429), хозяин сервиса может запретить рассылки (`broadcasts_blocked`, 403),
+        без клиентов — `no_recipients` (409), уже отправлена — `broadcast_not_draft` (409).
+      responses:
+        '200': { $ref: '#/components/responses/Broadcast' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
   /me/assistant/messages:
     get:
       tags: [assistant]
@@ -1264,6 +1378,33 @@ paths:
         '401': { $ref: '#/components/responses/Problem' }
         '403': { $ref: '#/components/responses/Problem' }
         '404': { $ref: '#/components/responses/Problem' }
+  /admin/masters/{master_id}/broadcasts:
+    put:
+      tags: [admin]
+      operationId: adminSetMasterBroadcasts
+      summary: Разрешить или запретить рассылки мастера
+      security: [{ adminCookie: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/MasterId' }
+        - { $ref: '#/components/parameters/CsrfToken' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [allowed]
+              properties:
+                allowed: { type: boolean }
+      responses:
+        '200':
+          description: Мастер.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminMasterDetail' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
   /admin/clients:
     get:
       tags: [admin]
@@ -1496,6 +1637,11 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    BroadcastId:
+      name: broadcast_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     AdminId:
       name: admin_id
       in: path
@@ -1552,6 +1698,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/MasterClientCard' }
+    Broadcast:
+      description: Рассылка.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Broadcast' }
     Problem:
       description: Ошибка (RFC 9457).
       content:
@@ -1972,6 +2123,27 @@ components:
               type: array
               items: { $ref: '#/components/schemas/TaskStep' }
             footnote: { type: string }
+    AnnouncementMessage:
+      allOf:
+        - $ref: '#/components/schemas/MessageBase'
+        - type: object
+          description: Объявление мастера из рассылки — всем его клиентам.
+          required: [kind, text, photo_url, broadcast_id]
+          properties:
+            kind: { type: string, const: announcement }
+            text: { type: string }
+            photo_url: { type: [string, 'null'], format: uri-reference }
+            broadcast_id: { type: string, format: uuid }
+    BroadcastDraftMessage:
+      allOf:
+        - $ref: '#/components/schemas/MessageBase'
+        - type: object
+          description: Лента поручений — черновик рассылки от агента; состояние — `GET /me/broadcasts/{id}`.
+          required: [kind, broadcast_id, text]
+          properties:
+            kind: { type: string, const: broadcast }
+            broadcast_id: { type: string, format: uuid }
+            text: { type: string }
     Message:
       oneOf:
         - $ref: '#/components/schemas/TextMessage'
@@ -1982,6 +2154,8 @@ components:
         - $ref: '#/components/schemas/AgentNoteMessage'
         - $ref: '#/components/schemas/ChoiceMessage'
         - $ref: '#/components/schemas/TaskProgressMessage'
+        - $ref: '#/components/schemas/AnnouncementMessage'
+        - $ref: '#/components/schemas/BroadcastDraftMessage'
       discriminator:
         propertyName: kind
         mapping:
@@ -1993,6 +2167,36 @@ components:
           agent_note: '#/components/schemas/AgentNoteMessage'
           choice: '#/components/schemas/ChoiceMessage'
           task_progress: '#/components/schemas/TaskProgressMessage'
+          announcement: '#/components/schemas/AnnouncementMessage'
+          broadcast: '#/components/schemas/BroadcastDraftMessage'
+    Broadcast:
+      type: object
+      required: [id, text, photo_url, status, origin, recipients, delivered, created_at, started_at, finished_at]
+      properties:
+        id: { type: string, format: uuid }
+        text: { type: string }
+        photo_url: { type: [string, 'null'], format: uri-reference }
+        status: { type: string, enum: [draft, sending, sent] }
+        origin: { type: string, enum: [master, agent], description: '`agent` — черновик подготовил ИИ-администратор по поручению.' }
+        recipients: { type: integer, minimum: 0, description: 'Черновик — сколько клиентов получат сейчас; отправленная — сколько получали.' }
+        delivered: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+        started_at: { type: [string, 'null'], format: date-time }
+        finished_at: { type: [string, 'null'], format: date-time }
+    BroadcastList:
+      type: object
+      required: [items, allowed, next_at]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Broadcast' }
+        allowed: { type: boolean, description: '`false` — хозяин сервиса запретил рассылки.' }
+        next_at: { type: [string, 'null'], format: date-time, description: 'Когда можно следующую (лимит — одна за 24 часа); `null` — уже можно.' }
+    BroadcastInput:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 1000 }
     MessagePage:
       type: object
       description: Сообщения по возрастанию `created_at`.
@@ -2475,9 +2679,28 @@ components:
       allOf:
         - $ref: '#/components/schemas/AdminMasterRow'
         - type: object
-          required: [page, published_at, publish_blockers, agent_command, stats, upcoming]
+          required: [page, published_at, publish_blockers, agent_command, stats, upcoming, broadcasts]
           properties:
             page: { $ref: '#/components/schemas/MasterPage' }
+            broadcasts:
+              type: object
+              required: [allowed, items]
+              properties:
+                allowed: { type: boolean }
+                items:
+                  type: array
+                  description: Последние отправленные (до 5), свежие сверху.
+                  items:
+                    type: object
+                    required: [id, text, has_photo, status, recipients, delivered, started_at]
+                    properties:
+                      id: { type: string, format: uuid }
+                      text: { type: string }
+                      has_photo: { type: boolean }
+                      status: { type: string, enum: [sending, sent] }
+                      recipients: { type: integer }
+                      delivered: { type: integer }
+                      started_at: { type: string, format: date-time }
             published_at: { type: [string, 'null'], format: date-time }
             publish_blockers:
               type: array

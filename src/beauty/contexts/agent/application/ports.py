@@ -41,6 +41,8 @@ class MasterBrief:
     confirm_within_hours: int
     change_deadline_hours: int
     about: str = ""
+    announcements: tuple[str, ...] = ()
+    """Недавние объявления мастера клиентам: «20.10: текст»."""
 
 
 class MasterBriefs(ABC):
@@ -137,6 +139,14 @@ class ClientNotFoundError(Exception):
     """У мастера нет такого клиента (переписки с ним)."""
 
 
+@dataclass(frozen=True, slots=True)
+class BroadcastDraft:
+    """Черновик рассылки: id и сколько клиентов его получат."""
+
+    id: UUID
+    recipients: int
+
+
 class NoteRefusedError(Exception):
     """Картотека не приняла изменение (длина, лимит заметок) — текст для модели."""
 
@@ -209,6 +219,10 @@ class Cabinet(ABC):
     @abstractmethod
     async def message_client(self, master_id: UUID, client_id: UUID, text: str) -> None:
         """Написать клиенту от имени администратора или ``ClientNotFoundError``."""
+
+    @abstractmethod
+    async def draft_broadcast(self, master_id: UUID, text: str) -> BroadcastDraft:
+        """Черновик рассылки от агента (отправляет мастер); неверный текст — ``ChangeRefusedError``."""
 
 
 @dataclass(frozen=True, slots=True)

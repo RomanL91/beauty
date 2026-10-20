@@ -22,6 +22,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 
+from beauty.contexts.conversations.domain.broadcast import BroadcastOrigin, BroadcastStatus
 from beauty.contexts.conversations.domain.content import Author
 from beauty.contexts.conversations.domain.conversation import Handler, NeedsMaster
 from beauty.contexts.conversations.infrastructure.serialization import dump_content, load_content
@@ -32,6 +33,8 @@ ContentType = JsonValueObjectType(dump_content, load_content)
 AuthorType = StringValueObjectType(Author, lambda author: author.value)
 HandlerType = StringValueObjectType(Handler, lambda handler: handler.value)
 NeedsMasterType = StringValueObjectType(NeedsMaster, lambda reason: reason.value)
+BroadcastStatusType = StringValueObjectType(BroadcastStatus, lambda status: status.value)
+BroadcastOriginType = StringValueObjectType(BroadcastOrigin, lambda origin: origin.value)
 
 conversations = Table(
     "conversations",
@@ -113,4 +116,35 @@ feed_events = Table(
     Index("ix_feed_events_created_at", "created_at"),
     schema="conversations",
     comment="Журнал ленты для Last-Event-ID (сутки)",
+)
+
+broadcasts = Table(
+    "broadcasts",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True),
+    Column("master_id", UUID(as_uuid=True), nullable=False),
+    Column("text", Text, nullable=False),
+    Column("photo_key", Text, comment="фото в хранилище файлов (подписанные ссылки)"),
+    Column("status", BroadcastStatusType, nullable=False, comment="draft | sending | sent"),
+    Column("origin", BroadcastOriginType, nullable=False, comment="master | agent"),
+    Column("recipients", Integer, nullable=False),
+    Column("delivered", Integer, nullable=False),
+    Column("cursor", UUID(as_uuid=True), comment="последняя переписка, получившая объявление"),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    Column("started_at", DateTime(timezone=True)),
+    Column("finished_at", DateTime(timezone=True)),
+    Column("version", Integer, nullable=False),
+    Index("ix_broadcasts_master_created", "master_id", "created_at"),
+    schema="conversations",
+    comment="Рассылки объявлений мастеров всем их клиентам",
+)
+
+broadcast_blocks = Table(
+    "broadcast_blocks",
+    metadata,
+    Column("master_id", UUID(as_uuid=True), primary_key=True),
+    Column("blocked_at", DateTime(timezone=True), nullable=False),
+    schema="conversations",
+    comment="Мастера, которым администрация запретила рассылки",
 )

@@ -776,6 +776,92 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/me/broadcasts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Рассылки мастера
+     * @description Черновики и отправленные, свежие сверху (до 30), и можно ли отправить сейчас.
+     */
+    get: operations['listMyBroadcasts'];
+    put?: never;
+    /** Черновик рассылки */
+    post: operations['draftMyBroadcast'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/broadcasts/{broadcast_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        broadcast_id: components['parameters']['BroadcastId'];
+      };
+      cookie?: never;
+    };
+    /** Рассылка */
+    get: operations['getMyBroadcast'];
+    /** Изменить текст черновика */
+    put: operations['editMyBroadcast'];
+    post?: never;
+    /** Удалить черновик */
+    delete: operations['discardMyBroadcast'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/broadcasts/{broadcast_id}/photo': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        broadcast_id: components['parameters']['BroadcastId'];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    /** Фото к черновику */
+    put: operations['setMyBroadcastPhoto'];
+    post?: never;
+    /** Убрать фото */
+    delete: operations['removeMyBroadcastPhoto'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/broadcasts/{broadcast_id}/send': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        broadcast_id: components['parameters']['BroadcastId'];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Отправить рассылку всем клиентам
+     * @description Доставка — в фоне порциями; статус `sending` → `sent`. Одна рассылка за 24 часа
+     *     (`broadcast_cooldown`, 429), хозяин сервиса может запретить рассылки (`broadcasts_blocked`, 403),
+     *     без клиентов — `no_recipients` (409), уже отправлена — `broadcast_not_draft` (409).
+     */
+    post: operations['sendMyBroadcast'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/me/assistant/messages': {
     parameters: {
       query?: never;
@@ -1044,6 +1130,23 @@ export interface paths {
      * @description Только для подключённого агента; подключение — командой `beauty agent provision <slug>`.
      */
     put: operations['adminSetMasterAgent'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/admin/masters/{master_id}/broadcasts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Разрешить или запретить рассылки мастера */
+    put: operations['adminSetMasterBroadcasts'];
     post?: never;
     delete?: never;
     options?: never;
@@ -1625,6 +1728,34 @@ export interface components {
        */
       kind: 'task_progress';
     };
+    AnnouncementMessage: components['schemas']['MessageBase'] & {
+      /** @constant */
+      kind: 'announcement';
+      text: string;
+      /** Format: uri-reference */
+      photo_url: string | null;
+      /** Format: uuid */
+      broadcast_id: string;
+    } & {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      kind: 'announcement';
+    };
+    BroadcastDraftMessage: components['schemas']['MessageBase'] & {
+      /** @constant */
+      kind: 'broadcast';
+      /** Format: uuid */
+      broadcast_id: string;
+      text: string;
+    } & {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      kind: 'broadcast';
+    };
     Message:
       | components['schemas']['TextMessage']
       | components['schemas']['VoiceMessage']
@@ -1633,7 +1764,45 @@ export interface components {
       | components['schemas']['SystemMessage']
       | components['schemas']['AgentNoteMessage']
       | components['schemas']['ChoiceMessage']
-      | components['schemas']['TaskProgressMessage'];
+      | components['schemas']['TaskProgressMessage']
+      | components['schemas']['AnnouncementMessage']
+      | components['schemas']['BroadcastDraftMessage'];
+    Broadcast: {
+      /** Format: uuid */
+      id: string;
+      text: string;
+      /** Format: uri-reference */
+      photo_url: string | null;
+      /** @enum {string} */
+      status: 'draft' | 'sending' | 'sent';
+      /**
+       * @description `agent` — черновик подготовил ИИ-администратор по поручению.
+       * @enum {string}
+       */
+      origin: 'master' | 'agent';
+      /** @description Черновик — сколько клиентов получат сейчас; отправленная — сколько получали. */
+      recipients: number;
+      delivered: number;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      started_at: string | null;
+      /** Format: date-time */
+      finished_at: string | null;
+    };
+    BroadcastList: {
+      items: components['schemas']['Broadcast'][];
+      /** @description `false` — хозяин сервиса запретил рассылки. */
+      allowed: boolean;
+      /**
+       * Format: date-time
+       * @description Когда можно следующую (лимит — одна за 24 часа); `null` — уже можно.
+       */
+      next_at: string | null;
+    };
+    BroadcastInput: {
+      text: string;
+    };
     /** @description Сообщения по возрастанию `created_at`. */
     MessagePage: {
       items: components['schemas']['Message'][];
@@ -2087,6 +2256,22 @@ export interface components {
     };
     AdminMasterDetail: components['schemas']['AdminMasterRow'] & {
       page: components['schemas']['MasterPage'];
+      broadcasts: {
+        allowed: boolean;
+        /** @description Последние отправленные (до 5), свежие сверху. */
+        items: {
+          /** Format: uuid */
+          id: string;
+          text: string;
+          has_photo: boolean;
+          /** @enum {string} */
+          status: 'sending' | 'sent';
+          recipients: number;
+          delivered: number;
+          /** Format: date-time */
+          started_at: string;
+        }[];
+      };
       /** Format: date-time */
       published_at: string | null;
       publish_blockers: string[];
@@ -2210,6 +2395,15 @@ export interface components {
         'application/json': components['schemas']['MasterClientCard'];
       };
     };
+    /** @description Рассылка. */
+    Broadcast: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Broadcast'];
+      };
+    };
     /** @description Ошибка (RFC 9457). */
     Problem: {
       headers: {
@@ -2223,6 +2417,7 @@ export interface components {
   parameters: {
     MasterId: string;
     ClientId: string;
+    BroadcastId: string;
     AdminId: string;
     /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
     CsrfToken: string;
@@ -3255,6 +3450,172 @@ export interface operations {
       404: components['responses']['Problem'];
     };
   };
+  listMyBroadcasts: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Рассылки. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BroadcastList'];
+        };
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+    };
+  };
+  draftMyBroadcast: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BroadcastInput'];
+      };
+    };
+    responses: {
+      201: components['responses']['Broadcast'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  getMyBroadcast: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        broadcast_id: components['parameters']['BroadcastId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['Broadcast'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+    };
+  };
+  editMyBroadcast: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        broadcast_id: components['parameters']['BroadcastId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BroadcastInput'];
+      };
+    };
+    responses: {
+      200: components['responses']['Broadcast'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  discardMyBroadcast: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        broadcast_id: components['parameters']['BroadcastId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Удалён. */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+    };
+  };
+  setMyBroadcastPhoto: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        broadcast_id: components['parameters']['BroadcastId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['PhotoUpload'];
+      };
+    };
+    responses: {
+      200: components['responses']['Broadcast'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+      413: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  removeMyBroadcastPhoto: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        broadcast_id: components['parameters']['BroadcastId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['Broadcast'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+    };
+  };
+  sendMyBroadcast: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        broadcast_id: components['parameters']['BroadcastId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['Broadcast'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+      429: components['responses']['Problem'];
+    };
+  };
   listAssistantMessages: {
     parameters: {
       query?: {
@@ -3701,6 +4062,40 @@ export interface operations {
       content: {
         'application/json': {
           enabled: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Мастер. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AdminMasterDetail'];
+        };
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+    };
+  };
+  adminSetMasterBroadcasts: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description CSRF-токен сессии администратора (из входа или `GET /admin/auth/me`). */
+        'X-CSRF-Token': components['parameters']['CsrfToken'];
+      };
+      path: {
+        master_id: components['parameters']['MasterId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          allowed: boolean;
         };
       };
     };

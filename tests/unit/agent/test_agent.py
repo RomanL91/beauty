@@ -315,3 +315,11 @@ async def test_turn_carries_client_notes_and_remembers_new_facts(clock: FrozenCl
         "Любит без музыки",
     ]
     assert "remember_client" in request.instructions
+
+
+def test_instructions_carry_recent_announcements(clock: FrozenClock) -> None:
+    master = replace(BRIEF, announcements=("20.10: С 1 ноября — массаж лица, −20% (с фото)",))
+    text = front_desk_instructions(master, "Клиент", "t-abcdefgh", clock.now())
+    assert "Недавние объявления мастера (разосланы всем клиентам" in text
+    assert "- 20.10: С 1 ноября — массаж лица, −20% (с фото)" in text
+    assert "Недавние объявления" not in front_desk_instructions(BRIEF, "Клиент", "t-abcdefgh", clock.now())

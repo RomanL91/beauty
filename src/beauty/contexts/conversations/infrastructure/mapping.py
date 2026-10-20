@@ -6,9 +6,10 @@ from typing import ClassVar
 
 from sqlalchemy.orm import composite
 
+from beauty.contexts.conversations.domain.broadcast import Broadcast
 from beauty.contexts.conversations.domain.conversation import ClientCard, Conversation
 from beauty.contexts.conversations.domain.message import Message
-from beauty.contexts.conversations.infrastructure.tables import conversations, messages
+from beauty.contexts.conversations.infrastructure.tables import broadcasts, conversations, messages
 from beauty.shared.infrastructure.db.metadata import mapper_registry
 
 
@@ -33,4 +34,5 @@ class ConversationsOrmMapper:
             },
         )
         mapper_registry.map_imperatively(Message, messages, version_id_col=messages.c.version)
+        mapper_registry.map_imperatively(Broadcast, broadcasts, version_id_col=broadcasts.c.version)
         cls._mapped = True

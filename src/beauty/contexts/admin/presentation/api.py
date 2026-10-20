@@ -26,6 +26,7 @@ from beauty.contexts.admin.application.operations import (
     CreateMaster,
     SetClientBlock,
     SetMasterAgent,
+    SetMasterBroadcasts,
     SetMasterOwner,
     SetMasterPublication,
 )
@@ -86,6 +87,12 @@ class AgentInput(BaseModel):
     """Агент мастера."""
 
     enabled: bool
+
+
+class BroadcastsInput(BaseModel):
+    """Рассылки мастера."""
+
+    allowed: bool
 
 
 class BlockInput(BaseModel):
@@ -238,6 +245,10 @@ def admin_router(
     @router.put("/masters/{master_id}/agent", summary="Агент мастера")
     async def set_agent(master_id: UUID, body: AgentInput, principal: admin) -> Any:
         return await mediator.send(SetMasterAgent(principal.actor, master_id, body.enabled))
+
+    @router.put("/masters/{master_id}/broadcasts", summary="Рассылки мастера")
+    async def set_broadcasts(master_id: UUID, body: BroadcastsInput, principal: admin) -> Any:
+        return await mediator.send(SetMasterBroadcasts(principal.actor, master_id, body.allowed))
 
     @router.put("/clients/{client_id}/block", summary="Блокировка клиента")
     async def set_block(client_id: UUID, body: BlockInput, principal: admin) -> Any:

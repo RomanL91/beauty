@@ -26,7 +26,7 @@ from beauty.contexts.agent.application.ports import (
 )
 from beauty.contexts.agent.application.toolkit import SlotLookup, known_service
 from beauty.contexts.agent.application.uow import AgentUnitOfWork
-from beauty.contexts.agent.domain.office import OfficeMessage, choice
+from beauty.contexts.agent.domain.office import OfficeBroadcast, OfficeMessage, choice
 from beauty.contexts.agent.domain.ticket import AgentFace
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
@@ -185,6 +185,29 @@ class OfficeToolkit:
         except ClientNotFoundError:
             return {"ok": False, "error": "С этим клиентом ещё нет переписки"}
         return {"ok": True, "note": "Сообщение в чате клиента"}
+
+    async def prepare_broadcast(self, caller: Grant, text: str) -> Result:
+        """Черновик рассылки всем клиентам — карточкой в ленту поручений; отправляет мастер."""
+        try:
+            draft = await self._cabinet.draft_broadcast(caller.master_id, text)
+        except ChangeRefusedError as error:
+            return _refused(error, "Черновик не создан")
+        async with self._uow_factory() as uow:
+            uow.office.add(
+                OfficeMessage.from_agent(
+                    message_id=self._ids.new(),
+                    master_id=caller.master_id,
+                    content=OfficeBroadcast(draft.id, text.strip()),
+                    now=self._clock.now(),
+                )
+            )
+            await uow.commit()
+        return {
+            "ok": True,
+            "recipients": draft.recipients,
+            "note": "Черновик в ленте: мастер проверит, может добавить фото и отправит кнопкой. "
+            "Отправить сам ты не можешь — коротко скажи об этом.",
+        }
 
     async def client_card(self, caller: Grant, client_id: str) -> Result:
         """Карточка клиента: имя, визиты, ближайшие записи, заметки."""

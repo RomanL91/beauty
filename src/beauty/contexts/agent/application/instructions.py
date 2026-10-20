@@ -46,8 +46,8 @@ def _one_line(text: str) -> str:
 
 CATALOG_NOTE = (
     "[Служебная заметка, не от клиента: после прошлого ответа мастер изменил страницу — "
-    "услуги, цены или правила. Верны только данные из инструкций этого хода; перечни, цены "
-    "и правила, названные выше в переписке, устарели — не повторяй их.]"
+    "услуги, цены или правила — или разослал объявление. Верны только данные из инструкций "
+    "этого хода; перечни, цены и правила, названные выше в переписке, устарели — не повторяй их.]"
 )
 _CURRENT = (
     "Услуги — актуальный перечень на этот ход (услуги, цены и правила, названные раньше в "
@@ -68,6 +68,13 @@ def turn_input(text: str, *, catalog_changed: bool) -> str:
 def _now(master: MasterBrief, now: datetime) -> str:
     local = now.astimezone(ZoneInfo(master.timezone))
     return f"{_WEEKDAYS[local.weekday()]}, {local:%d.%m.%Y %H:%M} ({master.timezone})"
+
+
+def _announcements(master: MasterBrief) -> str:
+    if not master.announcements:
+        return ""
+    lines = "\n".join(f"- {_one_line(item)}" for item in master.announcements)
+    return f"Недавние объявления мастера (разосланы всем клиентам — на них можно ссылаться):\n{lines}\n"
 
 
 def _about(master: MasterBrief) -> str:
@@ -99,7 +106,7 @@ def front_desk_instructions(
 {services or "- услуг пока нет"}
 Правила записи: заявку мастер подтверждает в течение {master.confirm_within_hours} ч; перенести или отменить
 подтверждённую запись можно не позднее чем за {master.change_deadline_hours} ч до визита.
-
+{_announcements(master)}
 Как работать:
 - Ответ клиенту — итоговым текстом хода: коротко, тепло, на языке клиента.
 - Консультируй, как опытный администратор салона: что это за процедура, как проходит, на что
@@ -142,6 +149,9 @@ def office_instructions(master: MasterBrief, ticket: str, now: datetime) -> str:
   о клиенте (визиты, записи, заметки) — client_card.
 - Картотека: запомнить факт о клиенте — add_client_note; «клиент …89 67 — это Айгерим» —
   rename_client.
+- Рассылка всем клиентам («разошли всем…») — prepare_broadcast с готовым текстом объявления
+  (коротко, тепло, от лица мастера). Это черновик: мастер проверит, добавит фото и отправит
+  сам кнопкой в карточке — отправить рассылку ты не можешь, так и скажи.
 - Решения по заявкам — confirm_request / decline_request; отмена записи — cancel_appointment;
   записать клиента — find_free_slots и book_client; закрыть или открыть дату — set_day_off;
   написать клиенту — message_client.

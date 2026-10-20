@@ -11,6 +11,7 @@ from collections.abc import Callable, Collection, Mapping
 from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from beauty.contexts.admin.application import ports as admin_ports
 from beauty.contexts.agent.application import ports as agent_ports
@@ -50,9 +51,11 @@ from beauty.contexts.clientbook.application.ports import Roster
 from beauty.contexts.clientbook.application.queries import GetClientCard, GetClientName, ListClientNotes
 from beauty.contexts.clientbook.domain import errors as clientbook_domain
 from beauty.contexts.conversations.application.commands import (
+    DraftBroadcast,
     HandOffToMaster,
     PostAgentReply,
     PostOnMasterBehalf,
+    SetBroadcastsAllowed,
 )
 from beauty.contexts.conversations.application.errors import ConversationNotFoundError, SlotNotAvailableError
 from beauty.contexts.conversations.application.ports import (
@@ -65,11 +68,14 @@ from beauty.contexts.conversations.application.ports import (
 )
 from beauty.contexts.conversations.application.queries import (
     FindConversationIds,
+    GetBroadcast,
     GetConversationState,
     GetConversationSummary,
     ListInbox,
+    RecentAnnouncements,
 )
 from beauty.contexts.conversations.domain.content import OfferedSlot
+from beauty.contexts.conversations.domain.errors import InvalidBroadcast
 from beauty.contexts.identity.application.commands import SetAccountBlocked
 from beauty.contexts.identity.application.queries import ClientNotFoundError, GetClientContact
 from beauty.contexts.notifications.application import ports as notification_ports
@@ -297,6 +303,11 @@ class AgentMasters(agent_ports.MasterBriefs):
             confirm_within_hours=page.confirm_within_hours,
             change_deadline_hours=page.change_deadline_hours,
             about=page.about,
+            announcements=tuple(
+                f"{item.started_at.astimezone(ZoneInfo(page.timezone)):%d.%m}: {item.text}"
+                + (" (с фото)" if item.has_photo else "")
+                for item in await self._mediator().send(RecentAnnouncements(master_id))
+            ),
         )
 
 
@@ -452,6 +463,15 @@ class AgentCabinet(agent_ports.Cabinet):
         except ConversationNotFoundError as error:
             raise agent_ports.ClientNotFoundError() from error
 
+    async def draft_broadcast(self, master_id: UUID, text: str) -> agent_ports.BroadcastDraft:
+        """Черновик рассылки от агента."""
+        try:
+            broadcast_id = await self._mediator().send(DraftBroadcast(master_id, text, by_agent=True))
+        except InvalidBroadcast as error:
+            raise agent_ports.ChangeRefusedError(str(error)) from error
+        view = await self._mediator().send(GetBroadcast(master_id, broadcast_id))
+        return agent_ports.BroadcastDraft(broadcast_id, view.recipients)
+
 
 class AgentClientBook(agent_ports.ClientBook):
     """Agent → Clientbook: заметки о клиенте и его имя у мастера."""
@@ -600,6 +620,10 @@ class AdminPlatform(admin_ports.Platform):
     async def set_client_blocked(self, client_id: UUID, blocked: bool, reason: str | None) -> None:
         """Блокировка в Identity."""
         await self._mediator().send(SetAccountBlocked(client_id, blocked, reason))
+
+    async def set_broadcasts(self, master_id: UUID, allowed: bool) -> None:
+        """Запрет рассылок — в Conversations."""
+        await self._mediator().send(SetBroadcastsAllowed(master_id, allowed))
 
 
 def admin_master_settings(mediator: MediatorProvider) -> Callable[[UUID], Any]:

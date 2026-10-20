@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from beauty.contexts.agent.domain.office import (
     ChoiceOption,
+    OfficeBroadcast,
     OfficeChoice,
     OfficeContent,
     OfficeSystem,
@@ -33,6 +35,8 @@ def dump_office(content: OfficeContent) -> dict[str, Any]:
             }
         case OfficeSystem(text, tone):
             body = {"text": text, "tone": tone.value}
+        case OfficeBroadcast(broadcast_id, text):
+            body = {"broadcast_id": str(broadcast_id), "text": text}
     return {"kind": office_kind(content), **body}
 
 
@@ -55,4 +59,6 @@ def load_office(raw: dict[str, Any]) -> OfficeContent:
         )
     if kind == "system":
         return OfficeSystem(str(raw["text"]), OfficeTone(raw["tone"]))
+    if kind == "broadcast":
+        return OfficeBroadcast(UUID(str(raw["broadcast_id"])), str(raw["text"]))
     raise ValueError(f"Неизвестный вид сообщения ленты поручений: {kind}")

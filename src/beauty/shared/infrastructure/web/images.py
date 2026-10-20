@@ -41,9 +41,10 @@ class ImageUpload:
 class ImageUploadReader:
     """Проверяет форму и формат и пишет файл в хранилище потоком (с ограничением размера)."""
 
-    def __init__(self, storage: FileStorage) -> None:
-        """Хранилище."""
+    def __init__(self, storage: FileStorage, namespace: str = PHOTOS_NAMESPACE) -> None:
+        """Хранилище и раздел (``photos`` — публичные фото страниц, остальные — по подписи)."""
         self._storage = storage
+        self._namespace = namespace
 
     async def read(self, request: Request) -> ImageUpload:
         """Изображение из формы или ``InvalidPhotoError`` / ``PhotoTooLargeError``."""
@@ -60,7 +61,7 @@ class ImageUploadReader:
             head = await upload.read(16)
             if not any(head.startswith(magic) for magic in _MAGIC[extension]):
                 raise InvalidPhotoError()
-            stored = await self._storage.save(PHOTOS_NAMESPACE, _chunks(upload, head), mime, extension)
+            stored = await self._storage.save(self._namespace, _chunks(upload, head), mime, extension)
         return ImageUpload(stored.key, alt.strip()[:200] if isinstance(alt, str) else "")
 
 

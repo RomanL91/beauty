@@ -216,6 +216,14 @@ async def test_create_master_owner_and_publication(
     ]
     assert log[0]["summary"] == "Владелец: +77010020101 → +77010020102"
 
+    detail = await panel.get(f"/masters/{master['id']}")
+    assert detail["broadcasts"] == {"allowed": True, "items": []}
+    blocked_broadcasts = await panel.send("PUT", f"/masters/{master['id']}/broadcasts", {"allowed": False})
+    assert blocked_broadcasts.status_code == 200, blocked_broadcasts.text
+    assert_matches_schema(blocked_broadcasts.json(), "AdminMasterDetail")
+    assert blocked_broadcasts.json()["broadcasts"]["allowed"] is False
+    assert (await panel.get("/audit", limit=1))["items"][0]["action"] == "broadcasts.blocked"
+
 
 async def test_blocked_client_cannot_sign_in(
     panel: Panel, app: FastAPI, http: httpx.AsyncClient, container: ApplicationContainer

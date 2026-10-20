@@ -9,6 +9,7 @@ from uuid import UUID
 
 from beauty.contexts.conversations.application.commands import (
     AssistClient,
+    DeliverBroadcast,
     RenameConversationClient,
     SyncAppointment,
     TranscribeVoice,
@@ -21,6 +22,7 @@ CLIENT_MESSAGES = "conversations.client.message_posted"
 APPOINTMENTS = "booking.appointment.*"
 MESSAGES_ADDED = "conversations.message.added"
 CLIENTS_RENAMED = "clientbook.client.renamed"
+BROADCASTS_STARTED = "conversations.broadcast.started"
 
 
 def _uuid(value: Any) -> UUID | None:
@@ -108,3 +110,15 @@ class ClientRenamedConsumer(IntegrationEventHandler):
                 name=None if name is None else str(name),
             )
         )
+
+
+class BroadcastConsumer(IntegrationEventHandler):
+    """Мастер отправил рассылку → объявление каждому клиенту (порциями)."""
+
+    def __init__(self, mediator: Mediator) -> None:
+        """Получить медиатор."""
+        self._mediator = mediator
+
+    async def handle(self, envelope: EventEnvelope) -> None:
+        """Доставить."""
+        await self._mediator.send(DeliverBroadcast(UUID(str(envelope.payload["broadcast_id"]))))

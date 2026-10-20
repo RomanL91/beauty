@@ -122,3 +122,37 @@ class InboxView:
 
     items: tuple[ConversationSummaryView, ...]
     counts: dict[str, int]
+
+
+@dataclass(frozen=True, slots=True)
+class BroadcastView:
+    """Рассылка (черновик — с числом получателей «сейчас»)."""
+
+    id: UUID
+    text: str
+    photo_key: str | None
+    status: str
+    origin: str
+    recipients: int
+    delivered: int
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class BroadcastsView:
+    """Рассылки мастера и можно ли отправить."""
+
+    items: tuple[BroadcastView, ...]
+    allowed: bool
+    next_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class AnnouncementView:
+    """Отправленное объявление (для агента ресепшна)."""
+
+    started_at: datetime
+    text: str
+    has_photo: bool

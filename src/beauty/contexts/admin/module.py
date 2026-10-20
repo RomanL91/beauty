@@ -35,6 +35,8 @@ from beauty.contexts.admin.application.operations import (
     SetClientBlockHandler,
     SetMasterAgent,
     SetMasterAgentHandler,
+    SetMasterBroadcasts,
+    SetMasterBroadcastsHandler,
     SetMasterOwner,
     SetMasterOwnerHandler,
     SetMasterPublication,
@@ -112,6 +114,7 @@ class AdminModule:
         mediator.register(SetMasterPublication, lambda: SetMasterPublicationHandler(*audited))
         mediator.register(SetMasterAgent, lambda: SetMasterAgentHandler(*audited))
         mediator.register(SetClientBlock, lambda: SetClientBlockHandler(*audited))
+        mediator.register(SetMasterBroadcasts, lambda: SetMasterBroadcastsHandler(*audited))
         mediator.register(AdminReport, lambda: AdminReportHandler(deps.reports))
         mediator.register(ListAudit, lambda: ListAuditHandler(uow))
         for code, status in _HTTP_STATUSES.items():

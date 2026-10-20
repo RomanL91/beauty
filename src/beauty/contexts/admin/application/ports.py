@@ -52,6 +52,10 @@ class Platform(ABC):
     async def set_client_blocked(self, client_id: UUID, blocked: bool, reason: str | None) -> None:
         """Заблокировать или разблокировать клиента."""
 
+    @abstractmethod
+    async def set_broadcasts(self, master_id: UUID, allowed: bool) -> None:
+        """Разрешить или запретить мастеру рассылки."""
+
 
 class Reports(ABC):
     """Отчёты для панели (в форме контракта)."""

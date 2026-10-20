@@ -91,7 +91,15 @@ class OfficeSystem:
     tone: OfficeTone = OfficeTone.INFO
 
 
-type OfficeContent = OfficeText | OfficeVoice | OfficeChoice | OfficeSystem
+@dataclass(frozen=True, slots=True)
+class OfficeBroadcast:
+    """Черновик рассылки, подготовленный агентом: мастер проверяет и отправляет кнопкой."""
+
+    broadcast_id: UUID
+    text: str
+
+
+type OfficeContent = OfficeText | OfficeVoice | OfficeChoice | OfficeSystem | OfficeBroadcast
 
 
 def office_kind(content: OfficeContent) -> str:
@@ -105,6 +113,8 @@ def office_kind(content: OfficeContent) -> str:
             return "choice"
         case OfficeSystem():
             return "system"
+        case OfficeBroadcast():
+            return "broadcast"
 
 
 def choice(question: str, labels: list[str], detail: str | None = None) -> OfficeChoice:
@@ -256,6 +266,8 @@ class OfficeMessage(AggregateRoot):
                     payload["detail"] = detail
             case OfficeSystem(text, tone):
                 payload |= {"text": text, "tone": tone.value}
+            case OfficeBroadcast(broadcast_id, text):
+                payload |= {"broadcast_id": str(broadcast_id), "text": text}
         return payload
 
     def _changed(self, change: str, now: datetime) -> None:

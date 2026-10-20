@@ -220,8 +220,36 @@ class SqlAdminReports(Reports):
             m=master_id,
             now=now,
         )
+        broadcasts = await self._rows(
+            """
+            SELECT b.id, b.text, b.photo_key IS NOT NULL AS has_photo, b.status, b.recipients,
+                   b.delivered, b.started_at
+              FROM conversations.broadcasts b
+             WHERE b.master_id = :m AND b.started_at IS NOT NULL
+             ORDER BY b.started_at DESC LIMIT 5
+            """,
+            m=master_id,
+        )
+        blocked = await self._rows(
+            "SELECT 1 FROM conversations.broadcast_blocks WHERE master_id = :m", m=master_id
+        )
         return {
             **row,
+            "broadcasts": {
+                "allowed": not blocked,
+                "items": [
+                    {
+                        "id": str(b["id"]),
+                        "text": b["text"],
+                        "has_photo": bool(b["has_photo"]),
+                        "status": str(b["status"]),
+                        "recipients": int(b["recipients"]),
+                        "delivered": int(b["delivered"]),
+                        "started_at": _iso(b["started_at"]),
+                    }
+                    for b in broadcasts
+                ],
+            },
             "page": settings["page"],
             "published_at": settings["published_at"],
             "publish_blockers": settings["publish_blockers"],

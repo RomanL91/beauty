@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from beauty.contexts.conversations.domain.content import (
     AgentNoteContent,
+    AnnouncementContent,
     BookingCardContent,
     MessageContent,
     OfferedSlot,
@@ -52,34 +54,45 @@ def dump_content(content: MessageContent) -> dict[str, Any]:
             body = {"text": text, "tone": tone.value}
         case AgentNoteContent(text):
             body = {"text": text}
+        case AnnouncementContent(text, photo_key, broadcast_id):
+            body = {"text": text, "photo_key": photo_key, "broadcast_id": str(broadcast_id)}
     return {"kind": kind_of(content), **body}
+
+
+def _slot_offer(raw: dict[str, Any]) -> SlotOfferContent:
+    selected = raw.get("selected_start")
+    return SlotOfferContent(
+        raw["text"],
+        tuple(
+            OfferedSlot(
+                datetime.fromisoformat(slot["start"]),
+                datetime.fromisoformat(slot["end"]),
+                None if slot.get("service_id") is None else UUID(slot["service_id"]),
+            )
+            for slot in raw["slots"]
+        ),
+        None if selected is None else datetime.fromisoformat(selected),
+    )
+
+
+_LOADERS: dict[str, Callable[[dict[str, Any]], MessageContent]] = {
+    "text": lambda raw: TextContent(raw["text"]),
+    "voice": lambda raw: VoiceContent(raw["audio_key"], float(raw["duration"]), raw.get("transcript")),
+    "slot_offer": _slot_offer,
+    "booking_card": lambda raw: BookingCardContent(
+        UUID(raw["appointment_id"]), int(raw["revision"]), raw["appointment"]
+    ),
+    "system": lambda raw: SystemContent(raw["text"], Tone(raw["tone"])),
+    "agent_note": lambda raw: AgentNoteContent(raw["text"]),
+    "announcement": lambda raw: AnnouncementContent(
+        raw["text"], raw.get("photo_key"), UUID(raw["broadcast_id"])
+    ),
+}
 
 
 def load_content(raw: dict[str, Any]) -> MessageContent:
     """JSON → VO."""
-    kind = raw["kind"]
-    if kind == "text":
-        return TextContent(raw["text"])
-    if kind == "voice":
-        return VoiceContent(raw["audio_key"], float(raw["duration"]), raw.get("transcript"))
-    if kind == "slot_offer":
-        selected = raw.get("selected_start")
-        return SlotOfferContent(
-            raw["text"],
-            tuple(
-                OfferedSlot(
-                    datetime.fromisoformat(slot["start"]),
-                    datetime.fromisoformat(slot["end"]),
-                    None if slot.get("service_id") is None else UUID(slot["service_id"]),
-                )
-                for slot in raw["slots"]
-            ),
-            None if selected is None else datetime.fromisoformat(selected),
-        )
-    if kind == "booking_card":
-        return BookingCardContent(UUID(raw["appointment_id"]), int(raw["revision"]), raw["appointment"])
-    if kind == "system":
-        return SystemContent(raw["text"], Tone(raw["tone"]))
-    if kind == "agent_note":
-        return AgentNoteContent(raw["text"])
-    raise ValueError(f"Неизвестный вид сообщения: {kind!r}")
+    loader = _LOADERS.get(raw["kind"])
+    if loader is None:
+        raise ValueError(f"Неизвестный вид сообщения: {raw['kind']!r}")
+    return loader(raw)

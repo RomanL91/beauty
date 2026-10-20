@@ -286,6 +286,31 @@ async def test_office_turn_acts_for_the_master(
     assert next(d for d in week["week"] if d["date"] == sunday.isoformat())["day_off"] is True
 
 
+async def test_agent_prepares_broadcast_master_sends(
+    http: httpx.AsyncClient, container: ApplicationContainer, master: dict[str, str], pump: EventPump
+) -> None:
+    """«Разошли всем…» → агент готовит черновик по MCP, карточка в ленте; отправляет мастер."""
+    client = await new_client(http, container, 8031)
+
+    async def script(call: ToolCall, ticket: str, _text: str) -> str:
+        done = await call("prepare_broadcast", {"ticket": ticket, "text": "С 1 ноября — массаж лица, −20%"})
+        assert (done["ok"], done["recipients"]) == (True, 1)
+        return "Черновик готов — проверьте и отправьте."
+
+    await give_task(http, master, "Разошли всем: с 1 ноября массаж лица со скидкой 20%")
+    await office_pump(container, OfficeScript(container, script)).drain()
+    card = next(m for m in await feed(http, master) if m["kind"] == "broadcast")
+    assert card["text"] == "С 1 ноября — массаж лица, −20%"
+    path = f"{API}/me/broadcasts/{card['broadcast_id']}"
+    draft = (await http.get(path, headers=master)).json()
+    assert (draft["status"], draft["origin"]) == ("draft", "agent")
+    assert (await http.post(f"{path}/send", headers=master)).status_code == 200
+    await pump.drain()
+    assert [m["text"] for m in await client.history() if m["kind"] == "announcement"] == [
+        "С 1 ноября — массаж лица, −20%"
+    ]
+
+
 async def test_master_cancels_through_agent_and_choice_starts_next_turn(
     http: httpx.AsyncClient, container: ApplicationContainer, master: dict[str, str], pump: EventPump
 ) -> None:

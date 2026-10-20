@@ -27,3 +27,33 @@ class OfferAlreadyUsed(InvariantViolation):
     """Окно из этого предложения уже выбрано."""
 
     code = "offer_already_used"
+
+
+class InvalidBroadcast(DomainError):
+    """Текст рассылки — от 1 до 1000 символов."""
+
+    code = "invalid_broadcast"
+
+
+class BroadcastNotDraft(InvariantViolation):
+    """Рассылка уже отправлена — менять её нельзя."""
+
+    code = "broadcast_not_draft"
+
+
+class NoRecipients(InvariantViolation):
+    """Пока некому отправить: у мастера ещё нет клиентов."""
+
+    code = "no_recipients"
+
+
+class BroadcastsBlocked(DomainError):
+    """Рассылки для этой страницы отключены администрацией сервиса."""
+
+    code = "broadcasts_blocked"
+
+
+class BroadcastCooldown(DomainError):
+    """Не чаще одной рассылки в сутки."""
+
+    code = "broadcast_cooldown"

@@ -1,5 +1,13 @@
 """Запросы контекста Conversations."""
 
+from beauty.contexts.conversations.application.queries.broadcasts import (
+    GetBroadcast,
+    GetBroadcastHandler,
+    ListBroadcasts,
+    ListBroadcastsHandler,
+    RecentAnnouncements,
+    RecentAnnouncementsHandler,
+)
 from beauty.contexts.conversations.application.queries.inbox import (
     GetConversationSummary,
     GetConversationSummaryHandler,
@@ -26,6 +34,8 @@ from beauty.contexts.conversations.application.queries.reading import (
 __all__ = [
     "FindConversationIds",
     "FindConversationIdsHandler",
+    "GetBroadcast",
+    "GetBroadcastHandler",
     "GetConversationState",
     "GetConversationStateHandler",
     "GetConversationSummary",
@@ -34,6 +44,8 @@ __all__ = [
     "GetMasterMessageHandler",
     "GetMyConversation",
     "GetMyConversationHandler",
+    "ListBroadcasts",
+    "ListBroadcastsHandler",
     "ListInbox",
     "ListInboxHandler",
     "ListMasterMessages",
@@ -42,4 +54,6 @@ __all__ = [
     "ListMessagesHandler",
     "ReadFeed",
     "ReadFeedHandler",
+    "RecentAnnouncements",
+    "RecentAnnouncementsHandler",
 ]

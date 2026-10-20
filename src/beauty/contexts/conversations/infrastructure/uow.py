@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from beauty.contexts.conversations.application.uow import ConversationsUnitOfWork
 from beauty.contexts.conversations.domain.events import FeedAppended
 from beauty.contexts.conversations.infrastructure.repositories import (
+    SqlAlchemyBroadcastRepository,
     SqlAlchemyConversationRepository,
     SqlAlchemyMessageRepository,
 )
@@ -26,6 +27,7 @@ class SqlAlchemyConversationsUnitOfWork(SqlAlchemyUnitOfWork, ConversationsUnitO
         """Инициализировать репозитории."""
         self.conversations = SqlAlchemyConversationRepository(session, tracker)
         self.messages = SqlAlchemyMessageRepository(session, tracker)
+        self.broadcasts = SqlAlchemyBroadcastRepository(session, tracker)
 
     async def _before_outbox(self, session: AsyncSession, events: Sequence[DomainEvent]) -> None:
         """Записать события ленты в журнал (для досылки по ``Last-Event-ID``)."""

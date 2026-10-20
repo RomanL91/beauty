@@ -123,26 +123,40 @@ class SystemContent:
     tone: Tone = Tone.INFO
 
 
+@dataclass(frozen=True, slots=True)
+class AnnouncementContent:
+    """Объявление мастера из рассылки: текст и фото (ключ файла в хранилище)."""
+
+    text: str
+    photo_key: str | None
+    broadcast_id: UUID
+
+
 type MessageContent = (
-    TextContent | VoiceContent | SlotOfferContent | BookingCardContent | SystemContent | AgentNoteContent
+    TextContent
+    | VoiceContent
+    | SlotOfferContent
+    | BookingCardContent
+    | SystemContent
+    | AgentNoteContent
+    | AnnouncementContent
 )
 
 MASTER_ONLY_KINDS = frozenset({"agent_note"})
 """Виды сообщений, которые клиент не видит никогда."""
 
 
+_KINDS: dict[type, str] = {
+    TextContent: "text",
+    VoiceContent: "voice",
+    SlotOfferContent: "slot_offer",
+    BookingCardContent: "booking_card",
+    SystemContent: "system",
+    AgentNoteContent: "agent_note",
+    AnnouncementContent: "announcement",
+}
+
+
 def kind_of(content: MessageContent) -> str:
     """Вид сообщения в терминах контракта."""
-    match content:
-        case TextContent():
-            return "text"
-        case VoiceContent():
-            return "voice"
-        case SlotOfferContent():
-            return "slot_offer"
-        case BookingCardContent():
-            return "booking_card"
-        case SystemContent():
-            return "system"
-        case AgentNoteContent():
-            return "agent_note"
+    return _KINDS[type(content)]

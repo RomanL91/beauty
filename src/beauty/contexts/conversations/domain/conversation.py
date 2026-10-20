@@ -21,6 +21,7 @@ from uuid import UUID
 
 from beauty.contexts.conversations.domain.content import (
     AgentNoteContent,
+    AnnouncementContent,
     Author,
     BookingCardContent,
     MessageContent,
@@ -238,6 +239,8 @@ def preview(content: MessageContent) -> str:
             short = text
         case VoiceContent():
             short = "Голосовое сообщение"
+        case AnnouncementContent(text, _, _):
+            short = f"Объявление: {text}"
         case BookingCardContent(_, _, appointment):
             service = appointment.get("service")
             title = service.get("title") if isinstance(service, dict) else None

@@ -7,6 +7,7 @@ from typing import Any
 from beauty.contexts.conversations.application.dto import ConversationSummaryView, MessageView
 from beauty.contexts.conversations.domain.content import (
     AgentNoteContent,
+    AnnouncementContent,
     BookingCardContent,
     OfferedSlot,
     SlotOfferContent,
@@ -58,6 +59,12 @@ class MessageRenderer:
                 payload |= {"text": text, "tone": tone.value}
             case AgentNoteContent(text):
                 payload["text"] = text
+            case AnnouncementContent(text, photo_key, broadcast_id):
+                payload |= {
+                    "text": text,
+                    "photo_url": None if photo_key is None else self._media.url(photo_key),
+                    "broadcast_id": str(broadcast_id),
+                }
         return payload
 
 

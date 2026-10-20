@@ -92,3 +92,25 @@ class VoiceTranscribed(DomainEvent):
     message_id: UUID
     author: str
     text: str | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class BroadcastStarted(DomainEvent):
+    """Мастер отправил рассылку: подписчик доставляет объявление клиентам порциями."""
+
+    routing_key = "conversations.broadcast.started"
+
+    broadcast_id: UUID
+    master_id: UUID
+    recipients: int
+
+
+@dataclass(frozen=True, kw_only=True)
+class BroadcastFinished(DomainEvent):
+    """Рассылка доставлена всем, кто был клиентом на момент отправки."""
+
+    routing_key = "conversations.broadcast.finished"
+
+    broadcast_id: UUID
+    master_id: UUID
+    delivered: int

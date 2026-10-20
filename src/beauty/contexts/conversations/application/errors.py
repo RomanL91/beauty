@@ -33,3 +33,9 @@ class SlotNotAvailableError(ConflictError):
     """Окно недоступно для записи (занято или вне расписания)."""
 
     code = "slot_unavailable"
+
+
+class BroadcastNotFoundError(NotFoundError):
+    """Рассылка не найдена."""
+
+    code = "broadcast_not_found"

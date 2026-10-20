@@ -11,6 +11,7 @@ from beauty.contexts.agent.application.ports import (
     AgentRuntime,
     AppointmentSnapshot,
     Booking,
+    BroadcastDraft,
     Cabinet,
     ChangeRefusedError,
     ClientBook,
@@ -345,6 +346,13 @@ class FakeCabinet(Cabinet):
         if client_id != CLIENT:
             raise ClientNotFoundError()
         self.actions.append(("message", (client_id, text)))
+
+    async def draft_broadcast(self, master_id: UUID, text: str) -> BroadcastDraft:
+        """Черновик (пустой текст — отказ); клиентов — трое."""
+        if not text.strip():
+            raise ChangeRefusedError("Текст рассылки — от 1 до 1000 символов")
+        self.actions.append(("broadcast", text))
+        return BroadcastDraft(UUID(int=77), 3)
 
 
 class FakeClientBook(ClientBook):
