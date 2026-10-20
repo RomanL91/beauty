@@ -10,3 +10,4 @@ export type * from './push-gateway';
 export type * from './master-settings-gateway';
 export type * from './admin-gateway';
 export type * from './clients-gateway';
+export type * from './broadcasts-gateway';

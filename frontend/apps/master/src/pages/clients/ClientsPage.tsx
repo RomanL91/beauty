@@ -4,7 +4,9 @@ import {
   Badge,
   Button,
   ErrorState,
+  Icon,
   Skeleton,
+  buttonClass,
   StateView,
   formatSlotShort,
   formatDayShort,
@@ -54,12 +56,17 @@ export function ClientsPage() {
   return (
     <>
       <header className={styles.header}>
-        <h1 className={styles.h1}>
-          Клиенты
-          {clients.data && !debounced && filter === 'all' ? (
-            <span className={styles.count}> · {clients.data.total}</span>
-          ) : null}
-        </h1>
+        <div className={styles.headerRow}>
+          <h1 className={styles.h1}>
+            Клиенты
+            {clients.data && !debounced && filter === 'all' ? (
+              <span className={styles.count}> · {clients.data.total}</span>
+            ) : null}
+          </h1>
+          <Link to="/clients/broadcast" className={buttonClass({ variant: 'soft' })}>
+            <Icon name="bell" size={18} /> Рассылка
+          </Link>
+        </div>
         <label htmlFor="client-search" style={visuallyHiddenStyle}>
           Поиск клиентов
         </label>

@@ -1,5 +1,6 @@
 import type { Appointment, FeedItem, MasterPage } from '@beauty/api';
 import {
+  Announcement,
   Bubble,
   BubbleMeta,
   FailedBadge,
@@ -58,7 +59,21 @@ export function ClientMessageView({
     case 'agent_note':
     case 'choice':
     case 'task_progress':
+    case 'broadcast':
       return null;
+    case 'announcement':
+      return (
+        <MessageRow side="in" wide>
+          <Bubble tone="surface" layout="flush">
+            <Announcement
+              label={`Объявление от ${master.name_forms.genitive}`}
+              text={message.text}
+              photoUrl={message.photo_url}
+            />
+          </Bubble>
+          <BubbleMeta>{time}</BubbleMeta>
+        </MessageRow>
+      );
     case 'system':
       return (
         <SystemPill tone={message.tone}>

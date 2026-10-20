@@ -1,5 +1,6 @@
 import type {
   Appointment,
+  Broadcast,
   ChallengeStatus,
   ClientMessageInput,
   ConversationFilter,
@@ -32,6 +33,7 @@ import { EventLog } from './event-log';
 import { MockProblem } from './errors';
 import { MockSettings } from './settings';
 import { MockAdmin } from './admin';
+import { MockBroadcasts } from './broadcasts';
 import { MockClients } from './clients';
 import { uuidv7 } from './ids';
 import { CLIENT_CONVERSATION_ID, clientChatSeed } from './fixtures/client-chat';
@@ -101,6 +103,7 @@ export class MockDb {
   readonly settings = new MockSettings(this.page, (file) => this.#storeUpload(file));
   readonly admin: MockAdmin;
   readonly clients: MockClients;
+  readonly broadcasts: MockBroadcasts;
   readonly clientLog = new EventLog();
   readonly masterLog = new EventLog();
 
@@ -126,7 +129,13 @@ export class MockDb {
       taskStepMs: options.taskStepMs ?? 1500,
     };
     this.#storage = options.storage ?? memoryStore();
-    this.admin = new MockAdmin(this.page, this.settings, this.#storage);
+    this.broadcasts = new MockBroadcasts({
+      recipients: () => this.#inbox.size,
+      deliver: (broadcast) => this.#deliverAnnouncement(broadcast),
+      storeUpload: (file) => this.#storeUpload(file),
+      later: (run, ms) => this.#later(run, ms),
+    });
+    this.admin = new MockAdmin(this.page, this.settings, this.#storage, this.broadcasts);
     this.clients = new MockClients({
       roster: () => [...this.#inbox.values()],
       appointments: () => [...this.#appointments.values()],
@@ -137,6 +146,18 @@ export class MockDb {
     const chat = clientChatSeed();
     this.#clientMessages = chat.messages;
     this.#clientAppointments.set(chat.appointment.id, chat.appointment);
+    // Прошлая рассылка Алисы — в начале чата клиента.
+    for (const sent of this.broadcasts.sent())
+      this.#clientMessages = [
+        {
+          ...base('master', sent.started_at ?? sent.created_at),
+          kind: 'announcement',
+          text: sent.text,
+          photo_url: sent.photo_url,
+          broadcast_id: sent.id,
+        },
+        ...this.#clientMessages,
+      ];
 
     const { appointments, breaks } = appointmentsSeed();
     for (const a of appointments) this.#appointments.set(a.id, a);
@@ -659,6 +680,29 @@ export class MockDb {
     });
   }
 
+  /** Объявление рассылки — в каждую переписку мастера и в чат клиента-«меня». */
+  #deliverAnnouncement(broadcast: Broadcast): void {
+    const now = new Date().toISOString();
+    const announcement = (): MessageOf<'announcement'> => ({
+      ...base('master', now),
+      kind: 'announcement',
+      text: broadcast.text,
+      photo_url: broadcast.photo_url,
+      broadcast_id: broadcast.id,
+    });
+    for (const id of this.#inbox.keys()) {
+      this.#pushDialog(id, announcement());
+      this.#patchConversation(id, {
+        last_message: {
+          author: 'master',
+          preview: `Объявление: ${broadcast.text}`,
+          created_at: now,
+        },
+      });
+    }
+    this.#pushClient(announcement());
+  }
+
   /** Имя клиента у мастера — в чатах и в графике. */
   #relabelClient(clientId: string, label: string): void {
     for (const c of this.#inbox.values())
@@ -831,6 +875,23 @@ export class MockDb {
   #assistantReply(body: string): void {
     const lower = body.toLowerCase();
     const now = new Date().toISOString();
+    if (lower.includes('разошли') || lower.includes('рассылк')) {
+      const announcement = body.includes(':') ? body.slice(body.indexOf(':') + 1).trim() : body;
+      const draft = this.broadcasts.draft(capitalize(announcement), 'agent');
+      this.#pushAssistant({
+        ...base('agent', now),
+        kind: 'broadcast',
+        broadcast_id: draft.id,
+        text: draft.text,
+      });
+      this.#pushAssistant(
+        text(
+          base('agent', now),
+          `Подготовила черновик для ${draft.recipients} клиентов. Проверьте текст, добавьте фото, если нужно, и нажмите «Отправить» — сама разослать не могу.`,
+        ),
+      );
+      return;
+    }
     if (lower.includes('завтра')) {
       const tomorrow = localDate(1);
       const day = this.daySchedule(tomorrow);

@@ -110,6 +110,15 @@ export class HttpAdminGateway implements AdminGateway {
     );
   }
 
+  setBroadcasts(masterId: string, allowed: boolean): Promise<AdminMasterDetail> {
+    return unwrap(() =>
+      this.core.bare.PUT('/admin/masters/{master_id}/broadcasts', {
+        params: { ...this.csrf, path: { master_id: masterId } },
+        body: { allowed },
+      }),
+    );
+  }
+
   clients(query: ClientQuery = {}): Promise<{ items: AdminClientRow[]; total: number }> {
     return unwrap(() =>
       this.core.bare.GET('/admin/clients', {

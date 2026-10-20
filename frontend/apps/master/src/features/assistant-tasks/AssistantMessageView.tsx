@@ -11,6 +11,7 @@ import {
   formatTime,
 } from '@beauty/ui';
 import type { ReactNode } from 'react';
+import { BroadcastCard } from '../broadcast/BroadcastCard';
 import styles from './Assistant.module.css';
 
 /** Сообщение ленты поручений. */
@@ -72,6 +73,8 @@ export function AssistantMessageView({
       return <Choice message={message} busy={choosing === message.choice_id} onChoose={onChoose} />;
     case 'task_progress':
       return <Progress message={message} />;
+    case 'broadcast':
+      return <BroadcastCard message={message} />;
     case 'system':
       return (
         <MessageRow side="in">

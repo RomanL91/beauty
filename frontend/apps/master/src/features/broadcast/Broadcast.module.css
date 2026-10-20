@@ -1,0 +1,56 @@
+.cardWrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cardActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+
+.cardStatus {
+  padding: 0 14px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text-muted);
+}
+
+.cardActions .cardStatus {
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Поле файла скрыто, но доступно: им управляет подпись-кнопка. */
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.fileInput:focus-visible + label {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}

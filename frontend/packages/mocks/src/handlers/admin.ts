@@ -91,6 +91,14 @@ export function adminHandlers(db: MockDb) {
       });
     }),
 
+    http.put('/admin/masters/{master_id}/broadcasts', async ({ request, params, response }) => {
+      const body = await request.json();
+      return run(() => {
+        guard(request);
+        return response(200).json(admin.setBroadcasts(params.master_id, body.allowed));
+      });
+    }),
+
     http.get('/admin/clients', async ({ request, query, response }) => {
       await delay(150);
       const blocked = query.get('blocked');

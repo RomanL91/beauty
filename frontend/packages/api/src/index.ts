@@ -36,6 +36,7 @@ export { HttpPushGateway } from './adapters/http-push-gateway';
 export { HttpMasterSettingsGateway } from './adapters/http-master-settings-gateway';
 export { HttpAdminGateway } from './adapters/http-admin-gateway';
 export { HttpClientsGateway } from './adapters/http-clients-gateway';
+export { HttpBroadcastsGateway } from './adapters/http-broadcasts-gateway';
 export {
   EMPTY_FEED,
   feedReducer,

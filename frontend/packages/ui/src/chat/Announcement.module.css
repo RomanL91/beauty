@@ -1,0 +1,38 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.photo {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  background: var(--c-placeholder);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+}
+
+.text {
+  font-size: 15px;
+  line-height: 21px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}

@@ -1,5 +1,6 @@
 import type { Appointment, FeedItem } from '@beauty/api';
 import {
+  Announcement,
   Bubble,
   BubbleLabel,
   BubbleMeta,
@@ -142,8 +143,22 @@ export function MasterMessageView({
           </Bubble>
         </MessageRow>
       );
+    case 'announcement':
+      return (
+        <MessageRow side="out" wide>
+          <Bubble tone="surface" layout="flush">
+            <Announcement
+              label="Объявление · рассылка"
+              text={message.text}
+              photoUrl={message.photo_url}
+            />
+          </Bubble>
+          <BubbleMeta>{formatTime(message.created_at, timeZone)}</BubbleMeta>
+        </MessageRow>
+      );
     case 'choice':
     case 'task_progress':
+    case 'broadcast':
       return null;
   }
 }

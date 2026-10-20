@@ -14,6 +14,7 @@ import type {
 } from '@beauty/api';
 import { addDays, localDate, fromNow } from './clock';
 import type { KeyValueStore } from './db';
+import type { MockBroadcasts } from './broadcasts';
 import { MockProblem } from './errors';
 import { DEMO_SLUG } from './fixtures/master-page';
 import { uuidv7 } from './ids';
@@ -52,11 +53,13 @@ export class MockAdmin {
   readonly #masters = new Map<string, MockMaster>();
   readonly #clients: AdminClientRow[];
   readonly #audit: AdminAuditEntry[] = [];
+  readonly #blockedBroadcasts = new Set<string>();
 
   constructor(
     private readonly page: MasterPage,
     private readonly settings: MockSettings,
     private readonly storage: KeyValueStore,
+    private readonly broadcasts: MockBroadcasts,
   ) {
     const created = fromNow(-120 * 86_400_000);
     this.#admins = [
@@ -189,6 +192,7 @@ export class MockAdmin {
         row.agent === 'not_connected'
           ? `docker compose run --rm agent-setup "beauty agent provision ${row.slug}"`
           : null,
+      broadcasts: this.#broadcastsOf(row.slug),
       stats: {
         clients: row.slug === DEMO_SLUG ? 42 : 0,
         conversations: row.slug === DEMO_SLUG ? 48 : 0,
@@ -369,6 +373,37 @@ export class MockAdmin {
       enabled ? 'Включил ИИ-администратора' : 'Выключил ИИ-администратора',
     );
     return this.master(id);
+  }
+
+  setBroadcasts(id: string, allowed: boolean): AdminMasterDetail {
+    const master = this.#require(id);
+    if (master.row.slug === DEMO_SLUG) this.broadcasts.allowed = allowed;
+    else this.#blockedBroadcasts[allowed ? 'delete' : 'add'](master.row.slug);
+    this.#log(
+      allowed ? 'broadcasts.allowed' : 'broadcasts.blocked',
+      master.row.slug,
+      allowed ? 'Разрешил рассылки' : 'Запретил рассылки',
+    );
+    return this.master(id);
+  }
+
+  #broadcastsOf(slug: string): AdminMasterDetail['broadcasts'] {
+    if (slug !== DEMO_SLUG) return { allowed: !this.#blockedBroadcasts.has(slug), items: [] };
+    return {
+      allowed: this.broadcasts.allowed,
+      items: this.broadcasts
+        .sent()
+        .slice(0, 5)
+        .map((b) => ({
+          id: b.id,
+          text: b.text,
+          has_photo: b.photo_url !== null,
+          status: b.status === 'sending' ? 'sending' : 'sent',
+          recipients: b.recipients,
+          delivered: b.delivered,
+          started_at: b.started_at ?? b.created_at,
+        })),
+    };
   }
 
   setClientBlock(id: string, blocked: boolean, reason?: string | null): AdminClientRow {

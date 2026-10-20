@@ -42,6 +42,7 @@ export interface AdminGateway {
   setOwner(masterId: string, phone: string): Promise<AdminMasterDetail>;
   setPublication(masterId: string, published: boolean): Promise<AdminMasterDetail>;
   setAgent(masterId: string, enabled: boolean): Promise<AdminMasterDetail>;
+  setBroadcasts(masterId: string, allowed: boolean): Promise<AdminMasterDetail>;
 
   clients(query?: ClientQuery): Promise<{ items: AdminClientRow[]; total: number }>;
   setClientBlock(clientId: string, blocked: boolean, reason?: string): Promise<AdminClientRow>;

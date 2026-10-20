@@ -1,6 +1,7 @@
 import {
   HttpAssistantGateway,
   HttpAuthGateway,
+  HttpBroadcastsGateway,
   HttpClientsGateway,
   HttpCore,
   HttpInboxGateway,
@@ -11,6 +12,7 @@ import {
   StubMasterAuthGateway,
   type AssistantGateway,
   type AuthGateway,
+  type BroadcastsGateway,
   type ClientsGateway,
   type InboxGateway,
   type MasterEventsGateway,
@@ -36,6 +38,8 @@ export interface MasterContainer {
   readonly settings: MasterSettingsGateway;
   /** Картотека клиентов. */
   readonly clients: ClientsGateway;
+  /** Рассылки объявлений. */
+  readonly broadcasts: BroadcastsGateway;
 }
 
 /** Собрать контейнер на HTTP-адаптерах. */
@@ -51,5 +55,6 @@ export function createMasterContainer(env: AppEnv, core = new HttpCore()): Maste
     push: new HttpPushGateway(core),
     settings: new HttpMasterSettingsGateway(core),
     clients: new HttpClientsGateway(core),
+    broadcasts: new HttpBroadcastsGateway(core),
   };
 }

@@ -175,6 +175,70 @@ function settingsHandlers(db: MockDb) {
   const noImage = () => problem(422, 'invalid_photo', 'Нужен файл в поле file');
 
   return [
+    http.get('/me/broadcasts', async ({ request, response }) => {
+      await delay(200);
+      return requireBearer(request) ?? response(200).json(db.broadcasts.list());
+    }),
+
+    http.post('/me/broadcasts', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      const body = await request.json();
+      return run(() => response(201).json(db.broadcasts.draft(body.text)));
+    }),
+
+    http.get('/me/broadcasts/{broadcast_id}', async ({ request, params, response }) => {
+      await delay(150);
+      return (
+        requireBearer(request) ??
+        run(() => response(200).json(db.broadcasts.get(params.broadcast_id)))
+      );
+    }),
+
+    http.put('/me/broadcasts/{broadcast_id}', async ({ request, params, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      const body = await request.json();
+      return run(() => response(200).json(db.broadcasts.edit(params.broadcast_id, body.text)));
+    }),
+
+    http.delete('/me/broadcasts/{broadcast_id}', async ({ request, params, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(200);
+      return run(() => {
+        db.broadcasts.discard(params.broadcast_id);
+        return response(204).empty();
+      });
+    }),
+
+    http.put('/me/broadcasts/{broadcast_id}/photo', async ({ request, params, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(350);
+      const form = await request.formData();
+      const file = form.get('file');
+      if (!(file instanceof Blob))
+        return problem(422, 'invalid_photo', 'Нужна картинка JPEG, PNG или WebP');
+      return run(() => response(200).json(db.broadcasts.setPhoto(params.broadcast_id, file)));
+    }),
+
+    http.delete('/me/broadcasts/{broadcast_id}/photo', async ({ request, params, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(200);
+      return run(() => response(200).json(db.broadcasts.removePhoto(params.broadcast_id)));
+    }),
+
+    http.post('/me/broadcasts/{broadcast_id}/send', async ({ request, params, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(300);
+      return run(() => response(200).json(db.broadcasts.send(params.broadcast_id)));
+    }),
+
     http.get('/me/clients', async ({ request, query, response }) => {
       await delay(200);
       return (

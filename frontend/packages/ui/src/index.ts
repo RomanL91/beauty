@@ -53,6 +53,7 @@ export {
   type BubbleTone,
 } from './chat/Chat';
 export { HoldToRecord } from './chat/HoldToRecord';
+export { Announcement } from './chat/Announcement';
 export {
   pickAudioMimeType,
   useVoiceRecorder,

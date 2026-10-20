@@ -158,6 +158,8 @@ function MasterCard({ master }: { readonly master: AdminMasterDetail }) {
 
         <OwnerCard master={master} />
 
+        <BroadcastsCard master={master} />
+
         <section className={ui.card} aria-labelledby="upcoming">
           <h2 id="upcoming" className={ui.h2}>
             Ближайшие записи
@@ -228,6 +230,59 @@ function OwnerCard({ master }: { readonly master: AdminMasterDetail }) {
           Сохранить
         </Button>
       </form>
+    </section>
+  );
+}
+
+/** Рассылки мастера: разрешены ли и последние отправленные. */
+function BroadcastsCard({ master }: { readonly master: AdminMasterDetail }) {
+  const online = useOnline();
+  const { allowed, items } = master.broadcasts;
+  const toggle = useMasterAction(
+    (api, next: boolean) => api.setBroadcasts(master.id, next),
+    allowed ? 'Рассылки запрещены' : 'Рассылки разрешены',
+  );
+  return (
+    <section className={ui.card} aria-labelledby="broadcasts">
+      <h2 id="broadcasts" className={ui.h2}>
+        Рассылки
+      </h2>
+      <p className={ui.muted}>
+        {allowed
+          ? 'Мастер может раз в сутки отправить объявление всем своим клиентам.'
+          : 'Запрещены: мастер не может отправлять объявления.'}
+      </p>
+      <div className={ui.row}>
+        <Button
+          variant={allowed ? 'outline' : 'primary'}
+          disabled={toggle.isPending || !online}
+          onClick={() => toggle.mutate(!allowed)}
+        >
+          {allowed ? 'Запретить рассылки' : 'Разрешить рассылки'}
+        </Button>
+      </div>
+      {items.length === 0 ? (
+        <p className={ui.muted}>Рассылок ещё не было.</p>
+      ) : (
+        <table className={ui.table}>
+          <tbody>
+            {items.map((b) => (
+              <tr key={b.id}>
+                <td>{formatDateTime(b.started_at)}</td>
+                <td>
+                  {b.text}
+                  <div className={ui.muted}>
+                    {b.has_photo ? 'с фото · ' : ''}
+                    {b.status === 'sent'
+                      ? `доставлено ${formatNumber(b.delivered)}`
+                      : `отправляется · ${b.delivered} из ${b.recipients}`}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </section>
   );
 }

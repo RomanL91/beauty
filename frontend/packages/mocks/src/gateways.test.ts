@@ -7,6 +7,7 @@ import {
   HttpAdminGateway,
   HttpAssistantGateway,
   HttpAuthGateway,
+  HttpBroadcastsGateway,
   HttpClientsGateway,
   HttpConversationGateway,
   HttpCore,
@@ -311,6 +312,46 @@ describe('клиенты мастера', () => {
       status: 404,
       code: 'client_not_found',
     });
+  });
+});
+
+describe('рассылки мастера', () => {
+  it('черновик с фото → отправка → объявление во всех чатах; лимит 24 ч', async () => {
+    const core = await signedIn();
+    const broadcasts = new HttpBroadcastsGateway(core);
+    const before = await broadcasts.list();
+    expect([before.allowed, before.next_at]).toEqual([true, null]);
+    const draft = await broadcasts.draft('  Скидка 20% на массаж лица  ');
+    expect([draft.status, draft.text, draft.recipients > 0]).toEqual([
+      'draft',
+      'Скидка 20% на массаж лица',
+      true,
+    ]);
+    const png = new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' });
+    const withPhoto = await broadcasts.setPhoto(draft.id, png);
+    expect(withPhoto.photo_url).toMatch(/^blob:/);
+    const sending = await broadcasts.send(draft.id);
+    expect(sending.status).toBe('sending');
+    let sent = await broadcasts.get(draft.id);
+    for (let i = 0; i < 40 && sent.status !== 'sent'; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      sent = await broadcasts.get(draft.id);
+    }
+    expect(sent.status).toBe('sent');
+    expect(sent.delivered).toBe(sent.recipients);
+    const chats = await new HttpInboxGateway(core).list('all');
+    expect(chats.items.every((c) => c.last_message?.preview.startsWith('Объявление: '))).toBe(true);
+
+    const second = await broadcasts.draft('Ещё одна');
+    await expect(broadcasts.send(second.id)).rejects.toMatchObject({
+      status: 429,
+      code: 'broadcast_cooldown',
+    });
+    await expect(broadcasts.edit(draft.id, 'x')).rejects.toMatchObject({
+      code: 'broadcast_not_draft',
+    });
+    await broadcasts.discard(second.id);
+    expect((await broadcasts.list()).next_at).not.toBeNull();
   });
 });
 
