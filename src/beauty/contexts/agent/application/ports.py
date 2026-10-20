@@ -137,6 +137,38 @@ class ClientNotFoundError(Exception):
     """У мастера нет такого клиента (переписки с ним)."""
 
 
+class NoteRefusedError(Exception):
+    """Картотека не приняла изменение (длина, лимит заметок) — текст для модели."""
+
+
+@dataclass(frozen=True, slots=True)
+class ClientNoteBrief:
+    """Заметка о клиенте."""
+
+    text: str
+    by_agent: bool
+
+
+class ClientBook(ABC):
+    """Картотека клиентов мастера (Clientbook): имя и заметки."""
+
+    @abstractmethod
+    async def notes(self, master_id: UUID, client_id: UUID) -> list[ClientNoteBrief]:
+        """Заметки о клиенте, свежие сверху."""
+
+    @abstractmethod
+    async def add_note(self, master_id: UUID, client_id: UUID, text: str) -> None:
+        """Заметка от ИИ-администратора; ``ClientNotFoundError``, ``NoteRefusedError``."""
+
+    @abstractmethod
+    async def rename(self, master_id: UUID, client_id: UUID, name: str | None) -> None:
+        """Имя клиента у мастера; ``ClientNotFoundError``, ``NoteRefusedError``."""
+
+    @abstractmethod
+    async def card(self, master_id: UUID, client_id: UUID) -> Mapping[str, Any] | None:
+        """Карточка: имя, визиты, ближайшие записи, заметки (``None`` — нет клиента)."""
+
+
 class Cabinet(ABC):
     """Действия от имени мастера (Booking, Tenancy, Conversations) — для агента кабинета."""
 

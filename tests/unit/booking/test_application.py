@@ -49,6 +49,7 @@ class World:
         self.store = BookingStore()
         self.clock = clock
         self.slots = OpenSlots()
+        self.phones = Phones()
         self.ids = UuidV7Generator()
 
     def uow(self) -> InMemoryBookingUnitOfWork:
@@ -57,13 +58,13 @@ class World:
 
     async def request(self, start: datetime = START, client: UUID = CLIENT) -> UUID:
         """Заявка; вернуть id."""
-        handler = RequestAppointmentHandler(self.uow(), self.slots, Phones(), self.clock, self.ids)
+        handler = RequestAppointmentHandler(self.uow(), self.slots, self.phones, self.clock, self.ids)
         payload = await handler.handle(RequestAppointment(MASTER, client, UUID(int=7), start))
         return UUID(payload["id"])
 
     async def reschedule(self, appointment_id: UUID, start: datetime, client: UUID = CLIENT) -> UUID:
         """Перенос; вернуть id новой заявки."""
-        handler = RescheduleAppointmentHandler(self.uow(), self.slots, Phones(), self.clock, self.ids)
+        handler = RescheduleAppointmentHandler(self.uow(), self.slots, self.phones, self.clock, self.ids)
         payload = await handler.handle(RescheduleAppointment(appointment_id, client, start))
         return UUID(payload["id"])
 
@@ -168,3 +169,15 @@ async def test_reschedule_after_deadline_and_completion(world: World) -> None:
     world.clock.moment = START + timedelta(hours=1)
     await CompleteAppointmentHandler(world.uow(), world.clock).handle(CompleteAppointment(appointment))
     assert world.status(appointment) is AppointmentStatus.COMPLETED
+
+
+async def test_request_takes_client_name_from_masters_card(clock: FrozenClock) -> None:
+    """Новая заявка подписана именем из картотеки мастера; переименование — в открытых записях."""
+    world = World(clock)
+    world.phones = Phones({CLIENT: "Айгерим"})
+    appointment_id = await world.request()
+    stored = world.store.appointments[appointment_id]
+    assert stored.client.display_name == "Айгерим"
+    async with world.uow() as uow:
+        assert await uow.appointments.rename_client(MASTER, CLIENT, None) == 1
+    assert stored.client.display_name == "Новый клиент · …89 67"

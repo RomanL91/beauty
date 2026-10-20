@@ -17,6 +17,7 @@ from beauty.contexts.agent.application.instructions import (
 )
 from beauty.contexts.agent.application.ports import (
     AgentRuntime,
+    ClientBook,
     Conversations,
     MasterBriefs,
     ProfileProvisioner,
@@ -144,6 +145,7 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
         runtime: AgentRuntime,
         masters: MasterBriefs,
         conversations: Conversations,
+        clients: ClientBook,
         clock: Clock,
         ticket_ttl: timedelta,
     ) -> None:
@@ -152,6 +154,7 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
         self._runtime = runtime
         self._masters = masters
         self._conversations = conversations
+        self._clients = clients
         self._clock = clock
         self._ticket_ttl = ticket_ttl
 
@@ -174,6 +177,7 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
         if master is None:
             return
         catalog = catalog_digest(master)
+        notes = [note.text for note in await self._clients.notes(state.master_id, state.client_id)]
         ticket = RunTicket.issue(
             master_id=state.master_id,
             conversation_id=message.conversation_id,
@@ -195,7 +199,9 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
                 api_key=seat[1],
                 session_id=str(message.conversation_id),
                 input=turn_input(message.text, catalog_changed=_changed(previous, catalog)),
-                instructions=front_desk_instructions(master, state.client_name, ticket.id, self._clock.now()),
+                instructions=front_desk_instructions(
+                    master, state.client_name, ticket.id, self._clock.now(), notes
+                ),
                 idempotency_key=str(message.message_id),
             )
         )

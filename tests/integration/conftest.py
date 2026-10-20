@@ -95,6 +95,7 @@ async def clean_database(container: ApplicationContainer) -> None:
                 "tenancy.master_services, tenancy.masters, booking.appointments, "
                 "conversations.feed_events, conversations.messages, conversations.conversations, "
                 "agent.tickets, agent.profiles, agent.office_messages, notifications.push_subscriptions, "
+                "clientbook.notes, clientbook.files, "
                 "infra.outbox, infra.inbox, infra.scheduled_jobs CASCADE"
             )
         )

@@ -35,6 +35,7 @@ from beauty.contexts.agent.application.ports import (
     AgentRuntime,
     Booking,
     Cabinet,
+    ClientBook,
     Conversations,
     MasterBriefs,
     ProfileProvisioner,
@@ -92,6 +93,7 @@ class AgentDependencies:
     conversations: Conversations
     booking: Booking
     cabinet: Cabinet
+    clients: ClientBook
     ids: IdGenerator
     storage: FileStorage
     media: SignedMediaUrls
@@ -118,7 +120,13 @@ class AgentModule:
         mediator.register(
             AnswerClient,
             lambda: AnswerClientHandler(
-                self._uow, deps.runtime, deps.masters, deps.conversations, deps.clock, deps.ticket_ttl
+                self._uow,
+                deps.runtime,
+                deps.masters,
+                deps.conversations,
+                deps.clients,
+                deps.clock,
+                deps.ticket_ttl,
             ),
         )
         mediator.register(GiveOfficeTask, lambda: GiveOfficeTaskHandler(self._uow(), deps.clock, deps.ids))
@@ -178,12 +186,16 @@ class AgentModule:
     def toolkit(self) -> FrontDeskToolkit:
         """Инструменты ресепшна."""
         deps = self._deps
-        return FrontDeskToolkit(self._uow, deps.masters, deps.booking, deps.conversations, deps.clock)
+        return FrontDeskToolkit(
+            self._uow, deps.masters, deps.booking, deps.conversations, deps.clients, deps.clock
+        )
 
     def office_toolkit(self) -> OfficeToolkit:
         """Инструменты кабинета."""
         deps = self._deps
-        return OfficeToolkit(self._uow, deps.masters, deps.booking, deps.cabinet, deps.clock, deps.ids)
+        return OfficeToolkit(
+            self._uow, deps.masters, deps.booking, deps.cabinet, deps.clients, deps.clock, deps.ids
+        )
 
     def mcp_server(self) -> MCPServer:
         """MCP-сервер инструментов ресепшна (``/mcp``)."""

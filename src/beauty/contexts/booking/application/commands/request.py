@@ -44,13 +44,14 @@ class _Requester:
         """Создать заявку внутри открытого Unit of Work."""
         uow = self._uow
         phone = await self._clients.phone(client_id)
+        name = await self._clients.name(master_id, client_id)
         visits = await uow.appointments.visits_before(master_id, client_id, slot.start)
         appointment = Appointment.request(
             appointment_id=self._ids.new(),
             master_id=master_id,
             client_id=client_id,
             service=slot.service,
-            client=ClientSnapshot.new_client(phone, visits + 1),
+            client=ClientSnapshot.new_client(phone, visits + 1, name),
             slot=TimeSlot(slot.start, slot.end),
             timezone=slot.timezone,
             confirm_within=slot.confirm_within,

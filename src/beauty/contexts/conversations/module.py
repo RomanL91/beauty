@@ -24,6 +24,8 @@ from beauty.contexts.conversations.application.commands import (
     PostMasterMessageHandler,
     PostOnMasterBehalf,
     PostOnMasterBehalfHandler,
+    RenameConversationClient,
+    RenameConversationClientHandler,
     SetConversationHandler,
     SetConversationHandlerHandler,
     SyncAppointment,
@@ -55,9 +57,11 @@ from beauty.contexts.conversations.application.queries import (
 from beauty.contexts.conversations.infrastructure.consumers import (
     APPOINTMENTS,
     CLIENT_MESSAGES,
+    CLIENTS_RENAMED,
     MESSAGES_ADDED,
     AppointmentConsumer,
     ClientMessageConsumer,
+    ClientRenamedConsumer,
     VoiceConsumer,
 )
 from beauty.contexts.conversations.infrastructure.jobs import PruneFeedJob
@@ -157,6 +161,9 @@ class ConversationsModule:
         mediator.register(HandOffToMaster, lambda: HandOffToMasterHandler(self._uow(), clock, ids))
         mediator.register(TranscribeVoice, lambda: TranscribeVoiceHandler(self._uow, deps.transcriber, clock))
         mediator.register(PostOnMasterBehalf, lambda: PostOnMasterBehalfHandler(self._uow(), clock, ids))
+        mediator.register(
+            RenameConversationClient, lambda: RenameConversationClientHandler(self._uow(), clock)
+        )
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
 
@@ -179,6 +186,10 @@ class ConversationsModule:
                 ConsumerQueueSpec(name="conversations.voice", binding_keys=(MESSAGES_ADDED,)),
                 VoiceConsumer(mediator),
                 ambient_transaction=False,
+            ),
+            EventSubscription(
+                ConsumerQueueSpec(name="conversations.clientbook", binding_keys=(CLIENTS_RENAMED,)),
+                ClientRenamedConsumer(mediator),
             ),
         )
 

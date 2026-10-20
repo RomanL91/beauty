@@ -27,3 +27,11 @@ class AppointmentRepository(ABC):
     @abstractmethod
     async def visits_before(self, master_id: UUID, client_id: UUID, moment: datetime) -> int:
         """Сколько подтверждённых и состоявшихся визитов клиента к мастеру до ``moment``."""
+
+    @abstractmethod
+    async def rename_client(self, master_id: UUID, client_id: UUID, name: str | None) -> int:
+        """Подпись клиента в открытых заявках и записях (``None`` — по телефону); сколько обновлено.
+
+        Подпись — денормализованный снимок для графика мастера, не правило записи: меняется
+        без версии агрегата и без событий.
+        """

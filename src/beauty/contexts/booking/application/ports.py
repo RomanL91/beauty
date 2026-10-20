@@ -43,6 +43,10 @@ class ClientDirectory(ABC):
     async def phone(self, client_id: UUID) -> str:
         """Телефон клиента в E.164."""
 
+    @abstractmethod
+    async def name(self, master_id: UUID, client_id: UUID) -> str | None:
+        """Имя клиента в картотеке мастера (``None`` — не задано)."""
+
 
 class AppointmentTimers(ABC):
     """Отложенные действия над записью (задачи планировщика в той же транзакции)."""

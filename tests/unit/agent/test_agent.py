@@ -30,6 +30,7 @@ from tests.unit.agent.fakes import (
     SERVICE,
     AgentStore,
     FakeBooking,
+    FakeClientBook,
     InMemoryAgentUnitOfWork,
     Masters,
     RecordingConversations,
@@ -56,6 +57,7 @@ class World:
         self.conversations = RecordingConversations(handler)
         self.booking = FakeBooking(clock.now())
         self.masters = Masters()
+        self.clients = FakeClientBook()
 
     def uow(self) -> InMemoryAgentUnitOfWork:
         """Unit of Work."""
@@ -63,12 +65,20 @@ class World:
 
     def toolkit(self) -> FrontDeskToolkit:
         """Инструменты ресепшна."""
-        return FrontDeskToolkit(self.uow, Masters(), self.booking, self.conversations, self.clock)
+        return FrontDeskToolkit(
+            self.uow, Masters(), self.booking, self.conversations, self.clients, self.clock
+        )
 
     async def answer(self, runtime: ScriptedRuntime, text: str | None = "Хочу на массаж завтра") -> None:
         """Ход ресепшна."""
         handler = AnswerClientHandler(
-            self.uow, runtime, self.masters, self.conversations, self.clock, timedelta(minutes=10)
+            self.uow,
+            runtime,
+            self.masters,
+            self.conversations,
+            self.clients,
+            self.clock,
+            timedelta(minutes=10),
         )
         await handler.handle(AnswerClient(CONVERSATION, CONVERSATION, text))
 
@@ -279,3 +289,29 @@ async def test_new_service_description_marks_catalog_changed(clock: FrozenClock)
     world.masters.current = replace(BRIEF, services=(replace(SERVICE, description="Расслабляющий"),))
     await world.answer(runtime, "Что за массаж?")
     assert runtime.requests[-1].input.startswith(CATALOG_NOTE)
+
+
+async def test_turn_carries_client_notes_and_remembers_new_facts(clock: FrozenClock) -> None:
+    """Заметки о клиенте — в инструкциях хода; новый факт агент сохраняет инструментом."""
+    world = World(clock)
+    tools = world.toolkit()
+
+    async def script(request: RunRequest) -> str:
+        ticket = request.instructions.split("Тикет хода: ")[1].split(" ")[0]
+        caller = await tools.authorize(TOKEN, "m-alisa", ticket)
+        saved = await tools.remember_client(caller, "Аллергия на лаванду")
+        assert saved["ok"], saved
+        assert not (await tools.remember_client(caller, " "))["ok"]
+        return "Учту!"
+
+    await world.clients.add_note(MASTER, CLIENT, "Любит без музыки")
+    runtime = ScriptedRuntime(script)
+    await world.answer(runtime, "У меня аллергия на лаванду")
+    (request,) = runtime.requests
+    assert "Заметки о клиенте (служебные: клиенту их не цитируй" in request.instructions
+    assert "- Любит без музыки" in request.instructions
+    assert [n.text for n in await world.clients.notes(MASTER, CLIENT)] == [
+        "Аллергия на лаванду",
+        "Любит без музыки",
+    ]
+    assert "remember_client" in request.instructions

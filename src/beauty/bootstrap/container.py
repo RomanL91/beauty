@@ -20,11 +20,13 @@ from beauty.bootstrap.adapters import (
     AdminPlatform,
     AgentBooking,
     AgentCabinet,
+    AgentClientBook,
     AgentConversations,
     AgentMasters,
     BookedTime,
     BookingFrontDesk,
     ConversationsDirectory,
+    ConversationsRoster,
     IdentityClientDirectory,
     NotificationsDirectory,
     OwnedMasters,
@@ -41,6 +43,7 @@ from beauty.contexts.agent.infrastructure.hermes import CommandRunner, HermesPro
 from beauty.contexts.agent.infrastructure.runtime import DisabledRuntime, HermesRuntime
 from beauty.contexts.agent.module import AgentDependencies, AgentModule
 from beauty.contexts.booking.module import BookingDependencies, BookingModule
+from beauty.contexts.clientbook.module import ClientbookDependencies, ClientbookModule
 from beauty.contexts.conversations.module import ConversationsDependencies, ConversationsModule
 from beauty.contexts.identity.module import IdentityDependencies, IdentityModule
 from beauty.contexts.notifications.application.ports import PushSender
@@ -127,6 +130,7 @@ class ApplicationContainer:
         self.agent.register(mediator, self.http_errors)
         self.notifications.register(mediator, self.http_errors)
         self.admin.register(mediator, self.http_errors)
+        self.clientbook.register(mediator, self.http_errors)
         return mediator
 
     @cached_property
@@ -174,6 +178,7 @@ class ApplicationContainer:
     def event_subscriptions(self) -> tuple[EventSubscription, ...]:
         """Консьюмеры интеграционных событий всех контекстов."""
         return (
+            *self.booking.subscriptions(self.mediator),
             *self.conversations.subscriptions(self.mediator),
             *self.agent.subscriptions(self.mediator),
             *self.notifications.subscriptions(self.mediator),
@@ -327,11 +332,25 @@ class ApplicationContainer:
                 conversations=AgentConversations(lambda: self.mediator),
                 booking=AgentBooking(lambda: self.mediator),
                 cabinet=AgentCabinet(lambda: self.mediator),
+                clients=AgentClientBook(lambda: self.mediator),
                 ids=self.id_generator,
                 storage=self.file_storage,
                 media=self.media_urls,
                 transcriber=self.voice_transcriber,
                 ticket_ttl=settings.ticket_ttl,
+            )
+        )
+
+    @cached_property
+    def clientbook(self) -> ClientbookModule:
+        """Модуль Clientbook: клиентская картотека мастера."""
+        return ClientbookModule(
+            ClientbookDependencies(
+                session_factory=self.session_factory,
+                outbox_writer=self.outbox_writer,
+                clock=self.clock,
+                ids=self.id_generator,
+                roster=ConversationsRoster(lambda: self.mediator),
             )
         )
 

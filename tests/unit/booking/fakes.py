@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta
 from uuid import UUID
 
@@ -67,6 +68,18 @@ class InMemoryAppointments(AppointmentRepository):
             and a.slot.start < moment
             and a.status in (AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED)
         )
+
+    async def rename_client(self, master_id: UUID, client_id: UUID, name: str | None) -> int:
+        """Подпись в открытых записях."""
+        found = [
+            a
+            for a in self._store.appointments.values()
+            if a.master_id == master_id and a.client_id == client_id and a.is_open
+        ]
+        for appointment in found:
+            label = name or f"Новый клиент · …{appointment.client.phone_masked[-5:]}"
+            appointment.client = replace(appointment.client, display_name=label)
+        return len(found)
 
     def flush(self) -> None:
         """Сохранить добавленные, как БД с ``EXCLUDE``."""
@@ -153,8 +166,16 @@ class OpenSlots(SlotPolicy):
 
 
 class Phones(ClientDirectory):
-    """Все клиенты с одним номером."""
+    """Все клиенты с одним номером; имена — из ``names``."""
+
+    def __init__(self, names: dict[UUID, str] | None = None) -> None:
+        """Имена клиентов в картотеке мастера."""
+        self.names = names or {}
 
     async def phone(self, client_id: UUID) -> str:
         """Телефон."""
         return "+77051238967"
+
+    async def name(self, master_id: UUID, client_id: UUID) -> str | None:
+        """Имя у мастера."""
+        return self.names.get(client_id)

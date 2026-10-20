@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, literal, select, update
 
 from beauty.contexts.booking.domain.appointment import Appointment
 from beauty.contexts.booking.domain.repositories import AppointmentRepository
@@ -39,3 +39,22 @@ class SqlAlchemyAppointmentRepository(SqlAlchemyRepository[Appointment], Appoint
             appointments.c.status.in_((AppointmentStatus.CONFIRMED, AppointmentStatus.COMPLETED)),
         )
         return int((await self._session.execute(statement)).scalar_one())
+
+    async def rename_client(self, master_id: UUID, client_id: UUID, name: str | None) -> int:
+        """Открытые (заявка или подтверждена) записи клиента к мастеру."""
+        label = (
+            literal(name)
+            if name
+            else literal("Новый клиент · …") + func.right(appointments.c.client_phone_masked, 5)
+        )
+        statement = (
+            update(appointments)
+            .where(
+                appointments.c.master_id == master_id,
+                appointments.c.client_id == client_id,
+                appointments.c.status.in_((AppointmentStatus.REQUESTED, AppointmentStatus.CONFIRMED)),
+            )
+            .values(client_display_name=label)
+        )
+        result = await self._session.execute(statement)
+        return int(getattr(result, "rowcount", 0) or 0)

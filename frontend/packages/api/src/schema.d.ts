@@ -670,6 +670,112 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/me/clients': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Клиенты мастера
+     * @description Все, у кого есть переписка с мастером; свежие по последней активности сверху.
+     */
+    get: operations['listMyClients'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/clients/{client_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        client_id: components['parameters']['ClientId'];
+      };
+      cookie?: never;
+    };
+    /** Карточка клиента */
+    get: operations['getMyClient'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/clients/{client_id}/name': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        client_id: components['parameters']['ClientId'];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Имя клиента
+     * @description Видно в чатах, графике и агенту. `null` или пустая строка — подпись по телефону.
+     */
+    put: operations['renameMyClient'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/clients/{client_id}/notes': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        client_id: components['parameters']['ClientId'];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Добавить заметку
+     * @description Тот же текст повторно новую заметку не создаёт.
+     */
+    post: operations['addMyClientNote'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/clients/{client_id}/notes/{note_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        client_id: components['parameters']['ClientId'];
+        note_id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Удалить заметку
+     * @description Любую — и свою, и заметку ИИ-администратора.
+     */
+    delete: operations['deleteMyClientNote'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/me/assistant/messages': {
     parameters: {
       query?: never;
@@ -1623,6 +1729,83 @@ export interface components {
     };
     /** @enum {string} */
     ConversationFilter: 'all' | 'needs_me' | 'agent' | 'me';
+    /** @description Клиент в списке мастера. */
+    MasterClient: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      conversation_id: string;
+      /**
+       * @example Айгерим
+       * @example Новый клиент · …89 67
+       */
+      display_name: string;
+      /** @description Имя задал мастер (или агент по поручению). */
+      named: boolean;
+      /** @example +7 705 ••• 89 67 */
+      phone_masked: string;
+      /** @description Состоявшихся визитов. */
+      visits: number;
+      last_visit_at: string | null;
+      /** @description Ближайшая заявка или запись. */
+      next_visit_at: string | null;
+      /** @description Число заметок. */
+      notes: number;
+      /** Format: date-time */
+      last_activity_at: string;
+    };
+    MasterClientPage: {
+      items: components['schemas']['MasterClient'][];
+      total: number;
+    };
+    /** @description Заявка или запись клиента к мастеру. */
+    ClientVisit: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      status: 'requested' | 'confirmed' | 'cancelled' | 'completed';
+      /** Format: date-time */
+      start: string;
+      /** Format: date-time */
+      end: string;
+      service_title: string;
+      price: components['schemas']['Money'] | null;
+      /** @enum {string} */
+      cancelled_by?: 'client' | 'master' | 'system';
+    };
+    ClientNote: {
+      /** Format: uuid */
+      id: string;
+      text: string;
+      /**
+       * @description `agent` — записал ИИ-администратор.
+       * @enum {string}
+       */
+      author: 'master' | 'agent';
+      /** Format: date-time */
+      created_at: string;
+    };
+    MasterClientCard: components['schemas']['MasterClient'] & {
+      /**
+       * Format: date-time
+       * @description Когда клиент впервые написал.
+       */
+      since: string;
+      /** @description Отменённых заявок и записей. */
+      cancelled: number;
+      /** @description Будущие заявки и записи, ближайшие сверху. */
+      upcoming: components['schemas']['ClientVisit'][];
+      /** @description Прошедшие и отменённые, свежие сверху (до 30). */
+      history: components['schemas']['ClientVisit'][];
+      /** @description Заметки, свежие сверху. */
+      note_items: components['schemas']['ClientNote'][];
+    };
+    ClientNameInput: {
+      name: string | null;
+    };
+    ClientNoteInput: {
+      text: string;
+    };
     ConversationSummary: {
       /** Format: uuid */
       id: string;
@@ -2016,6 +2199,15 @@ export interface components {
       };
       content: {
         'application/json': components['schemas']['MasterSettings'];
+      };
+    };
+    /** @description Карточка клиента. */
+    MasterClientCard: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['MasterClientCard'];
       };
     };
     /** @description Ошибка (RFC 9457). */
@@ -2949,6 +3141,115 @@ export interface operations {
           'application/json': components['schemas']['HandlerState'];
         };
       };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+    };
+  };
+  listMyClients: {
+    parameters: {
+      query?: {
+        /** @description Имя или цифры телефона. */
+        q?: string;
+        filter?: 'all' | 'upcoming';
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Страница списка. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MasterClientPage'];
+        };
+      };
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  getMyClient: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        client_id: components['parameters']['ClientId'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['MasterClientCard'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+    };
+  };
+  renameMyClient: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        client_id: components['parameters']['ClientId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ClientNameInput'];
+      };
+    };
+    responses: {
+      200: components['responses']['MasterClientCard'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  addMyClientNote: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        client_id: components['parameters']['ClientId'];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ClientNoteInput'];
+      };
+    };
+    responses: {
+      201: components['responses']['MasterClientCard'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  deleteMyClientNote: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        client_id: components['parameters']['ClientId'];
+        note_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['MasterClientCard'];
       401: components['responses']['Problem'];
       403: components['responses']['Problem'];
       404: components['responses']['Problem'];

@@ -18,8 +18,10 @@ from beauty.contexts.agent.application.ports import (
     Booking,
     Cabinet,
     ChangeRefusedError,
+    ClientBook,
     ClientNotFoundError,
     MasterBriefs,
+    NoteRefusedError,
     SlotUnavailableError,
 )
 from beauty.contexts.agent.application.toolkit import SlotLookup, known_service
@@ -63,6 +65,7 @@ class OfficeToolkit:
         masters: MasterBriefs,
         booking: Booking,
         cabinet: Cabinet,
+        clients: ClientBook,
         clock: Clock,
         ids: IdGenerator,
     ) -> None:
@@ -72,6 +75,7 @@ class OfficeToolkit:
         self._slots = SlotLookup(masters, booking)
         self._masters = masters
         self._cabinet = cabinet
+        self._clients = clients
         self._clock = clock
         self._ids = ids
 
@@ -181,6 +185,40 @@ class OfficeToolkit:
         except ClientNotFoundError:
             return {"ok": False, "error": "С этим клиентом ещё нет переписки"}
         return {"ok": True, "note": "Сообщение в чате клиента"}
+
+    async def client_card(self, caller: Grant, client_id: str) -> Result:
+        """Карточка клиента: имя, визиты, ближайшие записи, заметки."""
+        client = _uuid(client_id)
+        card = None if client is None else await self._clients.card(caller.master_id, client)
+        if card is None:
+            return {"ok": False, "error": "Нужен client_id из find_clients"}
+        return {"ok": True, **card}
+
+    async def add_client_note(self, caller: Grant, client_id: str, text: str) -> Result:
+        """Заметка о клиенте в картотеку мастера."""
+        client = _uuid(client_id)
+        if client is None:
+            return {"ok": False, "error": "Нужен client_id из find_clients"}
+        try:
+            await self._clients.add_note(caller.master_id, client, text)
+        except ClientNotFoundError:
+            return {"ok": False, "error": "У мастера нет такого клиента"}
+        except NoteRefusedError as error:
+            return _refused(error, "Заметку сохранить не получилось")
+        return {"ok": True, "note": "Заметка в карточке клиента"}
+
+    async def rename_client(self, caller: Grant, client_id: str, name: str | None) -> Result:
+        """Имя клиента у мастера (пусто — подпись по телефону)."""
+        client = _uuid(client_id)
+        if client is None:
+            return {"ok": False, "error": "Нужен client_id из find_clients"}
+        try:
+            await self._clients.rename(caller.master_id, client, name)
+        except ClientNotFoundError:
+            return {"ok": False, "error": "У мастера нет такого клиента"}
+        except NoteRefusedError as error:
+            return _refused(error, "Имя сохранить не получилось")
+        return {"ok": True, "name": (name or "").strip() or None, "note": "Имя видно в чатах и графике"}
 
     async def ask_master(
         self, caller: Grant, question: str, options: list[str], detail: str | None

@@ -76,6 +76,6 @@ class ClientSnapshot:
     visit_number: int
 
     @classmethod
-    def new_client(cls, phone_e164: str, visit_number: int) -> ClientSnapshot:
-        """Клиент без имени: «Новый клиент · …89 67»."""
-        return cls(anonymous_name(phone_e164), masked_phone(phone_e164), visit_number)
+    def new_client(cls, phone_e164: str, visit_number: int, name: str | None = None) -> ClientSnapshot:
+        """Клиент по имени из картотеки мастера, без имени — «Новый клиент · …89 67»."""
+        return cls(name or anonymous_name(phone_e164), masked_phone(phone_e164), visit_number)

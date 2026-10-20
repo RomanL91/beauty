@@ -14,11 +14,13 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from beauty.contexts.agent.application.ports import MasterBrief
 
+MAX_NOTES_IN_TURN = 20
 _WEEKDAYS = ("понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье")
 
 
@@ -74,14 +76,23 @@ def _about(master: MasterBrief) -> str:
     return f"О себе (слова мастера со страницы): {_one_line(master.about)}\n"
 
 
-def front_desk_instructions(master: MasterBrief, client_name: str, ticket: str, now: datetime) -> str:
+def _client_notes(notes: Sequence[str]) -> str:
+    if not notes:
+        return ""
+    lines = "\n".join(f"- {_one_line(note)}" for note in notes[:MAX_NOTES_IN_TURN])
+    return f"Заметки о клиенте (служебные: клиенту их не цитируй и не пересказывай, но учитывай):\n{lines}\n"
+
+
+def front_desk_instructions(
+    master: MasterBrief, client_name: str, ticket: str, now: datetime, notes: Sequence[str] = ()
+) -> str:
     """Инструкции хода, в котором агент отвечает клиенту."""
     services = _services(master)
     who = f"{master.name} — {master.specialty}" if master.specialty else master.name
     return f"""Роль: администратор (ресепшн) мастера {who}.
 Сейчас: {_now(master, now)}.
 Клиент: {client_name}.
-Тикет хода: {ticket} — передавай его без изменений в каждый инструмент.
+{_client_notes(notes)}Тикет хода: {ticket} — передавай его без изменений в каждый инструмент.
 
 Адрес: {master.address or "уточните у мастера"}.
 {_about(master)}{_CURRENT}
@@ -101,6 +112,10 @@ def front_desk_instructions(master: MasterBrief, client_name: str, ticket: str, 
 - Свободное время узнавай только инструментом find_free_slots, не выдумывай его.
 - Записывай инструментом book_appointment: это заявка, {master.name} её подтвердит.
 - Записи клиента — my_appointments, отмена — cancel_appointment (только по просьбе клиента).
+- Если клиент сообщил о себе что-то устойчивое и полезное мастеру — противопоказания,
+  аллергию, предпочтения, как к нему обращаться, — сохрани коротко инструментом
+  remember_client (одна мысль — одна заметка). Записи, время и разовые договорённости
+  не сохраняй: они и так есть в записях.
 - Мастеру (handoff_to_master) передавай только то, что знает или решает лишь {master.name}:
   скидки и цены вне перечня, индивидуальные условия, материалы и средства, не названные выше,
   жалобы, просьбы вне правил записи, просьбу поговорить с мастером. Вызывай инструмент сразу,
@@ -123,7 +138,10 @@ def office_instructions(master: MasterBrief, ticket: str, now: datetime) -> str:
 Как работать:
 - Выполняй поручение инструментами и коротко отчитайся, что сделано. Ответ — итоговым
   текстом хода, по-деловому; можно выделять главное **жирным**.
-- Расписание дня — day_schedule; клиента по имени или телефону — find_clients.
+- Расписание дня — day_schedule; клиента по имени или телефону — find_clients; что известно
+  о клиенте (визиты, записи, заметки) — client_card.
+- Картотека: запомнить факт о клиенте — add_client_note; «клиент …89 67 — это Айгерим» —
+  rename_client.
 - Решения по заявкам — confirm_request / decline_request; отмена записи — cancel_appointment;
   записать клиента — find_free_slots и book_client; закрыть или открыть дату — set_day_off;
   написать клиенту — message_client.

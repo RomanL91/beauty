@@ -13,13 +13,16 @@ from beauty.contexts.agent.application.ports import (
     Booking,
     Cabinet,
     ChangeRefusedError,
+    ClientBook,
     ClientBrief,
+    ClientNoteBrief,
     ClientNotFoundError,
     ConversationInfo,
     Conversations,
     FreeSlot,
     MasterBrief,
     MasterBriefs,
+    NoteRefusedError,
     RunOutcome,
     RunRequest,
     ServiceBrief,
@@ -342,3 +345,43 @@ class FakeCabinet(Cabinet):
         if client_id != CLIENT:
             raise ClientNotFoundError()
         self.actions.append(("message", (client_id, text)))
+
+
+class FakeClientBook(ClientBook):
+    """Картотека в памяти: заметки и имена по клиентам; клиенты — ``known``."""
+
+    def __init__(self, known: frozenset[UUID] = frozenset({CLIENT})) -> None:
+        """Известные клиенты мастера."""
+        self.known = known
+        self.store: dict[UUID, list[ClientNoteBrief]] = {}
+        self.names: dict[UUID, str | None] = {}
+
+    async def notes(self, master_id: UUID, client_id: UUID) -> list[ClientNoteBrief]:
+        """Свежие сверху."""
+        return list(reversed(self.store.get(client_id, [])))
+
+    def _check(self, client_id: UUID) -> None:
+        if client_id not in self.known:
+            raise ClientNotFoundError()
+
+    async def add_note(self, master_id: UUID, client_id: UUID, text: str) -> None:
+        """Заметка агента (пустая или длинная — отказ)."""
+        self._check(client_id)
+        if not text.strip() or len(text) > 500:
+            raise NoteRefusedError("Заметка — от 1 до 500 символов")
+        self.store.setdefault(client_id, []).append(ClientNoteBrief(text.strip(), True))
+
+    async def rename(self, master_id: UUID, client_id: UUID, name: str | None) -> None:
+        """Имя."""
+        self._check(client_id)
+        self.names[client_id] = (name or "").strip() or None
+
+    async def card(self, master_id: UUID, client_id: UUID) -> Mapping[str, Any] | None:
+        """Карточка коротко."""
+        if client_id not in self.known:
+            return None
+        return {
+            "client_id": str(client_id),
+            "name": self.names.get(client_id) or "Новый клиент · …89 67",
+            "notes": [{"text": n.text} for n in await self.notes(master_id, client_id)],
+        }

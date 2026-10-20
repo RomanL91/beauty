@@ -14,6 +14,7 @@ from beauty.contexts.conversations.domain.message import Message
 from beauty.shared.application.cqrs import Command, Handler
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
+from beauty.shared.domain.phone import anonymous_from_mask
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,3 +116,31 @@ class MarkConversationReadHandler(Handler[MarkConversationRead, None]):
             if conversation.unread:
                 conversation.mark_read(self._clock.now())
                 await uow.commit()
+
+
+@dataclass(frozen=True, slots=True)
+class RenameConversationClient(Command[None]):
+    """Мастер дал клиенту имя в картотеке (``None`` — подпись по телефону)."""
+
+    master_id: UUID
+    client_id: UUID
+    name: str | None
+
+
+class RenameConversationClientHandler(Handler[RenameConversationClient, None]):
+    """Подпись клиента в переписке; переписки нет — no-op."""
+
+    def __init__(self, uow: ConversationsUnitOfWork, clock: Clock) -> None:
+        """Получить зависимости."""
+        self._uow = uow
+        self._clock = clock
+
+    async def handle(self, message: RenameConversationClient) -> None:
+        """Переименовать."""
+        async with self._uow as uow:
+            conversation = await uow.conversations.find(message.master_id, message.client_id)
+            if conversation is None:
+                return
+            label = message.name or anonymous_from_mask(conversation.client.phone_masked)
+            conversation.rename_client(label, self._clock.now())
+            await uow.commit()

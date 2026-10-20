@@ -22,6 +22,8 @@ from beauty.contexts.booking.application.commands import (
     ExpireAppointmentHandler,
     RemindVisit,
     RemindVisitHandler,
+    RenameBookingClient,
+    RenameBookingClientHandler,
     RequestAppointment,
     RequestAppointmentHandler,
     RescheduleAppointment,
@@ -41,6 +43,7 @@ from beauty.contexts.booking.application.queries import (
     ListClientAppointments,
     ListClientAppointmentsHandler,
 )
+from beauty.contexts.booking.infrastructure.consumers import CLIENTS_RENAMED, ClientRenamedConsumer
 from beauty.contexts.booking.infrastructure.jobs import CompleteVisitJob, ExpireRequestJob, RemindVisitJob
 from beauty.contexts.booking.infrastructure.mapping import BookingOrmMapper
 from beauty.contexts.booking.infrastructure.readers import (
@@ -54,6 +57,8 @@ from beauty.contexts.booking.presentation.api.controller import BookingApiContro
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.domain.clock import Clock
 from beauty.shared.domain.ids import IdGenerator
+from beauty.shared.infrastructure.messaging.subscription import EventSubscription
+from beauty.shared.infrastructure.messaging.topology import ConsumerQueueSpec
 from beauty.shared.infrastructure.outbox.writer import OutboxWriter
 from beauty.shared.infrastructure.scheduling.registry import JobHandlerRegistry
 from beauty.shared.infrastructure.web.auth import BearerAuth, MasterAuth
@@ -124,8 +129,18 @@ class BookingModule:
             GetDaySchedule,
             lambda: GetDayScheduleHandler(deps.calendar, self._day_reader, deps.conversations),
         )
+        mediator.register(RenameBookingClient, lambda: RenameBookingClientHandler(self._uow()))
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
+
+    def subscriptions(self, mediator: Mediator) -> tuple[EventSubscription, ...]:
+        """Консьюмеры контекста."""
+        return (
+            EventSubscription(
+                ConsumerQueueSpec(name="booking.clientbook", binding_keys=(CLIENTS_RENAMED,)),
+                ClientRenamedConsumer(mediator),
+            ),
+        )
 
     def register_jobs(self, registry: JobHandlerRegistry, mediator: Mediator) -> None:
         """Обработчики задач планировщика."""

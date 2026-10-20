@@ -23,7 +23,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.server.mcpserver import MCPServer
 
-from beauty.bootstrap.adapters import AgentConversations, AgentMasters
+from beauty.bootstrap.adapters import AgentClientBook, AgentConversations, AgentMasters
 from beauty.bootstrap.container import ApplicationContainer
 from beauty.bootstrap.demo import DemoMasterSeeder
 from beauty.contexts.agent.application.commands import (
@@ -159,6 +159,7 @@ async def answer(container: ApplicationContainer, runtime: AgentRuntime, client:
         runtime,
         AgentMasters(lambda: container.mediator),
         AgentConversations(lambda: container.mediator),
+        AgentClientBook(lambda: container.mediator),
         container.clock,
         timedelta(minutes=10),
     )
@@ -230,6 +231,33 @@ async def test_handoff_note_is_for_master_only(
     notes = [m for m in page["items"] if m["kind"] == "agent_note"]
     assert [n["text"] for n in notes] == ["Агент передал вам: спрашивает про парковку"]
     assert (await http.get(path, headers=master)).json()["needs_me"] == "question"
+
+
+async def test_agent_remembers_client_fact_for_master(
+    http: httpx.AsyncClient, container: ApplicationContainer, mcp_app: McpServerFactory, alisa: AgentProfile
+) -> None:
+    """Агент сохраняет факт о клиенте через MCP; мастер видит заметку «ИИ», следующий ход — тоже."""
+    client = await new_client(http, container, 7031)
+
+    async def remember(call: ToolCall, ticket: str, _text: str) -> str:
+        done = await call("remember_client", {"ticket": ticket, "note": "Аллергия на лаванду"})
+        assert done["ok"], done
+        return "Учту, спасибо!"
+
+    await answer(container, McpScriptRuntime(mcp_app, remember), client, "У меня аллергия на лаванду")
+    master = {"Authorization": f"Bearer {await login(http, container.mediator, 7002, OWNER_PHONE[1:])}"}
+    page = (await http.get(f"{API}/me/clients", headers=master)).json()
+    client_id = page["items"][0]["id"]
+    card = (await http.get(f"{API}/me/clients/{client_id}", headers=master)).json()
+    assert_matches_schema(card, "MasterClientCard")
+    assert [(n["text"], n["author"]) for n in card["note_items"]] == [("Аллергия на лаванду", "agent")]
+
+    async def reply(_call: ToolCall, _ticket: str, _text: str) -> str:
+        return "Хорошо"
+
+    runtime = McpScriptRuntime(mcp_app, reply)
+    await answer(container, runtime, client, "Какие масла используете?")
+    assert "- Аллергия на лаванду" in runtime.requests[0].instructions
 
 
 async def test_mcp_rejects_foreign_or_bad_credentials(

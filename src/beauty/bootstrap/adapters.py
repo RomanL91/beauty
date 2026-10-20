@@ -44,6 +44,11 @@ from beauty.contexts.booking.domain.errors import (
     RequestExpired,
 )
 from beauty.contexts.booking.domain.value_objects import ServiceSnapshot
+from beauty.contexts.clientbook.application import errors as clientbook_errors
+from beauty.contexts.clientbook.application.commands import AddClientNote, RenameClient
+from beauty.contexts.clientbook.application.ports import Roster
+from beauty.contexts.clientbook.application.queries import GetClientCard, GetClientName, ListClientNotes
+from beauty.contexts.clientbook.domain import errors as clientbook_domain
 from beauty.contexts.conversations.application.commands import (
     HandOffToMaster,
     PostAgentReply,
@@ -120,7 +125,7 @@ class TenancySlotPolicy(SlotPolicy):
 
 
 class IdentityClientDirectory(ClientDirectory, ClientContacts):
-    """Booking и Conversations → Identity: телефон клиента."""
+    """Booking и Conversations → Identity: телефон клиента; Booking → Clientbook: имя у мастера."""
 
     def __init__(self, mediator: MediatorProvider) -> None:
         """Получить медиатор (лениво)."""
@@ -129,6 +134,23 @@ class IdentityClientDirectory(ClientDirectory, ClientContacts):
     async def phone(self, client_id: UUID) -> str:
         """Телефон в E.164."""
         return (await self._mediator().send(GetClientContact(client_id))).phone
+
+    async def name(self, master_id: UUID, client_id: UUID) -> str | None:
+        """Имя из картотеки мастера."""
+        return await self._mediator().send(GetClientName(master_id, client_id))
+
+
+class ConversationsRoster(Roster):
+    """Clientbook → Conversations: клиент мастера — тот, у кого с ним есть переписка."""
+
+    def __init__(self, mediator: MediatorProvider) -> None:
+        """Получить медиатор (лениво)."""
+        self._mediator = mediator
+
+    async def has_client(self, master_id: UUID, client_id: UUID) -> bool:
+        """Есть ли переписка."""
+        found = await self._mediator().send(FindConversationIds(master_id, frozenset({client_id})))
+        return client_id in found
 
 
 class BookedTime(BusyTimeSource):
@@ -429,6 +451,69 @@ class AgentCabinet(agent_ports.Cabinet):
             await self._mediator().send(PostOnMasterBehalf(master_id, client_id, text))
         except ConversationNotFoundError as error:
             raise agent_ports.ClientNotFoundError() from error
+
+
+class AgentClientBook(agent_ports.ClientBook):
+    """Agent → Clientbook: заметки о клиенте и его имя у мастера."""
+
+    _REFUSED = (
+        clientbook_domain.InvalidClientName,
+        clientbook_domain.InvalidClientNote,
+        clientbook_domain.ClientNotesLimit,
+    )
+
+    def __init__(self, mediator: MediatorProvider) -> None:
+        """Получить медиатор (лениво)."""
+        self._mediator = mediator
+
+    async def notes(self, master_id: UUID, client_id: UUID) -> list[agent_ports.ClientNoteBrief]:
+        """Заметки, свежие сверху."""
+        found = await self._mediator().send(ListClientNotes(master_id, client_id))
+        return [agent_ports.ClientNoteBrief(n.text, n.author == "agent") for n in found]
+
+    async def add_note(self, master_id: UUID, client_id: UUID, text: str) -> None:
+        """Заметка ИИ-администратора."""
+        try:
+            await self._mediator().send(AddClientNote(master_id, client_id, text, by_agent=True))
+        except clientbook_errors.ClientNotFoundError as error:
+            raise agent_ports.ClientNotFoundError() from error
+        except self._REFUSED as error:
+            raise agent_ports.NoteRefusedError(str(error)) from error
+
+    async def rename(self, master_id: UUID, client_id: UUID, name: str | None) -> None:
+        """Имя у мастера."""
+        try:
+            await self._mediator().send(RenameClient(master_id, client_id, name))
+        except clientbook_errors.ClientNotFoundError as error:
+            raise agent_ports.ClientNotFoundError() from error
+        except self._REFUSED as error:
+            raise agent_ports.NoteRefusedError(str(error)) from error
+
+    async def card(self, master_id: UUID, client_id: UUID) -> Mapping[str, Any] | None:
+        """Карточка коротко — для модели."""
+        try:
+            card = await self._mediator().send(GetClientCard(master_id, client_id))
+        except clientbook_errors.ClientNotFoundError:
+            return None
+        row = card.row
+
+        def visit(v: Any) -> dict[str, Any]:
+            return {"status": v.status, "start": v.start.isoformat(), "service": v.service_title}
+
+        return {
+            "client_id": str(row.client_id),
+            "name": row.display_name,
+            "phone": row.phone_masked,
+            "visits": row.visits,
+            "cancelled": card.cancelled,
+            "last_visit": None if row.last_visit_at is None else row.last_visit_at.isoformat(),
+            "upcoming": [visit(v) for v in card.upcoming],
+            "recent": [visit(v) for v in card.history[:5]],
+            "notes": [
+                {"text": n.text, "by": "ИИ-администратор" if n.author == "agent" else "мастер"}
+                for n in card.notes
+            ],
+        }
 
 
 class NotificationsDirectory(notification_ports.Directory):

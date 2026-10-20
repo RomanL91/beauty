@@ -20,8 +20,11 @@ from beauty.contexts.agent.application.access import ToolAccess
 from beauty.contexts.agent.application.ports import (
     Booking,
     ChangeRefusedError,
+    ClientBook,
+    ClientNotFoundError,
     Conversations,
     MasterBriefs,
+    NoteRefusedError,
     ServiceBrief,
     SlotUnavailableError,
 )
@@ -92,6 +95,7 @@ class FrontDeskToolkit:
         masters: MasterBriefs,
         booking: Booking,
         conversations: Conversations,
+        clients: ClientBook,
         clock: Clock,
     ) -> None:
         """Получить зависимости."""
@@ -101,6 +105,7 @@ class FrontDeskToolkit:
         self._masters = masters
         self._booking = booking
         self._conversations = conversations
+        self._clients = clients
 
     async def authorize(self, token: str, profile_header: str | None, ticket_id: str) -> ToolCaller:
         """Проверить токен профиля ресепшна, заголовок профиля и тикет хода."""
@@ -165,6 +170,14 @@ class FrontDeskToolkit:
         except (ValueError, ChangeRefusedError) as error:
             return {"ok": False, "error": str(error) or "Эту запись отменить нельзя"}
         return {"ok": True, "status": cancelled["status"]}
+
+    async def remember_client(self, caller: ToolCaller, note: str) -> dict[str, Any]:
+        """Заметка о клиенте тикета в картотеку мастера."""
+        try:
+            await self._clients.add_note(caller.master_id, caller.client_id, note)
+        except (ClientNotFoundError, NoteRefusedError) as error:
+            return {"ok": False, "error": str(error) or "Заметку сохранить не получилось"}
+        return {"ok": True, "note": "Сохранено в карточке клиента; клиенту об этом говорить не нужно"}
 
     async def handoff_to_master(self, caller: ToolCaller, summary: str) -> dict[str, Any]:
         """Передать диалог мастеру с кратким пересказом."""

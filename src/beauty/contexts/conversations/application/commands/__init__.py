@@ -16,6 +16,8 @@ from beauty.contexts.conversations.application.commands.master import (
     MasterReply,
     PostMasterMessage,
     PostMasterMessageHandler,
+    RenameConversationClient,
+    RenameConversationClientHandler,
     SetConversationHandler,
     SetConversationHandlerHandler,
 )
@@ -52,6 +54,8 @@ __all__ = [
     "PostMasterMessageHandler",
     "PostOnMasterBehalf",
     "PostOnMasterBehalfHandler",
+    "RenameConversationClient",
+    "RenameConversationClientHandler",
     "RequestSlotsBody",
     "SetConversationHandler",
     "SetConversationHandlerHandler",

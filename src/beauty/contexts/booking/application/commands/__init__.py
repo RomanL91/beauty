@@ -1,6 +1,10 @@
 """Команды контекста Booking."""
 
 from beauty.contexts.booking.application.commands.base import AppointmentPayload
+from beauty.contexts.booking.application.commands.clients import (
+    RenameBookingClient,
+    RenameBookingClientHandler,
+)
 from beauty.contexts.booking.application.commands.decisions import (
     CancelAppointment,
     CancelAppointmentByMaster,
@@ -40,6 +44,8 @@ __all__ = [
     "ExpireAppointmentHandler",
     "RemindVisit",
     "RemindVisitHandler",
+    "RenameBookingClient",
+    "RenameBookingClientHandler",
     "RequestAppointment",
     "RequestAppointmentHandler",
     "RescheduleAppointment",

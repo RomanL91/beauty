@@ -1,4 +1,5 @@
-"""Консьюмеры Conversations: сообщения клиентов, голосовые на расшифровку, изменения записей."""
+"""Консьюмеры Conversations: сообщения клиентов, голосовые на расшифровку, изменения записей,
+имена клиентов из картотеки мастера."""
 
 from __future__ import annotations
 
@@ -6,7 +7,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from beauty.contexts.conversations.application.commands import AssistClient, SyncAppointment, TranscribeVoice
+from beauty.contexts.conversations.application.commands import (
+    AssistClient,
+    RenameConversationClient,
+    SyncAppointment,
+    TranscribeVoice,
+)
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.infrastructure.messaging.handler import IntegrationEventHandler
 from beauty.shared.infrastructure.outbox.envelope import EventEnvelope
@@ -14,6 +20,7 @@ from beauty.shared.infrastructure.outbox.envelope import EventEnvelope
 CLIENT_MESSAGES = "conversations.client.message_posted"
 APPOINTMENTS = "booking.appointment.*"
 MESSAGES_ADDED = "conversations.message.added"
+CLIENTS_RENAMED = "clientbook.client.renamed"
 
 
 def _uuid(value: Any) -> UUID | None:
@@ -79,5 +86,25 @@ class AppointmentConsumer(IntegrationEventHandler):
                 reschedule_of=_uuid(payload.get("reschedule_of")),
                 offer_alternatives=bool(payload.get("offer_alternatives", False)),
                 event=envelope.routing_key.rsplit(".", 1)[-1],
+            )
+        )
+
+
+class ClientRenamedConsumer(IntegrationEventHandler):
+    """Мастер дал клиенту имя → подпись клиента в переписке."""
+
+    def __init__(self, mediator: Mediator) -> None:
+        """Получить медиатор."""
+        self._mediator = mediator
+
+    async def handle(self, envelope: EventEnvelope) -> None:
+        """Перевести событие Clientbook в команду своего контекста."""
+        payload = envelope.payload
+        name = payload.get("name")
+        await self._mediator.send(
+            RenameConversationClient(
+                master_id=UUID(str(payload["master_id"])),
+                client_id=UUID(str(payload["client_id"])),
+                name=None if name is None else str(name),
             )
         )

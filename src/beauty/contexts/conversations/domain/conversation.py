@@ -210,6 +210,12 @@ class Conversation(AggregateRoot):
             self.unread = 0
             self._changed(now)
 
+    def rename_client(self, display_name: str, now: datetime) -> None:
+        """Мастер дал клиенту имя (или вернул подпись по телефону)."""
+        if display_name != self.client.display_name:
+            self.client = ClientCard(display_name, self.client.phone_masked)
+            self._changed(now)
+
     def visit_completed(self, now: datetime) -> None:
         """Состоялся ещё один визит клиента."""
         self.completed_visits += 1

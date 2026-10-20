@@ -101,9 +101,23 @@ class BeautyToolsServer:
             """Передать диалог мастеру: summary — краткий пересказ вопроса клиента для мастера."""
             return await toolkit.handoff_to_master(await caller(ctx, ticket, "handoff_to_master"), summary)
 
+        async def remember_client(ticket: str, note: str, ctx: Context) -> dict[str, Any]:
+            """Сохранить в карточку клиента устойчивый факт о нём (аллергия, предпочтения, как обращаться).
+
+            Одна мысль — одна короткая заметка; записи и разовые договорённости не сохраняй.
+            """
+            return await toolkit.remember_client(await caller(ctx, ticket, "remember_client"), note)
+
         return _register(
             MCPServer(name="beauty-tools", instructions=INSTRUCTIONS),
-            (find_free_slots, book_appointment, my_appointments, cancel_appointment, handoff_to_master),
+            (
+                find_free_slots,
+                book_appointment,
+                my_appointments,
+                cancel_appointment,
+                handoff_to_master,
+                remember_client,
+            ),
         )
 
 
@@ -173,6 +187,22 @@ class OfficeToolsServer:
             granted = await caller(ctx, ticket, "message_client")
             return await toolkit.message_client(granted, client_id, text)
 
+        async def client_card(ticket: str, client_id: str, ctx: Context) -> dict[str, Any]:
+            """Карточка клиента: имя, визиты, ближайшие записи и заметки (client_id — из find_clients)."""
+            return await toolkit.client_card(await caller(ctx, ticket, "client_card"), client_id)
+
+        async def add_client_note(ticket: str, client_id: str, text: str, ctx: Context) -> dict[str, Any]:
+            """Записать в карточку клиента заметку (одна мысль, до 500 символов)."""
+            granted = await caller(ctx, ticket, "add_client_note")
+            return await toolkit.add_client_note(granted, client_id, text)
+
+        async def rename_client(
+            ticket: str, client_id: str, ctx: Context, name: str | None = None
+        ) -> dict[str, Any]:
+            """Дать клиенту имя (видно в чатах и графике); пустое name — снова подпись по телефону."""
+            granted = await caller(ctx, ticket, "rename_client")
+            return await toolkit.rename_client(granted, client_id, name)
+
         async def ask_master(
             ticket: str, question: str, options: list[str], ctx: Context, detail: str | None = None
         ) -> dict[str, Any]:
@@ -195,6 +225,9 @@ class OfficeToolsServer:
                 cancel_appointment,
                 set_day_off,
                 message_client,
+                client_card,
+                add_client_note,
+                rename_client,
                 ask_master,
             ),
         )

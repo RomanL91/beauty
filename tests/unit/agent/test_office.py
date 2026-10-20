@@ -43,6 +43,7 @@ from tests.unit.agent.fakes import (
     AgentStore,
     FakeBooking,
     FakeCabinet,
+    FakeClientBook,
     InMemoryAgentUnitOfWork,
     Masters,
     RecordingConversations,
@@ -69,6 +70,7 @@ class Office:
             profile.attach_office("m-alisa-office", "office-runs", OFFICE_TOKEN, NOW)
         self.store.profiles[MASTER] = profile
         self.cabinet = FakeCabinet()
+        self.clients = FakeClientBook()
         self.masters = Masters()
 
     def uow(self) -> InMemoryAgentUnitOfWork:
@@ -77,7 +79,9 @@ class Office:
 
     def tools(self) -> OfficeToolkit:
         """Инструменты кабинета."""
-        return OfficeToolkit(self.uow, Masters(), FakeBooking(NOW), self.cabinet, self.clock, self.ids)
+        return OfficeToolkit(
+            self.uow, Masters(), FakeBooking(NOW), self.cabinet, self.clients, self.clock, self.ids
+        )
 
     def turn(self, runtime: ScriptedRuntime) -> RunOfficeTurnHandler:
         """Обработчик хода кабинета."""
@@ -298,7 +302,9 @@ async def test_office_and_front_desk_tokens_do_not_cross() -> None:
     world.store.tickets[front_ticket.id] = front_ticket
     with pytest.raises(InvalidTicket):
         await tools.authorize(OFFICE_TOKEN, None, front_ticket.id)
-    front = FrontDeskToolkit(world.uow, Masters(), FakeBooking(NOW), RecordingConversations(), world.clock)
+    front = FrontDeskToolkit(
+        world.uow, Masters(), FakeBooking(NOW), RecordingConversations(), world.clients, world.clock
+    )
     with pytest.raises(UnknownProfileTokenError):
         await front.authorize(OFFICE_TOKEN, None, front_ticket.id)
     with pytest.raises(InvalidTicket):
@@ -358,3 +364,18 @@ def _outcome(outcome: RunOutcome) -> object:
         return outcome
 
     return done()
+
+
+async def test_office_client_card_notes_and_rename() -> None:
+    """Картотека из поручений: карточка, заметка, имя; чужой или мусорный client_id — отказ."""
+    world = Office()
+    tools = world.tools()
+    caller = await tools.authorize(OFFICE_TOKEN, None, world.office_ticket().id)
+    assert (await tools.add_client_note(caller, str(CLIENT), "Приходит с дочкой"))["ok"]
+    assert (await tools.rename_client(caller, str(CLIENT), "  Айгерим "))["name"] == "Айгерим"
+    card = await tools.client_card(caller, str(CLIENT))
+    assert (card["name"], card["notes"]) == ("Айгерим", [{"text": "Приходит с дочкой"}])
+    assert not (await tools.client_card(caller, "не uuid"))["ok"]
+    assert not (await tools.add_client_note(caller, str(MASTER), "x"))["ok"]
+    assert not (await tools.rename_client(caller, str(MASTER), "x"))["ok"]
+    assert not (await tools.add_client_note(caller, str(CLIENT), ""))["ok"]

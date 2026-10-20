@@ -809,6 +809,103 @@ paths:
           $ref: '#/components/responses/Problem'
         '404':
           $ref: '#/components/responses/Problem'
+  /me/clients:
+    get:
+      tags: [master]
+      operationId: listMyClients
+      summary: Клиенты мастера
+      description: Все, у кого есть переписка с мастером; свежие по последней активности сверху.
+      parameters:
+        - name: q
+          in: query
+          description: Имя или цифры телефона.
+          schema: { type: string, maxLength: 60 }
+        - name: filter
+          in: query
+          schema: { type: string, enum: [all, upcoming], default: all }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 30 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: Страница списка.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MasterClientPage' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/clients/{client_id}:
+    parameters:
+      - $ref: '#/components/parameters/ClientId'
+    get:
+      tags: [master]
+      operationId: getMyClient
+      summary: Карточка клиента
+      responses:
+        '200': { $ref: '#/components/responses/MasterClientCard' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /me/clients/{client_id}/name:
+    parameters:
+      - $ref: '#/components/parameters/ClientId'
+    put:
+      tags: [master]
+      operationId: renameMyClient
+      summary: Имя клиента
+      description: Видно в чатах, графике и агенту. `null` или пустая строка — подпись по телефону.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientNameInput' }
+      responses:
+        '200': { $ref: '#/components/responses/MasterClientCard' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/clients/{client_id}/notes:
+    parameters:
+      - $ref: '#/components/parameters/ClientId'
+    post:
+      tags: [master]
+      operationId: addMyClientNote
+      summary: Добавить заметку
+      description: Тот же текст повторно новую заметку не создаёт.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientNoteInput' }
+      responses:
+        '201': { $ref: '#/components/responses/MasterClientCard' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/clients/{client_id}/notes/{note_id}:
+    parameters:
+      - $ref: '#/components/parameters/ClientId'
+      - name: note_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [master]
+      operationId: deleteMyClientNote
+      summary: Удалить заметку
+      description: Любую — и свою, и заметку ИИ-администратора.
+      responses:
+        '200': { $ref: '#/components/responses/MasterClientCard' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
   /me/assistant/messages:
     get:
       tags: [assistant]
@@ -1450,6 +1547,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/MasterSettings' }
+    MasterClientCard:
+      description: Карточка клиента.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/MasterClientCard' }
     Problem:
       description: Ошибка (RFC 9457).
       content:
@@ -1982,6 +2084,82 @@ components:
     ConversationFilter:
       type: string
       enum: [all, needs_me, agent, me]
+    MasterClient:
+      type: object
+      description: Клиент в списке мастера.
+      required: [id, conversation_id, display_name, named, phone_masked, visits, last_visit_at, next_visit_at, notes, last_activity_at]
+      properties:
+        id: { type: string, format: uuid }
+        conversation_id: { type: string, format: uuid }
+        display_name: { type: string, examples: ['Айгерим', 'Новый клиент · …89 67'] }
+        named: { type: boolean, description: 'Имя задал мастер (или агент по поручению).' }
+        phone_masked: { type: string, examples: ['+7 705 ••• 89 67'] }
+        visits: { type: integer, minimum: 0, description: 'Состоявшихся визитов.' }
+        last_visit_at: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        next_visit_at: { oneOf: [{ type: string, format: date-time }, { type: 'null' }], description: 'Ближайшая заявка или запись.' }
+        notes: { type: integer, minimum: 0, description: 'Число заметок.' }
+        last_activity_at: { type: string, format: date-time }
+    MasterClientPage:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/MasterClient' }
+        total: { type: integer, minimum: 0 }
+    ClientVisit:
+      type: object
+      description: Заявка или запись клиента к мастеру.
+      required: [id, status, start, end, service_title, price]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [requested, confirmed, cancelled, completed] }
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        service_title: { type: string }
+        price:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+        cancelled_by: { type: string, enum: [client, master, system] }
+    ClientNote:
+      type: object
+      required: [id, text, author, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        text: { type: string }
+        author: { type: string, enum: [master, agent], description: '`agent` — записал ИИ-администратор.' }
+        created_at: { type: string, format: date-time }
+    MasterClientCard:
+      allOf:
+        - $ref: '#/components/schemas/MasterClient'
+        - type: object
+          required: [since, cancelled, upcoming, history, note_items]
+          properties:
+            since: { type: string, format: date-time, description: 'Когда клиент впервые написал.' }
+            cancelled: { type: integer, minimum: 0, description: 'Отменённых заявок и записей.' }
+            upcoming:
+              type: array
+              description: Будущие заявки и записи, ближайшие сверху.
+              items: { $ref: '#/components/schemas/ClientVisit' }
+            history:
+              type: array
+              description: Прошедшие и отменённые, свежие сверху (до 30).
+              items: { $ref: '#/components/schemas/ClientVisit' }
+            note_items:
+              type: array
+              description: Заметки, свежие сверху.
+              items: { $ref: '#/components/schemas/ClientNote' }
+    ClientNameInput:
+      type: object
+      required: [name]
+      properties:
+        name: { oneOf: [{ type: string, maxLength: 60 }, { type: 'null' }] }
+    ClientNoteInput:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 500 }
     ConversationSummary:
       type: object
       required: [id, client, handler, needs_me, last_message, unread]

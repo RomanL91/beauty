@@ -16,3 +16,8 @@ def anonymous_name(e164: str) -> str:
     """Подпись клиента без имени: ``Новый клиент · …89 67``."""
     digits = e164.removeprefix("+")
     return f"Новый клиент · …{digits[-4:-2]} {digits[-2:]}"
+
+
+def anonymous_from_mask(masked: str) -> str:
+    """Та же подпись по маске ``+7 705 ••• 89 67`` (когда полного номера под рукой нет)."""
+    return f"Новый клиент · …{masked[-5:]}"
