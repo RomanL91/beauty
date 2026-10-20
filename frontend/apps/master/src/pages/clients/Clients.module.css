@@ -1,0 +1,289 @@
+/* Список клиентов — как список чатов; карточка — секции на фоне страницы. */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.h1 {
+  padding: 0 4px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 600;
+}
+
+.count {
+  color: var(--c-text-muted);
+  font-weight: 500;
+}
+
+.search {
+  min-height: var(--tap);
+  padding: 0 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--c-border-strong);
+  background: var(--c-bg);
+  font-size: 15px;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tab {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 18px;
+  background: var(--c-surface);
+  font-size: 13px;
+  font-weight: 600;
+  position: relative;
+}
+
+/* Зона нажатия ≥ 44 px при визуальной высоте 36 px. */
+.tab::after {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
+}
+
+.tab[aria-selected='true'] {
+  border-color: var(--c-text);
+  background: var(--c-text);
+  color: #fff;
+  font-weight: 700;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--c-surface);
+}
+
+.item {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--c-divider);
+  text-decoration: none;
+  color: var(--c-text);
+}
+
+.item:hover {
+  color: var(--c-text);
+  background: #faf9f7;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--c-text-muted);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badges:empty {
+  display: none;
+}
+
+.more {
+  padding: 16px;
+  background: var(--c-surface);
+}
+
+.empty {
+  flex: 1 1 auto;
+  background: var(--c-surface);
+}
+
+/* ─────────────── карточка ─────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.cardHeader {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 60px;
+  padding: 8px 12px;
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.cardTitle {
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sections {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border-radius: var(--r-xl);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.bigName {
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.stats div {
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--c-bg);
+}
+
+.stats dt {
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+
+.stats dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.hint {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--c-text-muted);
+}
+
+.visits,
+.notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.visit,
+.note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--c-divider);
+}
+
+.visit:first-child,
+.note:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.visitWhen {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.noteText {
+  font-size: 14px;
+  line-height: 20px;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.noteMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+
+.noteForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sheetForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 8px;
+}

@@ -1,9 +1,10 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import { AssistantRoute } from '../pages/assistant/AssistantRoute';
+import { ClientPage } from '../pages/clients/ClientPage';
+import { ClientsPage } from '../pages/clients/ClientsPage';
 import { LoginPage } from '../pages/login/LoginPage';
 import { ChatsPage } from '../pages/chats/ChatsPage';
 import { DialogPage } from '../pages/dialog/DialogPage';
-import { PlaceholderPage } from '../pages/placeholder/PlaceholderPage';
 import { HoursSettings } from '../pages/settings/HoursSettings';
 import { PhotosSettings } from '../pages/settings/PhotosSettings';
 import { ProfileSettings } from '../pages/settings/ProfileSettings';
@@ -26,15 +27,8 @@ export const routes: RouteObject[] = [
       { path: 'chats', element: <ChatsPage /> },
       { path: 'chats/:id', element: <DialogPage /> },
       { path: 'assistant', element: <AssistantRoute /> },
-      {
-        path: 'clients',
-        element: (
-          <PlaceholderPage
-            title="Клиенты"
-            text="Карточки клиентов появятся в следующей итерации."
-          />
-        ),
-      },
+      { path: 'clients', element: <ClientsPage /> },
+      { path: 'clients/:id', element: <ClientPage /> },
       { path: 'settings', element: <SettingsPage /> },
       { path: 'settings/profile', element: <ProfileSettings /> },
       { path: 'settings/services', element: <ServicesSettings /> },

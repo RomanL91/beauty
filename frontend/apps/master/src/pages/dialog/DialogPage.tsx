@@ -1,6 +1,7 @@
 import type { Appointment, ConversationSummary, MessageOf } from '@beauty/api';
 import {
   Avatar,
+  buttonClass,
   ChatFeed,
   ErrorState,
   FeedSkeleton,
@@ -233,9 +234,12 @@ function Dialog({
             </span>
             <span>{conversation.client.phone_masked ?? 'Телефон скрыт'}</span>
             <span>{visitText(conversation.client.visit_number)}</span>
-            <span style={{ color: 'var(--c-text-muted)', fontSize: 13 }}>
-              Заметки и история визитов появятся в разделе «Клиенты».
-            </span>
+            <Link
+              to={`/clients/${conversation.client.id}`}
+              className={buttonClass({ variant: 'outline', block: true })}
+            >
+              Карточка: заметки и история визитов
+            </Link>
           </div>
         )}
       </Sheet>

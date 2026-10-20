@@ -175,6 +175,56 @@ function settingsHandlers(db: MockDb) {
   const noImage = () => problem(422, 'invalid_photo', 'Нужен файл в поле file');
 
   return [
+    http.get('/me/clients', async ({ request, query, response }) => {
+      await delay(200);
+      return (
+        requireBearer(request) ??
+        response(200).json(
+          db.clients.list({
+            q: query.get('q'),
+            filter: query.get('filter'),
+            limit: intParam(query.get('limit'), 30),
+            offset: intParam(query.get('offset'), 0),
+          }),
+        )
+      );
+    }),
+
+    http.get('/me/clients/{client_id}', async ({ request, params, response }) => {
+      await delay(200);
+      return (
+        requireBearer(request) ?? run(() => response(200).json(db.clients.card(params.client_id)))
+      );
+    }),
+
+    http.put('/me/clients/{client_id}/name', async ({ request, params, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      const body = await request.json();
+      return run(() => response(200).json(db.clients.rename(params.client_id, body.name ?? null)));
+    }),
+
+    http.post('/me/clients/{client_id}/notes', async ({ request, params, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(250);
+      const body = await request.json();
+      return run(() => response(201).json(db.clients.addNote(params.client_id, body.text)));
+    }),
+
+    http.delete(
+      '/me/clients/{client_id}/notes/{note_id}',
+      async ({ request, params, response }) => {
+        const denied = requireBearer(request);
+        if (denied) return denied;
+        await delay(200);
+        return run(() =>
+          response(200).json(db.clients.removeNote(params.client_id, params.note_id)),
+        );
+      },
+    ),
+
     http.get('/me/settings', async ({ request, response }) => {
       await delay(200);
       return requireBearer(request) ?? response(200).json(settings.view());

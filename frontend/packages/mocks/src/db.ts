@@ -32,6 +32,7 @@ import { EventLog } from './event-log';
 import { MockProblem } from './errors';
 import { MockSettings } from './settings';
 import { MockAdmin } from './admin';
+import { MockClients } from './clients';
 import { uuidv7 } from './ids';
 import { CLIENT_CONVERSATION_ID, clientChatSeed } from './fixtures/client-chat';
 import {
@@ -99,6 +100,7 @@ export class MockDb {
   readonly page = masterPage();
   readonly settings = new MockSettings(this.page, (file) => this.#storeUpload(file));
   readonly admin: MockAdmin;
+  readonly clients: MockClients;
   readonly clientLog = new EventLog();
   readonly masterLog = new EventLog();
 
@@ -125,6 +127,12 @@ export class MockDb {
     };
     this.#storage = options.storage ?? memoryStore();
     this.admin = new MockAdmin(this.page, this.settings, this.#storage);
+    this.clients = new MockClients({
+      roster: () => [...this.#inbox.values()],
+      appointments: () => [...this.#appointments.values()],
+      services: () => this.page.services,
+      relabel: (clientId, label) => this.#relabelClient(clientId, label),
+    });
 
     const chat = clientChatSeed();
     this.#clientMessages = chat.messages;
@@ -649,6 +657,16 @@ export class MockDb {
       needs_me: null,
       last_message: { author: 'master', preview, created_at: new Date().toISOString() },
     });
+  }
+
+  /** Имя клиента у мастера — в чатах и в графике. */
+  #relabelClient(clientId: string, label: string): void {
+    for (const c of this.#inbox.values())
+      if (c.client.id === clientId)
+        this.#patchConversation(c.id, { client: { ...c.client, display_name: label } });
+    for (const a of this.#appointments.values())
+      if (a.client.id === clientId)
+        this.#appointments.set(a.id, { ...a, client: { ...a.client, display_name: label } });
   }
 
   #conversationOf(clientId: string): string | null {

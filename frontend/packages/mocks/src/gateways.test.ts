@@ -7,6 +7,7 @@ import {
   HttpAdminGateway,
   HttpAssistantGateway,
   HttpAuthGateway,
+  HttpClientsGateway,
   HttpConversationGateway,
   HttpCore,
   HttpInboxGateway,
@@ -278,6 +279,38 @@ describe('кабинет мастера', () => {
     );
     stop();
     expect(done).toMatchObject({ title: 'Готово' });
+  });
+});
+
+describe('клиенты мастера', () => {
+  it('список с поиском и фильтром; имя доходит до чатов; заметки без дублей', async () => {
+    const core = await signedIn();
+    const clients = new HttpClientsGateway(core);
+    const all = await clients.list();
+    expect(all.total).toBe(all.items.length);
+    expect(all.items.length).toBeGreaterThan(3);
+    const upcoming = await clients.list({ filter: 'upcoming' });
+    expect(upcoming.items.every((c) => c.next_visit_at !== null)).toBe(true);
+    const newcomer = (await clients.list({ q: '1234' })).items[0]!;
+    expect(newcomer.named).toBe(false);
+
+    const renamed = await clients.rename(newcomer.id, '  Сауле  ');
+    expect([renamed.display_name, renamed.named]).toEqual(['Сауле', true]);
+    const chats = await new HttpInboxGateway(core).list('all');
+    expect(chats.items.some((c) => c.client.display_name === 'Сауле')).toBe(true);
+    expect((await clients.list({ q: 'сау' })).items.map((c) => c.id)).toEqual([newcomer.id]);
+
+    const noted = await clients.addNote(newcomer.id, 'Аллергия на лаванду');
+    const again = await clients.addNote(newcomer.id, 'аллергия на лаванду');
+    expect(again.note_items).toHaveLength(1);
+    const cleared = await clients.removeNote(newcomer.id, noted.note_items[0]!.id);
+    expect(cleared.note_items).toEqual([]);
+    const reset = await clients.rename(newcomer.id, null);
+    expect(reset.display_name).toBe('Новый клиент · …12 34');
+    await expect(clients.card('00000000-0000-0000-0000-000000000000')).rejects.toMatchObject({
+      status: 404,
+      code: 'client_not_found',
+    });
   });
 });
 

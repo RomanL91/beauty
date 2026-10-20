@@ -29,6 +29,11 @@ export type TimeInterval = Schemas['TimeInterval'];
 export type BookingRulesSettings = Schemas['BookingRulesSettings'];
 export type ProfileInput = Schemas['ProfileInput'];
 export type ServiceInput = Schemas['ServiceInput'];
+export type MasterClient = Schemas['MasterClient'];
+export type MasterClientPage = Schemas['MasterClientPage'];
+export type MasterClientCard = Schemas['MasterClientCard'];
+export type ClientVisit = Schemas['ClientVisit'];
+export type ClientNote = Schemas['ClientNote'];
 export type Slot = Schemas['Slot'];
 
 export type AdminAccount = Schemas['AdminAccount'];
