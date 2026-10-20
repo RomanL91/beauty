@@ -76,7 +76,7 @@ class OfficeToolkit:
         """Получить зависимости."""
         self._uow_factory = uow_factory
         self._access = ToolAccess(uow_factory, clock)
-        self._slots = SlotLookup(masters, booking)
+        self._slots = SlotLookup(masters, booking, uow_factory)
         self._masters = masters
         self._cabinet = cabinet
         self._clients = clients
@@ -107,9 +107,16 @@ class OfficeToolkit:
             "items": items,
         }
 
-    async def find_free_slots(self, caller: Grant, service_id: str, day: str | None) -> Result:
+    async def find_free_slots(
+        self,
+        caller: Grant,
+        service_id: str,
+        day: str | None,
+        after: str | None = None,
+        before: str | None = None,
+    ) -> Result:
         """Свободные окна услуги."""
-        return await self._slots.find(caller.master_id, service_id, day)
+        return await self._slots.find(caller.master_id, service_id, day, after, before)
 
     async def find_clients(self, caller: Grant, query: str) -> Result:
         """Клиенты мастера по имени или цифрам телефона."""

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
+import yaml
 
 from beauty.contexts.agent.application.instructions import (
     INTERVIEW_PREFIX,
@@ -32,6 +33,7 @@ from beauty.contexts.agent.application.playbook import (
 from beauty.contexts.agent.application.ports import BookedTime, RunRequest
 from beauty.contexts.agent.domain.errors import InvalidPractice, PracticesLimit, UnknownPractice
 from beauty.contexts.agent.domain.playbook import MAX_PRACTICES, Playbook, PracticeAuthor
+from beauty.contexts.agent.infrastructure.hermes import OFFICE_TEMPLATE_OVERLAY
 from beauty.contexts.agent.presentation.consumers import SERVICES_CHANGED, BackOfficeConsumer
 from beauty.shared.infrastructure.outbox.envelope import EventEnvelope
 from tests.fakes import FrozenClock
@@ -124,7 +126,7 @@ def test_instructions_carry_master_experience() -> None:
     assert "- Сложное — с утра\n" in front
     assert "  Опыт мастера: Не больше двух в день" in front
     assert "это заявка, Алиса её подтвердит" in front
-    assert "загрузку этих дней" in front
+    assert "в after / before" in front
     assert "запись сразу подтверждена" in front_desk_instructions(
         BRIEF, "Дарья", "t-abcdefgh", NOW, (), _view(auto_confirm=True)
     )
@@ -252,3 +254,44 @@ async def test_interview_turn_and_quiet_without_agent() -> None:
 
 async def _ask() -> str:
     return "Пара вопросов о новой услуге…"
+
+
+async def test_slots_follow_time_of_day_and_carry_experience(clock: FrozenClock) -> None:
+    """after/before — окна в пределах дня; опыт мастера об услуге — рядом с окнами."""
+    world = World(clock)
+    playbook = Playbook.open(master_id=MASTER, now=clock.now())
+    playbook.remember(uuid4(), "Только после 13:00", SERVICE.id, PracticeAuthor.AGENT, clock.now())
+    world.store.playbooks[MASTER] = playbook
+    tools = world.toolkit()
+    found: dict[str, object] = {}
+
+    async def script(request: RunRequest) -> str:
+        ticket = request.instructions.split("Тикет хода: ")[1].split(" ")[0]
+        caller = await tools.authorize(TOKEN, "m-alisa", ticket)
+        found["after"] = await tools.find_free_slots(caller, str(SERVICE.id), after="12:00")
+        found["before"] = await tools.find_free_slots(caller, str(SERVICE.id), before="12:00")
+        found["bad"] = await tools.find_free_slots(caller, str(SERVICE.id), after="полдень")
+        return "Есть окна после обеда"
+
+    await world.answer(ScriptedRuntime(script))
+    zone = ZoneInfo(BRIEF.timezone)
+
+    def hours(result: object) -> list[str]:
+        assert isinstance(result, dict)
+        return [f"{datetime.fromisoformat(s['start']).astimezone(zone):%H:%M}" for s in result["slots"]]
+
+    assert hours(found["after"]) == ["12:00", "13:00"]
+    assert hours(found["before"]) == ["10:00", "11:00"]  # окно 11:00–12:00 ещё до полудня
+    after = found["after"]
+    assert isinstance(after, dict)
+    assert after["master_experience"] == ["Только после 13:00"]
+    bad = found["bad"]
+    assert isinstance(bad, dict)
+    assert bad["ok"] is False
+
+
+def test_office_has_no_private_memory() -> None:
+    """Кабинет запоминает опыт только в beauty: своя память Hermes выключена."""
+    config = yaml.safe_load(OFFICE_TEMPLATE_OVERLAY.read_text(encoding="utf-8"))
+    assert "memory" not in config["platform_toolsets"]["api_server"]
+    assert "memory" in config["agent"]["disabled_toolsets"]

@@ -76,12 +76,21 @@ class BeautyToolsServer:
             return await _authorized(toolkit.authorize, ctx, ticket, tool)
 
         async def find_free_slots(
-            ticket: str, service_id: str, ctx: Context, date: str | None = None
+            ticket: str,
+            service_id: str,
+            ctx: Context,
+            date: str | None = None,
+            after: str | None = None,
+            before: str | None = None,
         ) -> dict[str, Any]:
-            """Свободные окна услуги мастера: ближайшие или начиная с даты date (YYYY-MM-DD)."""
-            return await toolkit.find_free_slots(
-                await caller(ctx, ticket, "find_free_slots"), service_id, date
-            )
+            """Свободные окна услуги мастера: ближайшие или начиная с даты date (YYYY-MM-DD).
+
+            after / before — время дня HH:MM: окна не раньше / не позже (если опыт мастера
+            ограничивает время услуги, передай его). В ответе — опыт мастера об услуге
+            (master_experience) и загрузка дней (day_load): выбирай окна с их учётом.
+            """
+            granted = await caller(ctx, ticket, "find_free_slots")
+            return await toolkit.find_free_slots(granted, service_id, date, after, before)
 
         async def book_appointment(ticket: str, service_id: str, start: str, ctx: Context) -> dict[str, Any]:
             """Записать клиента: start — время окна из find_free_slots. Это заявка, мастер подтвердит."""
@@ -148,11 +157,19 @@ class OfficeToolsServer:
             return await toolkit.day_schedule(await caller(ctx, ticket, "day_schedule"), date)
 
         async def find_free_slots(
-            ticket: str, service_id: str, ctx: Context, date: str | None = None
+            ticket: str,
+            service_id: str,
+            ctx: Context,
+            date: str | None = None,
+            after: str | None = None,
+            before: str | None = None,
         ) -> dict[str, Any]:
-            """Свободные окна услуги: ближайшие или начиная с даты date (YYYY-MM-DD)."""
+            """Свободные окна услуги: ближайшие или начиная с даты date (YYYY-MM-DD).
+
+            after / before — время дня HH:MM: окна не раньше / не позже.
+            """
             granted = await caller(ctx, ticket, "find_free_slots")
-            return await toolkit.find_free_slots(granted, service_id, date)
+            return await toolkit.find_free_slots(granted, service_id, date, after, before)
 
         async def find_clients(ticket: str, query: str, ctx: Context) -> dict[str, Any]:
             """Клиенты мастера по имени или последним цифрам телефона."""

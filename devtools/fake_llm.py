@@ -40,6 +40,7 @@ DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 NOW = re.compile(r"Сейчас: [^,]+, (\d{2})\.(\d{2})\.(\d{4})")
 OFFICE_MARK = "С тобой говорит сам мастер"
 INTERVIEW = re.compile(r"мастер добавил услугу «([^»]+)»")
+AFTER = re.compile(r"(?:Опыт мастера|^- )[^\n]*после (\d{1,2}:\d{2})", re.MULTILINE)
 BOOKING_WORDS = ("запиш", "записа", "окн", "свобод", "массаж", "маникюр", "стриж")
 
 app = FastAPI(title="fake-llm")
@@ -127,7 +128,9 @@ def booking(turn: Turn, ticket: str) -> Step:
     """Окна → заявка на первое окно → ответ."""
     service = turn.service_id()
     if "find_free_slots" not in turn.results:
-        return call("find_free_slots", {"ticket": ticket, "service_id": service})
+        query = {"ticket": ticket, "service_id": service}
+        after = AFTER.search(turn.system)  # опыт мастера: «… только после 13:00»
+        return call("find_free_slots", {**query, "after": after.group(1)} if after else query)
     if "book_appointment" not in turn.results:
         slot = START.search(turn.results["find_free_slots"])
         if slot is None:

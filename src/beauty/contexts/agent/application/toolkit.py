@@ -38,34 +38,62 @@ logger = logging.getLogger(__name__)
 
 MAX_SLOTS = 8
 MAX_LOAD_DAYS = 3
+SCAN_SLOTS = 100
+"""Сколько окон просмотреть, когда модель ограничила время дня (``after``/``before``)."""
 
 
 class SlotLookup:
-    """Свободные окна услуги для модели (общий инструмент ресепшна и кабинета)."""
+    """Свободные окна услуги для модели (общий инструмент ресепшна и кабинета).
 
-    def __init__(self, masters: MasterBriefs, booking: Booking) -> None:
+    Рядом с окнами — опыт мастера об этой услуге и загрузка дней: решение «какие окна
+    предложить» модель принимает, глядя на всё сразу, а не вспоминая инструкции.
+    """
+
+    def __init__(
+        self, masters: MasterBriefs, booking: Booking, uow_factory: Callable[[], AgentUnitOfWork]
+    ) -> None:
         """Получить зависимости."""
         self._masters = masters
         self._booking = booking
+        self._uow_factory = uow_factory
 
-    async def find(self, master_id: UUID, service_id: str, date: str | None) -> dict[str, Any]:
-        """Ближайшие окна услуги (с даты ``YYYY-MM-DD`` в поясе мастера)."""
+    async def find(
+        self,
+        master_id: UUID,
+        service_id: str,
+        date: str | None,
+        after: str | None = None,
+        before: str | None = None,
+    ) -> dict[str, Any]:
+        """Ближайшие окна услуги (с даты ``YYYY-MM-DD``; ``after``/``before`` — ``HH:MM`` дня)."""
         master = await self._masters.brief(master_id)
         service = known_service(master.services if master else (), service_id)
         if master is None or service is None:
             return {"ok": False, "error": "Нет такой услуги — возьми service_id из инструкций"}
         zone = ZoneInfo(master.timezone)
-        since = None
-        if date:
-            try:
-                since = datetime.combine(datetime.fromisoformat(date).date(), time(), tzinfo=zone)
-            except ValueError:
-                return {"ok": False, "error": "Дата — в формате YYYY-MM-DD"}
-        slots = await self._booking.free_slots(master.id, service, since, MAX_SLOTS)
+        try:
+            since = (
+                datetime.combine(datetime.fromisoformat(date).date(), time(), tzinfo=zone) if date else None
+            )
+            earliest = time.fromisoformat(after) if after else None
+            latest = time.fromisoformat(before) if before else None
+        except ValueError:
+            return {"ok": False, "error": "Дата — YYYY-MM-DD, время after/before — HH:MM"}
+        scan = MAX_SLOTS if earliest is None and latest is None else SCAN_SLOTS
+        found = await self._booking.free_slots(master.id, service, since, scan)
+        slots = [
+            s
+            for s in found
+            if (earliest is None or s.start.astimezone(zone).time() >= earliest)
+            and (latest is None or s.end.astimezone(zone).time() <= latest)
+        ][:MAX_SLOTS]
         days = sorted({s.start.astimezone(zone).date() for s in slots})[:MAX_LOAD_DAYS]
+        playbook = await load_playbook(self._uow_factory, master)
+        notes = [p.text for p in playbook.about(service)] + [p.text for p in playbook.general()]
         return {
             "ok": True,
             "service_id": str(service),
+            **({"master_experience": notes} if notes else {}),
             "slots": [{"start": s.start.isoformat(), "end": s.end.isoformat()} for s in slots],
             "day_load": [
                 {
@@ -119,7 +147,7 @@ class FrontDeskToolkit:
         """Получить зависимости."""
         self._uow_factory = uow_factory
         self._access = ToolAccess(uow_factory, clock)
-        self._slots = SlotLookup(masters, booking)
+        self._slots = SlotLookup(masters, booking, uow_factory)
         self._masters = masters
         self._booking = booking
         self._conversations = conversations
@@ -133,10 +161,15 @@ class FrontDeskToolkit:
         return ToolCaller(grant.master_id, grant.ticket_id, grant.conversation_id, grant.client_id)
 
     async def find_free_slots(
-        self, caller: ToolCaller, service_id: str, date: str | None = None
+        self,
+        caller: ToolCaller,
+        service_id: str,
+        date: str | None = None,
+        after: str | None = None,
+        before: str | None = None,
     ) -> dict[str, Any]:
-        """Ближайшие окна услуги (с даты ``YYYY-MM-DD`` в поясе мастера)."""
-        return await self._slots.find(caller.master_id, service_id, date)
+        """Ближайшие окна услуги (с даты ``YYYY-MM-DD``, в пределах ``after``–``before`` дня)."""
+        return await self._slots.find(caller.master_id, service_id, date, after, before)
 
     async def book_appointment(self, caller: ToolCaller, service_id: str, start: str) -> dict[str, Any]:
         """Заявка клиента тикета на окно (мастер подтвердит)."""

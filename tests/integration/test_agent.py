@@ -347,6 +347,35 @@ async def test_trusted_front_desk_books_on_its_own(
     assert cards[-1]["appointment"]["status"] == "confirmed"
 
 
+async def test_slots_after_master_time_with_experience(
+    http: httpx.AsyncClient, container: ApplicationContainer, mcp_app: McpServerFactory, alisa: AgentProfile
+) -> None:
+    """«Мезотерапия — только после 13:00»: опыт рядом с окнами, after отсекает утро."""
+    client = await new_client(http, container, 7051)
+    master = {"Authorization": f"Bearer {await login(http, container.mediator, 7002, OWNER_PHONE[1:])}"}
+    service = (await http.get(f"{API}/masters/alisa")).json()["services"][1]
+    added = await http.post(
+        f"{API}/me/assistant/playbook/practices",
+        json={"text": "Записывать только после 13:00", "service_id": service["id"]},
+        headers=master,
+    )
+    assert added.status_code == 201, added.text
+    seen: dict[str, Any] = {}
+
+    async def look(call: ToolCall, ticket: str, _text: str) -> str:
+        query = {"ticket": ticket, "service_id": service["id"], "after": "13:00"}
+        seen.update(await call("find_free_slots", query))
+        return "После обеда есть окна"
+
+    runtime = McpScriptRuntime(mcp_app, look)
+    await answer(container, runtime, client, "Хочу на процедуру, когда свободно?")
+    assert seen["master_experience"] == ["Записывать только после 13:00"]
+    assert seen["slots"], seen
+    assert all(slot["start"][11:16] >= "13:00" for slot in seen["slots"])  # время — в поясе мастера
+    assert "- Записывать только после 13:00" not in runtime.requests[0].instructions  # к услуге — под ней
+    assert "  Опыт мастера: Записывать только после 13:00" in runtime.requests[0].instructions
+
+
 async def test_mcp_rejects_foreign_or_bad_credentials(
     http: httpx.AsyncClient, container: ApplicationContainer, mcp_app: McpServerFactory, alisa: AgentProfile
 ) -> None:
