@@ -34,6 +34,7 @@ import { MockProblem } from './errors';
 import { MockSettings } from './settings';
 import { MockAdmin } from './admin';
 import { MockBroadcasts } from './broadcasts';
+import { MockPlaybook } from './playbook';
 import { MockClients } from './clients';
 import { uuidv7 } from './ids';
 import { CLIENT_CONVERSATION_ID, clientChatSeed } from './fixtures/client-chat';
@@ -100,7 +101,15 @@ const CLIENT_ACCOUNT_ID = '0192a0c0-0000-7000-8000-00000000c11e';
  */
 export class MockDb {
   readonly page = masterPage();
-  readonly settings = new MockSettings(this.page, (file) => this.#storeUpload(file));
+  readonly settings = new MockSettings(
+    this.page,
+    (file) => this.#storeUpload(file),
+    (service) => this.#later(() => this.#startInterview(service)),
+  );
+  readonly playbook = new MockPlaybook({ services: () => this.page.services });
+  /** Интервью агента: о какой услуге (или о дне — `null`) ждём ответ мастера текстом. */
+  #interview: { readonly serviceId: string | null; readonly title: string } | null = null;
+  readonly #interviewChoices = new Map<string, { serviceId: string; title: string }>();
   readonly admin: MockAdmin;
   readonly clients: MockClients;
   readonly broadcasts: MockBroadcasts;
@@ -868,13 +877,93 @@ export class MockDb {
     if (!option) throw new MockProblem(422, 'unknown_option', 'Нет такого варианта');
     const answered: Message = { ...choice, selected_option_id: optionId };
     this.#replaceAssistant(answered);
-    this.#later(() => this.#runTask(option.label, option.tone === 'muted'));
+    const interview = this.#interviewChoices.get(choiceId);
+    if (interview) this.#later(() => this.#interviewAnswer(interview, optionId));
+    else this.#later(() => this.#runTask(option.label, option.tone === 'muted'));
     return answered;
+  }
+
+  /** Мастер добавил услугу — агент сам начинает короткое интервью (как на сервере). */
+  #startInterview(service: { id: string; title: string }): void {
+    const choiceId = uuidv7();
+    this.#interviewChoices.set(choiceId, { serviceId: service.id, title: service.title });
+    this.#pushAssistant({
+      ...base('agent', new Date().toISOString()),
+      kind: 'choice',
+      choice_id: choiceId,
+      text: `Добавили «${service.title}». Пара вопросов, чтобы я правильно записывал клиентов: в какие дни её делаете?`,
+      options: [
+        { id: 'any', label: 'В любой рабочий день' },
+        { id: 'days', label: 'Только в определённые дни' },
+        { id: 'skip', label: 'Пропустить', tone: 'muted' },
+      ],
+      selected_option_id: null,
+    });
+  }
+
+  #interviewAnswer(about: { serviceId: string; title: string }, optionId: string): void {
+    const now = new Date().toISOString();
+    if (optionId === 'skip') {
+      this.#pushAssistant(
+        text(base('agent', now), 'Хорошо, без вопросов. Расскажете, когда будет удобно.'),
+      );
+      return;
+    }
+    if (optionId === 'any')
+      this.playbook.add({ text: 'В любой рабочий день', service_id: about.serviceId }, 'agent');
+    this.#interview = about;
+    this.#pushAssistant(
+      text(
+        base('agent', now),
+        optionId === 'any'
+          ? `Запомнил. А сколько «${about.title}» в день берёте и что важно знать? Напишите — запомню.`
+          : `В какие именно дни и сколько клиентов в день? Напишите — запомню.`,
+      ),
+    );
+  }
+
+  /** Ответ мастера в интервью → запись опыта. */
+  #learn(body: string): void {
+    const about = this.#interview;
+    if (!about) return;
+    this.#interview = null;
+    this.playbook.add({ text: capitalize(body.trim()), service_id: about.serviceId }, 'agent');
+    const where = about.serviceId ? `для «${about.title}»` : 'о вашем дне';
+    this.#pushAssistant(
+      text(
+        base('agent', new Date().toISOString()),
+        `Запомнил ${where}: ${body.trim()}. Дальше буду записывать клиентов с учётом этого.`,
+      ),
+    );
   }
 
   #assistantReply(body: string): void {
     const lower = body.toLowerCase();
     const now = new Date().toISOString();
+    if (this.#interview) {
+      this.#learn(body);
+      return;
+    }
+    if (lower.includes('как я работаю')) {
+      this.#interview = { serviceId: null, title: '' };
+      this.#pushAssistant(
+        text(
+          base('agent', now),
+          'Давайте! Как вы строите день: что берёте с утра, что под вечер, сколько тяжёлой работы в день — и что можно решать без вас?',
+        ),
+      );
+      return;
+    }
+    if (/записывай сам|без меня|без моего подтвержд/.test(lower)) {
+      this.playbook.setAutonomy(true);
+      this.#pushAssistant(
+        text(
+          base('agent', now),
+          'Хорошо — теперь записываю клиентов сразу, без вашего подтверждения.',
+        ),
+      );
+      return;
+    }
     if (lower.includes('разошли') || lower.includes('рассылк')) {
       const announcement = body.includes(':') ? body.slice(body.indexOf(':') + 1).trim() : body;
       const draft = this.broadcasts.draft(capitalize(announcement), 'agent');

@@ -6,6 +6,7 @@ import { ClientsPage } from '../pages/clients/ClientsPage';
 import { LoginPage } from '../pages/login/LoginPage';
 import { ChatsPage } from '../pages/chats/ChatsPage';
 import { DialogPage } from '../pages/dialog/DialogPage';
+import { AssistantSettings } from '../pages/settings/AssistantSettings';
 import { HoursSettings } from '../pages/settings/HoursSettings';
 import { PhotosSettings } from '../pages/settings/PhotosSettings';
 import { ProfileSettings } from '../pages/settings/ProfileSettings';
@@ -37,6 +38,7 @@ export const routes: RouteObject[] = [
       { path: 'settings/hours', element: <HoursSettings /> },
       { path: 'settings/rules', element: <RulesSettings /> },
       { path: 'settings/photos', element: <PhotosSettings /> },
+      { path: 'settings/assistant', element: <AssistantSettings /> },
       { path: '*', element: <Navigate to="/schedule" replace /> },
     ],
   },

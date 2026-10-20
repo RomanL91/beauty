@@ -385,3 +385,53 @@
   opacity: 0;
   pointer-events: none;
 }
+
+.practiceGroup {
+  display: grid;
+  gap: 6px;
+}
+
+.practices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.practice {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--c-border);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.practice:last-child {
+  border-bottom: none;
+}
+
+.practiceAction {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--c-text-muted);
+  cursor: pointer;
+}
+
+.practiceAction:hover:not(:disabled) {
+  background: var(--c-note-bg);
+  color: var(--c-text);
+}
+
+.practiceAction:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

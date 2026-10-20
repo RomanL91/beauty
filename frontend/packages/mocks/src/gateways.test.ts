@@ -390,6 +390,76 @@ describe('рассылки мастера', () => {
   });
 });
 
+describe('опыт мастера', () => {
+  it('записи общие и к услуге, правка, удаление, самостоятельность; чужая услуга — 404', async () => {
+    const assistant = new HttpAssistantGateway(await signedIn());
+    const before = await assistant.playbook();
+    expect(before.auto_confirm).toBe(false);
+    const service = (await new HttpMasterSettingsGateway(await signedIn()).get()).page.services[0]!;
+    const added = await assistant.addPractice({
+      text: ' Не больше двух в день ',
+      service_id: service.id,
+    });
+    const mine = added.practices.find((p) => p.text === 'Не больше двух в день')!;
+    expect([mine.service_title, mine.author]).toEqual([service.title, 'master']);
+    const again = await assistant.addPractice({
+      text: 'не больше ДВУХ в день',
+      service_id: service.id,
+    });
+    expect(again.practices).toHaveLength(added.practices.length);
+    const edited = await assistant.editPractice(mine.id, {
+      text: 'Не больше трёх',
+      service_id: null,
+    });
+    expect(edited.practices.find((p) => p.id === mine.id)?.service_id).toBeNull();
+    expect((await assistant.removePractice(mine.id)).practices).toHaveLength(
+      before.practices.length,
+    );
+    await expect(
+      assistant.addPractice({ text: 'x', service_id: crypto.randomUUID() }),
+    ).rejects.toMatchObject({ status: 404, code: 'service_not_found' });
+    expect((await assistant.setAutonomy(true)).auto_confirm).toBe(true);
+    await assistant.setAutonomy(false);
+  });
+
+  it('новая услуга → агент сам спрашивает → ответ мастера — в опыте', async () => {
+    const core = await signedIn();
+    const assistant = new HttpAssistantGateway(core);
+    const events: MasterEvent[] = [];
+    const stop = new HttpMasterEventsGateway(core).subscribe({ onEvent: (e) => events.push(e) });
+    const created = () => events.flatMap((e) => (e.type === 'message.created' ? [e.message] : []));
+    await new HttpMasterSettingsGateway(core).addService({
+      title: 'Ботокс',
+      duration_min: 30,
+      price: { amount: 4_000_000, currency: 'KZT' },
+    });
+    const question = await waitFor(() =>
+      created().find(
+        (m): m is MessageOf<'choice'> =>
+          m.kind === 'choice' && m.text.startsWith('Добавили «Ботокс»'),
+      ),
+    );
+    await assistant.choose(question.choice_id, 'days');
+    await waitFor(() =>
+      created().find((m) => m.kind === 'text' && m.text.startsWith('В какие именно дни')),
+    );
+    await assistant.sendText({
+      kind: 'text',
+      client_id: crypto.randomUUID(),
+      text: 'по пятницам, до четырёх человек подряд',
+    });
+    await waitFor(() =>
+      created().find((m) => m.kind === 'text' && m.text.startsWith('Запомнил для «Ботокс»')),
+    );
+    stop();
+    const playbook = await assistant.playbook();
+    expect(playbook.practices.find((p) => p.service_title === 'Ботокс')).toMatchObject({
+      text: 'По пятницам, до четырёх человек подряд',
+      author: 'agent',
+    });
+  });
+});
+
 describe('настройки страницы мастера', () => {
   it('профиль, услуга, график, выходной и правила видны на странице', async () => {
     const settings = new HttpMasterSettingsGateway(await signedIn());

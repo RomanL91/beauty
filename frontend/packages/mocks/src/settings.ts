@@ -61,6 +61,7 @@ export class MockSettings {
   constructor(
     private readonly page: MasterPage,
     private readonly store: (file: Blob) => string,
+    private readonly onServiceAdded: (service: { id: string; title: string }) => void = () => {},
   ) {
     this.#rules = {
       ...page.booking_rules,
@@ -118,7 +119,9 @@ export class MockSettings {
   addService(input: ServiceInput): MasterSettings {
     if (this.page.services.length >= MAX_SERVICES)
       throw new MockProblem(409, 'service_limit_reached', 'Слишком много услуг');
-    this.page.services = [...this.page.services, { id: uuidv7(), ...this.#service(input) }];
+    const service = { id: uuidv7(), ...this.#service(input) };
+    this.page.services = [...this.page.services, service];
+    this.onServiceAdded(service);
     return this.view();
   }
 

@@ -159,6 +159,47 @@ export function assistantHandlers(db: MockDb) {
       const body = await request.json();
       return run(() => response(200).json(db.chooseOption(params.choice_id, body.option_id)));
     }),
+
+    http.get('/me/assistant/playbook', async ({ request, response }) => {
+      await delay(150);
+      return requireBearer(request) ?? response(200).json(db.playbook.view());
+    }),
+
+    http.put('/me/assistant/playbook/autonomy', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      const body = await request.json();
+      return response(200).json(db.playbook.setAutonomy(body.auto_confirm));
+    }),
+
+    http.post('/me/assistant/playbook/practices', async ({ request, response }) => {
+      const denied = requireBearer(request);
+      if (denied) return denied;
+      await delay(200);
+      const body = await request.json();
+      return run(() => response(201).json(db.playbook.add(body)));
+    }),
+
+    http.put(
+      '/me/assistant/playbook/practices/{practice_id}',
+      async ({ request, params, response }) => {
+        const denied = requireBearer(request);
+        if (denied) return denied;
+        await delay(200);
+        const body = await request.json();
+        return run(() => response(200).json(db.playbook.edit(params.practice_id, body)));
+      },
+    ),
+
+    http.delete(
+      '/me/assistant/playbook/practices/{practice_id}',
+      async ({ request, params, response }) => {
+        const denied = requireBearer(request);
+        if (denied) return denied;
+        await delay(150);
+        return run(() => response(200).json(db.playbook.remove(params.practice_id)));
+      },
+    ),
   ];
 }
 

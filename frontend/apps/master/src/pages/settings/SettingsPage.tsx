@@ -16,6 +16,7 @@ import {
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { WEEKDAYS, pageUrl } from '../../entities/settings/model';
+import { usePlaybook } from '../../entities/playbook/queries';
 import { useSettings, useSettingsChange } from '../../entities/settings/queries';
 import { plural } from '../../shared/lib/plural';
 import { useContainer } from '../../shared/lib/container-context';
@@ -142,6 +143,7 @@ function PageStatus({ settings }: { readonly settings: MasterSettings }) {
 
 function Sections({ settings }: { readonly settings: MasterSettings }) {
   const { page, working_hours: hours, days_off: daysOff, booking_rules: rules } = settings;
+  const playbook = usePlaybook().data;
   const days = WEEKDAYS.filter((d) => hours.some((h) => h.weekday === d.day)).map((d) => d.short);
   const items: Array<{ to: string; icon: IconName; label: string; hint: string }> = [
     {
@@ -173,6 +175,19 @@ function Sections({ settings }: { readonly settings: MasterSettings }) {
       icon: 'clock',
       label: 'Правила записи',
       hint: `Подтверждение за ${rules.confirm_within_hours} ч · запись на ${rules.horizon_days} дн.`,
+    },
+    {
+      to: 'assistant',
+      icon: 'sparkle',
+      label: 'Ассистент',
+      hint: playbook
+        ? [
+            playbook.auto_confirm ? 'Записывает сразу' : 'Заявки подтверждаете вы',
+            playbook.practices.length
+              ? `знает ${count(playbook.practices.length, ['запись', 'записи', 'записей'])}`
+              : 'пока ничего не знает',
+          ].join(' · ')
+        : 'Самостоятельность и ваш опыт',
     },
     {
       to: 'photos',

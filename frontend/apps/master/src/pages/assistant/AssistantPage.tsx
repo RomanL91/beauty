@@ -24,7 +24,12 @@ import { DEFAULT_TZ } from '../../shared/lib/dates';
 import { localMessage, useLiveFeed } from '../../shared/lib/use-live-feed';
 import styles from './AssistantPage.module.css';
 
-const QUICK = ['Что у меня завтра?', 'Закрой воскресенье', 'Обед на 14:00'];
+const QUICK = [
+  'Расскажу, как я работаю',
+  'Что у меня завтра?',
+  'Закрой воскресенье',
+  'Обед на 14:00',
+];
 
 const RECORDER_ERRORS = {
   denied: 'Нет доступа к микрофону — разрешите его в настройках браузера',

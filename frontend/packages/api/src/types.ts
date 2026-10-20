@@ -35,6 +35,9 @@ export type MasterClientCard = Schemas['MasterClientCard'];
 export type ClientVisit = Schemas['ClientVisit'];
 export type ClientNote = Schemas['ClientNote'];
 export type Broadcast = Schemas['Broadcast'];
+export type Playbook = Schemas['Playbook'];
+export type Practice = Schemas['Practice'];
+export type PracticeInput = Schemas['PracticeInput'];
 export type BroadcastList = Schemas['BroadcastList'];
 export type Slot = Schemas['Slot'];
 
