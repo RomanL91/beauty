@@ -899,6 +899,88 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/me/assistant/playbook': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Опыт мастера — что знает ассистент
+     * @description Записи словами мастера (общие и к услугам) и самостоятельность записи. Агент учитывает
+     *     их в каждом ходе и решает сам, как опытный сотрудник.
+     */
+    get: operations['getAssistantPlaybook'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/assistant/playbook/autonomy': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Записывать клиентов сразу
+     * @description `auto_confirm: true` — ассистент сам подтверждает запись; `false` — заявку подтверждает мастер.
+     */
+    put: operations['setAssistantAutonomy'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/assistant/playbook/practices': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Добавить запись опыта
+     * @description Тот же текст повторно новую запись не создаёт. Ошибки: длина — `invalid_practice` (422),
+     *     лимит — `practices_limit` (409), чужая или убранная услуга — `service_not_found` (404).
+     */
+    post: operations['addAssistantPractice'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/me/assistant/playbook/practices/{practice_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        practice_id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    /** Изменить запись опыта */
+    put: operations['updateAssistantPractice'];
+    post?: never;
+    /** Удалить запись опыта */
+    delete: operations['deleteAssistantPractice'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/me/events': {
     parameters: {
       query?: never;
@@ -1942,6 +2024,34 @@ export interface components {
       /** @enum {string} */
       cancelled_by?: 'client' | 'master' | 'system';
     };
+    Playbook: {
+      /** @description Ассистент сам подтверждает записи клиентов (иначе — заявка мастеру). */
+      auto_confirm: boolean;
+      /** @description Сначала общие, затем по услугам; внутри — по времени добавления. */
+      practices: components['schemas']['Practice'][];
+    };
+    Practice: {
+      /** Format: uuid */
+      id: string;
+      text: string;
+      /** @description Услуга, к которой запись; `null` — общая («как я строю день»). */
+      service_id: string | null;
+      /** @description Название услуги; `null` у общей записи или если услугу убрали. */
+      service_title: string | null;
+      /**
+       * @description `agent` — записал ассистент со слов мастера.
+       * @enum {string}
+       */
+      author: 'master' | 'agent';
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
+    };
+    PracticeInput: {
+      text: string;
+      service_id?: string | null;
+    };
     ClientNote: {
       /** Format: uuid */
       id: string;
@@ -2393,6 +2503,15 @@ export interface components {
       };
       content: {
         'application/json': components['schemas']['MasterClientCard'];
+      };
+    };
+    /** @description Опыт мастера. */
+    Playbook: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Playbook'];
       };
     };
     /** @description Рассылка. */
@@ -3697,6 +3816,101 @@ export interface operations {
       };
       401: components['responses']['Problem'];
       409: components['responses']['Problem'];
+    };
+  };
+  getAssistantPlaybook: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['Playbook'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+    };
+  };
+  setAssistantAutonomy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          auto_confirm: boolean;
+        };
+      };
+    };
+    responses: {
+      200: components['responses']['Playbook'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  addAssistantPractice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PracticeInput'];
+      };
+    };
+    responses: {
+      201: components['responses']['Playbook'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      409: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  updateAssistantPractice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        practice_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PracticeInput'];
+      };
+    };
+    responses: {
+      200: components['responses']['Playbook'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
+      422: components['responses']['Problem'];
+    };
+  };
+  deleteAssistantPractice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        practice_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: components['responses']['Playbook'];
+      401: components['responses']['Problem'];
+      403: components['responses']['Problem'];
+      404: components['responses']['Problem'];
     };
   };
   streamMasterEvents: {

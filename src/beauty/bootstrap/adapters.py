@@ -93,6 +93,7 @@ from beauty.contexts.tenancy.application.commands import (
     RegisterMaster,
     UnpublishMaster,
     UpdateMasterProfile,
+    UpdateService,
 )
 from beauty.contexts.tenancy.application.ports import BusyTimeSource
 from beauty.contexts.tenancy.application.queries import (
@@ -108,6 +109,7 @@ from beauty.contexts.tenancy.application.queries import (
 from beauty.contexts.tenancy.domain.slots import TimeInterval
 from beauty.contexts.tenancy.presentation.api.schemas import MasterSettingsResponse
 from beauty.shared.application.mediator import Mediator
+from beauty.shared.domain.errors import DomainError
 
 type MediatorProvider = Callable[[], Mediator]
 
@@ -387,11 +389,33 @@ class AgentBooking(agent_ports.Booking):
         except (AppointmentNotFoundError, ChangeDeadlinePassed, AppointmentClosed) as error:
             raise agent_ports.ChangeRefusedError(str(error)) from error
 
+    async def confirm(self, master_id: UUID, appointment_id: UUID) -> agent_ports.AppointmentSnapshot:
+        """Подтверждение за мастера."""
+        try:
+            return await self._mediator().send(ConfirmAppointment(appointment_id, master_id))
+        except AgentCabinet.REFUSED as error:
+            raise agent_ports.ChangeRefusedError(str(error)) from error
+
+    async def day_load(self, master_id: UUID, day: date) -> list[agent_ports.BookedTime]:
+        """Записи и заявки дня из графика — без клиентов."""
+        schedule = await self._mediator().send(GetDaySchedule(master_id, day))
+        return [
+            agent_ports.BookedTime(
+                datetime.fromisoformat(str(a["start"])),
+                datetime.fromisoformat(str(a["end"])),
+                str((a.get("service") or {}).get("title") or ""),
+                str(a["status"]),
+            )
+            for item in schedule["items"]
+            if item["kind"] == "appointment"
+            for a in (item["appointment"],)
+        ]
+
 
 class AgentCabinet(agent_ports.Cabinet):
     """Agent (кабинет) → Booking, Tenancy, Conversations: действия от имени мастера."""
 
-    _REFUSED = (
+    REFUSED = (
         AppointmentNotFoundError,
         AppointmentNotPending,
         AppointmentClosed,
@@ -435,7 +459,7 @@ class AgentCabinet(agent_ports.Cabinet):
         """Подтверждение заявки."""
         try:
             return await self._mediator().send(ConfirmAppointment(appointment_id, master_id))
-        except self._REFUSED as error:
+        except self.REFUSED as error:
             raise agent_ports.ChangeRefusedError(str(error)) from error
 
     async def decline(
@@ -446,7 +470,7 @@ class AgentCabinet(agent_ports.Cabinet):
             return await self._mediator().send(
                 DeclineAppointment(appointment_id, master_id, offer_alternatives=offer_alternatives)
             )
-        except self._REFUSED as error:
+        except self.REFUSED as error:
             raise agent_ports.ChangeRefusedError(str(error)) from error
 
     async def cancel(
@@ -457,7 +481,7 @@ class AgentCabinet(agent_ports.Cabinet):
             return await self._mediator().send(
                 CancelAppointmentByMaster(appointment_id, master_id, offer_alternatives=offer_alternatives)
             )
-        except self._REFUSED as error:
+        except self.REFUSED as error:
             raise agent_ports.ChangeRefusedError(str(error)) from error
 
     async def set_day_off(self, master_id: UUID, day: date, *, off: bool) -> bool:
@@ -479,6 +503,20 @@ class AgentCabinet(agent_ports.Cabinet):
             raise agent_ports.ChangeRefusedError(str(error)) from error
         view = await self._mediator().send(GetBroadcast(master_id, broadcast_id))
         return agent_ports.BroadcastDraft(broadcast_id, view.recipients)
+
+    async def describe_service(self, master_id: UUID, service_id: UUID, text: str) -> None:
+        """Описание услуги — правкой услуги (название, длительность и цена прежние)."""
+        page = await self._mediator().send(GetMasterPage(master_id, published_only=False))
+        service = next((s for s in page.services if s.id == service_id), None)
+        if service is None:
+            raise agent_ports.ChangeRefusedError("Нет такой услуги — возьми service_id из инструкций")
+        command = UpdateService(
+            master_id, service_id, service.title, service.duration_min, service.price_amount, text.strip()
+        )
+        try:
+            await self._mediator().send(command)
+        except DomainError as error:
+            raise agent_ports.ChangeRefusedError(str(error)) from error
 
     async def send_broadcast(self, master_id: UUID, text: str) -> agent_ports.BroadcastSent:
         """Черновик и сразу отправка; отказ (лимит, запрет, нет клиентов) — черновик остаётся мастеру."""

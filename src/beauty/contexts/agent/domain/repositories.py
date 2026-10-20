@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from beauty.contexts.agent.domain.office import OfficeMessage
+from beauty.contexts.agent.domain.playbook import Playbook
 from beauty.contexts.agent.domain.profile import AgentProfile
 from beauty.contexts.agent.domain.run import AgentRun
 from beauty.contexts.agent.domain.ticket import AgentFace, RunTicket
@@ -74,3 +75,15 @@ class AgentRunRepository(ABC):
     @abstractmethod
     def add(self, run: AgentRun) -> None:
         """Записать ход."""
+
+
+class PlaybookRepository(ABC):
+    """Опыт мастеров."""
+
+    @abstractmethod
+    def add(self, playbook: Playbook) -> None:
+        """Добавить."""
+
+    @abstractmethod
+    async def get(self, master_id: UUID) -> Playbook | None:
+        """Опыт мастера (ещё не заведён — ``None``)."""

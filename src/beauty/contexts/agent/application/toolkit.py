@@ -17,6 +17,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from beauty.contexts.agent.application.access import ToolAccess
+from beauty.contexts.agent.application.playbook import load_playbook
 from beauty.contexts.agent.application.ports import (
     Booking,
     ChangeRefusedError,
@@ -36,6 +37,7 @@ from beauty.shared.domain.clock import Clock
 logger = logging.getLogger(__name__)
 
 MAX_SLOTS = 8
+MAX_LOAD_DAYS = 3
 
 
 class SlotLookup:
@@ -60,10 +62,26 @@ class SlotLookup:
             except ValueError:
                 return {"ok": False, "error": "Дата — в формате YYYY-MM-DD"}
         slots = await self._booking.free_slots(master.id, service, since, MAX_SLOTS)
+        days = sorted({s.start.astimezone(zone).date() for s in slots})[:MAX_LOAD_DAYS]
         return {
             "ok": True,
             "service_id": str(service),
             "slots": [{"start": s.start.isoformat(), "end": s.end.isoformat()} for s in slots],
+            "day_load": [
+                {
+                    "date": day.isoformat(),
+                    "booked": [
+                        {
+                            "start": f"{b.start.astimezone(zone):%H:%M}",
+                            "end": f"{b.end.astimezone(zone):%H:%M}",
+                            "service": b.service,
+                            "confirmed": b.status == "confirmed",
+                        }
+                        for b in await self._booking.day_load(master.id, day)
+                    ],
+                }
+                for day in days
+            ],
         }
 
 
@@ -139,12 +157,20 @@ class FrontDeskToolkit:
                 "ok": False,
                 "error": "Это окно уже недоступно — предложи клиенту другие из find_free_slots",
             }
+        note = f"Заявка отправлена, {master.name} подтвердит. Карточка уже в чате у клиента."
+        playbook = await load_playbook(self._uow_factory, master)
+        if playbook.auto_confirm:
+            try:
+                appointment = await self._booking.confirm(master.id, UUID(str(appointment["id"])))
+                note = "Записал: запись подтверждена, карточка в чате у клиента."
+            except ChangeRefusedError:
+                logger.warning("Ресепшн не подтвердил заявку %s сам", appointment["id"])
         return {
             "ok": True,
             "appointment_id": appointment["id"],
             "status": appointment["status"],
             "start": appointment["start"],
-            "note": f"Заявка отправлена, {master.name} подтвердит. Карточка уже в чате у клиента.",
+            "note": note,
         }
 
     async def my_appointments(self, caller: ToolCaller) -> dict[str, Any]:

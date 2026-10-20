@@ -125,6 +125,24 @@ class Booking(ABC):
     async def cancel(self, appointment_id: UUID, client_id: UUID) -> AppointmentSnapshot:
         """Отменить свою запись или ``ChangeRefusedError``."""
 
+    @abstractmethod
+    async def confirm(self, master_id: UUID, appointment_id: UUID) -> AppointmentSnapshot:
+        """Подтвердить заявку за мастера (он доверил ресепшну записывать сразу)."""
+
+    @abstractmethod
+    async def day_load(self, master_id: UUID, day: date) -> list[BookedTime]:
+        """Что уже стоит в дне мастера: время и услуга, без данных клиентов."""
+
+
+@dataclass(frozen=True, slots=True)
+class BookedTime:
+    """Занятое время дня для решений ресепшна (без клиента)."""
+
+    start: datetime
+    end: datetime
+    service: str
+    status: str
+
 
 @dataclass(frozen=True, slots=True)
 class ClientBrief:
@@ -235,6 +253,10 @@ class Cabinet(ABC):
     @abstractmethod
     async def draft_broadcast(self, master_id: UUID, text: str) -> BroadcastDraft:
         """Черновик рассылки от агента (отправляет мастер); неверный текст — ``ChangeRefusedError``."""
+
+    @abstractmethod
+    async def describe_service(self, master_id: UUID, service_id: UUID, text: str) -> None:
+        """Описание услуги для клиентов; нет услуги или текст длинный — ``ChangeRefusedError``."""
 
     @abstractmethod
     async def send_broadcast(self, master_id: UUID, text: str) -> BroadcastSent:

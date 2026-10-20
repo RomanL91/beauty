@@ -313,6 +313,40 @@ async def test_removed_service_is_named_in_next_turn(
     assert "недавно убрал" not in runtime.requests[-1].instructions
 
 
+async def test_trusted_front_desk_books_on_its_own(
+    http: httpx.AsyncClient, container: ApplicationContainer, mcp_app: McpServerFactory, alisa: AgentProfile
+) -> None:
+    """Мастер доверил записывать сразу: окна — с загрузкой дня без клиентов, запись подтверждена."""
+    first = await new_client(http, container, 7041)
+    second = await new_client(http, container, 7042)
+    master = {"Authorization": f"Bearer {await login(http, container.mediator, 7002, OWNER_PHONE[1:])}"}
+    on = await http.put(f"{API}/me/assistant/playbook/autonomy", json={"auto_confirm": True}, headers=master)
+    assert on.status_code == 200, on.text
+    service = (await http.get(f"{API}/masters/alisa")).json()["services"][1]
+    picked: list[str] = []
+
+    async def book(call: ToolCall, ticket: str, _text: str) -> str:
+        slots = await call("find_free_slots", {"ticket": ticket, "service_id": service["id"]})
+        start = picked[0] if picked else slots["slots"][0]["start"]
+        if picked:
+            day = next(d for d in slots["day_load"] if d["date"] == start[:10])
+            assert day["booked"][0]["service"] == service["title"]
+            assert set(day["booked"][0]) == {"start", "end", "service", "confirmed"}  # без клиента
+            start = slots["slots"][-1]["start"]
+        picked.append(start)
+        arguments = {"ticket": ticket, "service_id": service["id"], "start": start}
+        booked = await call("book_appointment", arguments)
+        assert (booked["ok"], booked["status"]) == (True, "confirmed"), booked
+        return "Записал вас!"
+
+    runtime = McpScriptRuntime(mcp_app, book)
+    await answer(container, runtime, first, "Запишите на массаж")
+    assert "запись сразу подтверждена" in runtime.requests[0].instructions
+    await answer(container, runtime, second, "И меня на массаж")
+    cards = [m for m in await first.history() if m["kind"] == "booking_card"]
+    assert cards[-1]["appointment"]["status"] == "confirmed"
+
+
 async def test_mcp_rejects_foreign_or_bad_credentials(
     http: httpx.AsyncClient, container: ApplicationContainer, mcp_app: McpServerFactory, alisa: AgentProfile
 ) -> None:

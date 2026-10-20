@@ -10,6 +10,7 @@ from uuid import UUID
 from beauty.contexts.agent.application.ports import (
     AgentRuntime,
     AppointmentSnapshot,
+    BookedTime,
     Booking,
     BroadcastDraft,
     BroadcastSent,
@@ -32,11 +33,13 @@ from beauty.contexts.agent.application.ports import (
 )
 from beauty.contexts.agent.application.uow import AgentUnitOfWork
 from beauty.contexts.agent.domain.office import OfficeMessage
+from beauty.contexts.agent.domain.playbook import Playbook
 from beauty.contexts.agent.domain.profile import AgentProfile
 from beauty.contexts.agent.domain.repositories import (
     AgentProfileRepository,
     AgentRunRepository,
     OfficeMessageRepository,
+    PlaybookRepository,
     RunTicketRepository,
 )
 from beauty.contexts.agent.domain.run import AgentRun
@@ -59,6 +62,7 @@ class AgentStore:
         self.tickets: dict[str, RunTicket] = {}
         self.office: dict[UUID, OfficeMessage] = {}
         self.runs: list[AgentRun] = []
+        self.playbooks: dict[UUID, Playbook] = {}
         self.events: list[Any] = []
 
 
@@ -145,6 +149,17 @@ class _Runs(AgentRunRepository):
         self._store.runs.append(run)
 
 
+class _Playbooks(PlaybookRepository):
+    def __init__(self, store: AgentStore) -> None:
+        self._store = store
+
+    def add(self, playbook: Playbook) -> None:
+        self._store.playbooks[playbook.id] = playbook
+
+    async def get(self, master_id: UUID) -> Playbook | None:
+        return self._store.playbooks.get(master_id)
+
+
 class InMemoryAgentUnitOfWork(AgentUnitOfWork):
     """Unit of Work в памяти; события агрегатов ленты — в ``store.events`` при коммите."""
 
@@ -156,6 +171,7 @@ class InMemoryAgentUnitOfWork(AgentUnitOfWork):
         self.tickets = _Tickets(store)
         self.office = _Office(store, self._seen)
         self.runs = _Runs(store)
+        self.playbooks = _Playbooks(store)
 
     async def commit(self) -> None:
         """Собрать события."""
@@ -232,6 +248,8 @@ class FakeBooking(Booking):
         self.taken: set[datetime] = set()
         self.requests: list[tuple[UUID, UUID, datetime]] = []
         self.cancelled: list[UUID] = []
+        self.confirmed: list[UUID] = []
+        self.load: dict[date, list[BookedTime]] = {}
 
     async def free_slots(
         self, master_id: UUID, service_id: UUID, since: datetime | None, limit: int
@@ -272,6 +290,16 @@ class FakeBooking(Booking):
             raise ChangeRefusedError("Запись не найдена")
         self.cancelled.append(appointment_id)
         return {"id": str(appointment_id), "status": "cancelled"}
+
+    async def confirm(self, master_id: UUID, appointment_id: UUID) -> AppointmentSnapshot:
+        """Подтверждение последней заявки."""
+        self.confirmed.append(appointment_id)
+        start = self.requests[-1][2]
+        return {"id": str(appointment_id), "status": "confirmed", "start": start.isoformat()}
+
+    async def day_load(self, master_id: UUID, day: date) -> list[BookedTime]:
+        """Загрузка дня — из ``load``."""
+        return list(self.load.get(day, []))
 
 
 class FakeCabinet(Cabinet):
@@ -354,6 +382,12 @@ class FakeCabinet(Cabinet):
             raise ChangeRefusedError("Текст рассылки — от 1 до 1000 символов")
         self.actions.append(("broadcast", text))
         return BroadcastDraft(UUID(int=77), 3)
+
+    async def describe_service(self, master_id: UUID, service_id: UUID, text: str) -> None:
+        """Описание только своей услуги."""
+        if service_id != SERVICE.id:
+            raise ChangeRefusedError("Нет такой услуги")
+        self.actions.append(("describe", (service_id, text)))
 
     async def send_broadcast(self, master_id: UUID, text: str) -> BroadcastSent:
         """Отправка; вторая за «сутки» — отказ по лимиту (черновик остаётся)."""

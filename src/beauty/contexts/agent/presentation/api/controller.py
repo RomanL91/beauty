@@ -11,6 +11,14 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError
 
 from beauty.contexts.agent.application.office import AnswerOfficeChoice, GiveOfficeTask, ListOfficeMessages
+from beauty.contexts.agent.application.playbook import (
+    AddPractice,
+    EditPractice,
+    GetPlaybook,
+    PlaybookView,
+    RemovePractice,
+    SetBookingAutonomy,
+)
 from beauty.contexts.agent.presentation.api.render import OfficeRenderer
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.infrastructure.web.auth import MasterAuth
@@ -29,6 +37,38 @@ class ChoiceAnswer(BaseModel):
     """Выбранный вариант."""
 
     option_id: str = Field(min_length=1, max_length=40)
+
+
+class PracticeInput(BaseModel):
+    """Запись опыта (``PracticeInput`` контракта)."""
+
+    text: str = Field(min_length=1, max_length=500)
+    service_id: UUID | None = None
+
+
+class AutonomyInput(BaseModel):
+    """Записывать клиентов сразу."""
+
+    auto_confirm: bool
+
+
+def render_playbook(view: PlaybookView) -> dict[str, Any]:
+    """Опыт мастера → ``Playbook`` контракта."""
+    return {
+        "auto_confirm": view.auto_confirm,
+        "practices": [
+            {
+                "id": str(p.id),
+                "text": p.text,
+                "service_id": None if p.service_id is None else str(p.service_id),
+                "service_title": p.service_title,
+                "author": p.author,
+                "created_at": p.created_at.isoformat(),
+                "updated_at": p.updated_at.isoformat(),
+            }
+            for p in view.practices
+        ],
+    }
 
 
 def office_router(
@@ -67,5 +107,26 @@ def office_router(
     @router.post("/choices/{choice_id}", summary="Выбрать вариант")
     async def choose(choice_id: UUID, body: ChoiceAnswer, master_id: master) -> dict[str, Any]:
         return renderer.render(await mediator.send(AnswerOfficeChoice(master_id, choice_id, body.option_id)))
+
+    @router.get("/playbook", summary="Опыт мастера — что знает ассистент")
+    async def playbook(master_id: master) -> dict[str, Any]:
+        return render_playbook(await mediator.send(GetPlaybook(master_id)))
+
+    @router.put("/playbook/autonomy", summary="Записывать клиентов сразу")
+    async def autonomy(body: AutonomyInput, master_id: master) -> dict[str, Any]:
+        return render_playbook(await mediator.send(SetBookingAutonomy(master_id, body.auto_confirm)))
+
+    @router.post("/playbook/practices", status_code=201, summary="Добавить запись опыта")
+    async def add_practice(body: PracticeInput, master_id: master) -> dict[str, Any]:
+        return render_playbook(await mediator.send(AddPractice(master_id, body.text, body.service_id)))
+
+    @router.put("/playbook/practices/{practice_id}", summary="Изменить запись опыта")
+    async def edit_practice(practice_id: UUID, body: PracticeInput, master_id: master) -> dict[str, Any]:
+        command = EditPractice(master_id, practice_id, body.text, body.service_id)
+        return render_playbook(await mediator.send(command))
+
+    @router.delete("/playbook/practices/{practice_id}", summary="Удалить запись опыта")
+    async def remove_practice(practice_id: UUID, master_id: master) -> dict[str, Any]:
+        return render_playbook(await mediator.send(RemovePractice(master_id, practice_id)))
 
     return router

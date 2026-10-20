@@ -27,7 +27,13 @@ from mcp.client.streamable_http import streamable_http_client
 from beauty.bootstrap.adapters import AgentMasters
 from beauty.bootstrap.container import ApplicationContainer
 from beauty.bootstrap.demo import DemoMasterSeeder
-from beauty.contexts.agent.application.office import NOT_CONNECTED, RunOfficeTurnHandler
+from beauty.contexts.agent.application.instructions import INTERVIEW_PREFIX
+from beauty.contexts.agent.application.office import (
+    NOT_CONNECTED,
+    RunOfficeTurnHandler,
+    StartServiceInterview,
+    StartServiceInterviewHandler,
+)
 from beauty.contexts.agent.application.ports import AgentRuntime, RunOutcome, RunRequest
 from beauty.contexts.agent.domain.profile import AgentProfile
 from beauty.contexts.agent.domain.ticket import RunTicket
@@ -85,6 +91,7 @@ async def master(http: httpx.AsyncClient, container: ApplicationContainer) -> di
     async with SqlAlchemyAgentUnitOfWork(container.session_factory, container.outbox_writer) as uow:
         uow.profiles.add(profile)
         await uow.commit()
+    await EventPump(container, {"agent.back_office": Ignore()}).drain()  # без интервью об услугах сида
     token = await login(http, container.mediator, 8001, OWNER_PHONE[1:])
     return {"Authorization": f"Bearer {token}", "X-Master-Id": str(master_id)}
 
@@ -149,6 +156,7 @@ class ScriptedOfficeConsumer(IntegrationEventHandler):
 
     def __init__(self, container: ApplicationContainer, runtime: AgentRuntime) -> None:
         """Собрать обработчик хода."""
+        self._container = container
         self._handler = RunOfficeTurnHandler(
             lambda: SqlAlchemyAgentUnitOfWork(container.session_factory, container.outbox_writer),
             runtime,
@@ -159,10 +167,20 @@ class ScriptedOfficeConsumer(IntegrationEventHandler):
         )
 
     async def handle(self, envelope: EventEnvelope) -> None:
-        """Ход по событию (голосовое поручение ждёт расшифровки)."""
+        """Ход по событию (голосовое поручение ждёт расшифровки; новая услуга — интервью)."""
         command = BackOfficeConsumer.command(envelope)
-        if command is not None:
+        if isinstance(command, StartServiceInterview):
+            masters = AgentMasters(lambda: self._container.mediator)
+            await StartServiceInterviewHandler(masters, self._handler).handle(command)
+        elif command is not None:
             await self._handler.handle(command)
+
+
+class Ignore(IntegrationEventHandler):
+    """Консьюмер, который ничего не делает (погасить старые события)."""
+
+    async def handle(self, envelope: EventEnvelope) -> None:
+        """Пропустить."""
 
 
 def office_pump(container: ApplicationContainer, runtime: AgentRuntime) -> EventPump:
@@ -406,3 +424,81 @@ async def test_office_mcp_admits_only_office_credentials(
         assert "tool_error" in await call("my_appointments", arguments)
     async with mcp_session(container, "/office/mcp", OFFICE_TOKEN, "m-alisa") as call:
         assert "tool_error" in await call("day_schedule", arguments)  # заголовок профиля чужой роли
+
+
+async def test_playbook_api_by_contract(http: httpx.AsyncClient, master: dict[str, str]) -> None:
+    """Опыт мастера в кабинете: записи общие и к услуге, правка, удаление, самостоятельность."""
+    path = f"{API}/me/assistant/playbook"
+    empty = (await http.get(path, headers=master)).json()
+    assert_matches_schema(empty, "Playbook")
+    assert empty == {"auto_confirm": False, "practices": []}
+    service = await service_id(http)
+    about = await http.post(
+        f"{path}/practices", json={"text": "Не больше двух в день", "service_id": service}, headers=master
+    )
+    assert about.status_code == 201, about.text
+    added = await http.post(f"{path}/practices", json={"text": "Сложное — с утра"}, headers=master)
+    body = added.json()
+    assert_matches_schema(body, "Playbook")
+    assert [(p["text"], p["service_id"] is None, p["author"]) for p in body["practices"]] == [
+        ("Сложное — с утра", True, "master"),
+        ("Не больше двух в день", False, "master"),
+    ]
+    assert body["practices"][1]["service_title"]
+    practice = body["practices"][1]["id"]
+    edited = await http.put(
+        f"{path}/practices/{practice}",
+        json={"text": "Не больше трёх в день", "service_id": service},
+        headers=master,
+    )
+    assert edited.json()["practices"][1]["text"] == "Не больше трёх в день"
+    assert (await http.delete(f"{path}/practices/{practice}", headers=master)).status_code == 200
+    assert (await http.delete(f"{path}/practices/{practice}", headers=master)).status_code == 404
+    foreign = await http.post(
+        f"{path}/practices", json={"text": "x", "service_id": str(uuid4())}, headers=master
+    )
+    assert (foreign.status_code, foreign.json()["code"]) == (404, "service_not_found")
+    assert (await http.post(f"{path}/practices", json={"text": ""}, headers=master)).status_code == 422
+    on = await http.put(f"{path}/autonomy", json={"auto_confirm": True}, headers=master)
+    assert on.json()["auto_confirm"] is True
+
+
+async def test_new_service_interview_teaches_agent(
+    http: httpx.AsyncClient, container: ApplicationContainer, master: dict[str, str]
+) -> None:
+    """Мастер добавил услугу → агент сам спрашивает → ответ мастера — опыт, его видит ресепшн."""
+
+    async def script(call: ToolCall, ticket: str, text: str) -> str:
+        if text.startswith(INTERVIEW_PREFIX):
+            return "Ботокс — делаете в определённые дни? Сколько клиентов на одну ампулу?"
+        done = await call(
+            "remember_practice",
+            {
+                "ticket": ticket,
+                "text": "Ботокс — только по пятницам, до 4 человек подряд",
+                "service_id": botox[0],
+            },
+        )
+        assert done["ok"], done
+        auto = await call("set_booking_autonomy", {"ticket": ticket, "on": True})
+        assert auto["auto_confirm"] is True
+        return "Запомнил: ботокс — по пятницам, до четырёх человек подряд."
+
+    botox: list[str] = []
+    runtime = OfficeScript(container, script)
+    service = {"title": "Ботокс", "duration_min": 30, "price": {"amount": 4_000_000, "currency": "KZT"}}
+    added = await http.post(f"{API}/me/services", json=service, headers=master)
+    assert added.status_code == 201, added.text
+    botox.append(next(s["id"] for s in added.json()["page"]["services"] if s["title"] == "Ботокс"))
+    await office_pump(container, runtime).drain()
+    (interview,) = runtime.requests
+    assert interview.input.startswith(f"{INTERVIEW_PREFIX} «Ботокс» — 30 мин, 40 000 ₸.")
+    assert (await feed(http, master))[-1]["text"].startswith("Ботокс — делаете в определённые дни?")
+
+    await give_task(http, master, "Только по пятницам, ампулы хватает на четверых. Записывай сама.")
+    await office_pump(container, runtime).drain()
+    playbook = (await http.get(f"{API}/me/assistant/playbook", headers=master)).json()
+    assert playbook["auto_confirm"] is True
+    assert [(p["text"], p["service_title"], p["author"]) for p in playbook["practices"]] == [
+        ("Ботокс — только по пятницам, до 4 человек подряд", "Ботокс", "agent")
+    ]

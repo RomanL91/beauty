@@ -14,6 +14,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from beauty.contexts.agent.application.access import Grant, ToolAccess
+from beauty.contexts.agent.application.playbook import Playbooks
 from beauty.contexts.agent.application.ports import (
     Booking,
     Cabinet,
@@ -27,8 +28,11 @@ from beauty.contexts.agent.application.ports import (
 from beauty.contexts.agent.application.toolkit import SlotLookup, known_service
 from beauty.contexts.agent.application.uow import AgentUnitOfWork
 from beauty.contexts.agent.domain.office import OfficeBroadcast, OfficeMessage, choice
+from beauty.contexts.agent.domain.playbook import PracticeAuthor
 from beauty.contexts.agent.domain.ticket import AgentFace
+from beauty.shared.application.errors import NotFoundError
 from beauty.shared.domain.clock import Clock
+from beauty.shared.domain.errors import DomainError
 from beauty.shared.domain.ids import IdGenerator
 
 MAX_CLIENTS = 5
@@ -78,6 +82,7 @@ class OfficeToolkit:
         self._clients = clients
         self._clock = clock
         self._ids = ids
+        self._playbooks = Playbooks(uow_factory, masters, clock, ids)
 
     async def authorize(self, token: str, profile_header: str | None, ticket_id: str) -> Grant:
         """Проверить токен профиля кабинета, заголовок профиля и тикет хода."""
@@ -263,6 +268,72 @@ class OfficeToolkit:
         except NoteRefusedError as error:
             return _refused(error, "Имя сохранить не получилось")
         return {"ok": True, "name": (name or "").strip() or None, "note": "Имя видно в чатах и графике"}
+
+    async def remember_practice(self, caller: Grant, text: str, service_id: str | None = None) -> Result:
+        """Запись опыта мастера: общая или к услуге (повтор того же текста — та же запись)."""
+        service = None
+        if service_id:
+            service = _uuid(service_id)
+            if service is None:
+                return {"ok": False, "error": "service_id — из перечня услуг в инструкциях"}
+        try:
+            _, practice = await self._playbooks.remember(
+                caller.master_id, text, service, PracticeAuthor.AGENT
+            )
+        except (DomainError, NotFoundError) as error:
+            return _refused(error, "Запомнить не получилось")
+        return {
+            "ok": True,
+            "practice_id": str(practice.id),
+            "note": "Запомнил: ресепшн учтёт это в разговорах с клиентами",
+        }
+
+    async def revise_practice(self, caller: Grant, practice_id: str, text: str) -> Result:
+        """Изменить текст записи опыта (услуга та же)."""
+        target = _uuid(practice_id)
+        if target is None:
+            return {"ok": False, "error": "practice_id — из квадратных скобок в инструкциях"}
+        try:
+            view = await self._playbooks.view(caller.master_id)
+            current = next((p for p in view.practices if p.id == target), None)
+            if current is None:
+                return {"ok": False, "error": "Такой записи нет — сверься с инструкциями хода"}
+            await self._playbooks.revise(caller.master_id, target, text, current.service_id)
+        except (DomainError, NotFoundError) as error:
+            return _refused(error, "Изменить не получилось")
+        return {"ok": True, "note": "Запись обновлена"}
+
+    async def forget_practice(self, caller: Grant, practice_id: str) -> Result:
+        """Удалить устаревшую запись опыта."""
+        target = _uuid(practice_id)
+        if target is None:
+            return {"ok": False, "error": "practice_id — из квадратных скобок в инструкциях"}
+        try:
+            await self._playbooks.forget(caller.master_id, target)
+        except (DomainError, NotFoundError) as error:
+            return _refused(error, "Удалить не получилось")
+        return {"ok": True, "note": "Забыл"}
+
+    async def set_booking_autonomy(self, caller: Grant, on: bool) -> Result:
+        """Ресепшн записывает клиентов сам (``on``) или заявкой мастеру."""
+        view = await self._playbooks.set_autonomy(caller.master_id, on)
+        note = (
+            "Теперь ресепшн записывает клиентов сразу, без подтверждения мастера"
+            if view.auto_confirm
+            else "Теперь ресепшн оставляет заявку, мастер подтверждает сам"
+        )
+        return {"ok": True, "auto_confirm": view.auto_confirm, "note": note}
+
+    async def set_service_description(self, caller: Grant, service_id: str, text: str) -> Result:
+        """Описание услуги для клиентов на странице мастера (с согласия мастера)."""
+        service = _uuid(service_id)
+        if service is None:
+            return {"ok": False, "error": "service_id — из перечня услуг в инструкциях"}
+        try:
+            await self._cabinet.describe_service(caller.master_id, service, text)
+        except ChangeRefusedError as error:
+            return _refused(error, "Описание сохранить не получилось")
+        return {"ok": True, "note": "Описание на странице мастера обновлено"}
 
     async def ask_master(
         self, caller: Grant, question: str, options: list[str], detail: str | None

@@ -4,11 +4,21 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from sqlalchemy.orm import relationship
+
 from beauty.contexts.agent.domain.office import OfficeMessage
+from beauty.contexts.agent.domain.playbook import Playbook, Practice
 from beauty.contexts.agent.domain.profile import AgentProfile
 from beauty.contexts.agent.domain.run import AgentRun
 from beauty.contexts.agent.domain.ticket import RunTicket
-from beauty.contexts.agent.infrastructure.tables import office_messages, profiles, runs, tickets
+from beauty.contexts.agent.infrastructure.tables import (
+    office_messages,
+    playbooks,
+    practices,
+    profiles,
+    runs,
+    tickets,
+)
 from beauty.shared.infrastructure.db.metadata import mapper_registry
 
 
@@ -27,5 +37,17 @@ class AgentOrmMapper:
         mapper_registry.map_imperatively(AgentRun, runs)
         mapper_registry.map_imperatively(
             OfficeMessage, office_messages, version_id_col=office_messages.c.version
+        )
+        # Опыт с записями — один агрегат: правка записи трогает ``updated_at`` опыта — версия растёт.
+        mapper_registry.map_imperatively(Practice, practices)
+        mapper_registry.map_imperatively(
+            Playbook,
+            playbooks,
+            version_id_col=playbooks.c.version,
+            properties={
+                "practices": relationship(
+                    Practice, cascade="all, delete-orphan", order_by=practices.c.created_at, lazy="selectin"
+                )
+            },
         )
         cls._mapped = True

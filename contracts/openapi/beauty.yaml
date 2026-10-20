@@ -1088,6 +1088,88 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+  /me/assistant/playbook:
+    get:
+      tags: [assistant]
+      operationId: getAssistantPlaybook
+      summary: Опыт мастера — что знает ассистент
+      description: |
+        Записи словами мастера (общие и к услугам) и самостоятельность записи. Агент учитывает
+        их в каждом ходе и решает сам, как опытный сотрудник.
+      responses:
+        '200': { $ref: '#/components/responses/Playbook' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+  /me/assistant/playbook/autonomy:
+    put:
+      tags: [assistant]
+      operationId: setAssistantAutonomy
+      summary: Записывать клиентов сразу
+      description: '`auto_confirm: true` — ассистент сам подтверждает запись; `false` — заявку подтверждает мастер.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auto_confirm]
+              properties:
+                auto_confirm: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/Playbook' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/assistant/playbook/practices:
+    post:
+      tags: [assistant]
+      operationId: addAssistantPractice
+      summary: Добавить запись опыта
+      description: |
+        Тот же текст повторно новую запись не создаёт. Ошибки: длина — `invalid_practice` (422),
+        лимит — `practices_limit` (409), чужая или убранная услуга — `service_not_found` (404).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PracticeInput' }
+      responses:
+        '201': { $ref: '#/components/responses/Playbook' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /me/assistant/playbook/practices/{practice_id}:
+    parameters:
+      - name: practice_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [assistant]
+      operationId: updateAssistantPractice
+      summary: Изменить запись опыта
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PracticeInput' }
+      responses:
+        '200': { $ref: '#/components/responses/Playbook' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [assistant]
+      operationId: deleteAssistantPractice
+      summary: Удалить запись опыта
+      responses:
+        '200': { $ref: '#/components/responses/Playbook' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
   /me/events:
     get:
       tags: [master]
@@ -1698,6 +1780,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/MasterClientCard' }
+    Playbook:
+      description: Опыт мастера.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Playbook' }
     Broadcast:
       description: Рассылка.
       content:
@@ -2326,6 +2413,45 @@ components:
             - $ref: '#/components/schemas/Money'
             - type: 'null'
         cancelled_by: { type: string, enum: [client, master, system] }
+    Playbook:
+      type: object
+      required: [auto_confirm, practices]
+      properties:
+        auto_confirm:
+          type: boolean
+          description: Ассистент сам подтверждает записи клиентов (иначе — заявка мастеру).
+        practices:
+          type: array
+          description: Сначала общие, затем по услугам; внутри — по времени добавления.
+          items: { $ref: '#/components/schemas/Practice' }
+    Practice:
+      type: object
+      required: [id, text, service_id, service_title, author, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        text: { type: string }
+        service_id:
+          description: 'Услуга, к которой запись; `null` — общая («как я строю день»).'
+          oneOf:
+            - { type: string, format: uuid }
+            - type: 'null'
+        service_title:
+          description: 'Название услуги; `null` у общей записи или если услугу убрали.'
+          oneOf:
+            - type: string
+            - type: 'null'
+        author: { type: string, enum: [master, agent], description: '`agent` — записал ассистент со слов мастера.' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    PracticeInput:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 500 }
+        service_id:
+          oneOf:
+            - { type: string, format: uuid }
+            - type: 'null'
     ClientNote:
       type: object
       required: [id, text, author, created_at]

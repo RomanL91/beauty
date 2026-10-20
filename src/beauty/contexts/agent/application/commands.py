@@ -15,6 +15,7 @@ from beauty.contexts.agent.application.instructions import (
     front_desk_instructions,
     turn_input,
 )
+from beauty.contexts.agent.application.playbook import load_playbook
 from beauty.contexts.agent.application.ports import (
     AgentRuntime,
     ClientBook,
@@ -178,6 +179,7 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
             return
         catalog = catalog_digest(master)
         notes = [note.text for note in await self._clients.notes(state.master_id, state.client_id)]
+        playbook = await load_playbook(self._new_uow, master)
         ticket = RunTicket.issue(
             master_id=state.master_id,
             conversation_id=message.conversation_id,
@@ -200,7 +202,7 @@ class AnswerClientHandler(Handler[AnswerClient, None]):
                 session_id=str(message.conversation_id),
                 input=turn_input(message.text, catalog_changed=_changed(previous, catalog)),
                 instructions=front_desk_instructions(
-                    master, state.client_name, ticket.id, self._clock.now(), notes
+                    master, state.client_name, ticket.id, self._clock.now(), notes, playbook
                 ),
                 idempotency_key=str(message.message_id),
             )

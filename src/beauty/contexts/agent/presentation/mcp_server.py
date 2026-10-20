@@ -246,8 +246,55 @@ class OfficeToolsServer:
                 client_card,
                 add_client_note,
                 rename_client,
+                *self._playbook_tools(caller),
                 ask_master,
             ),
+        )
+
+    def _playbook_tools(
+        self, caller: Callable[[Context, str, str], Awaitable[Grant]]
+    ) -> tuple[Callable[..., Awaitable[dict[str, Any]]], ...]:
+        """Опыт мастера: агент учится у мастера, ведёт интервью и управляет самостоятельностью."""
+        toolkit = self._toolkit
+
+        async def remember_practice(
+            ticket: str, text: str, ctx: Context, service_id: str | None = None
+        ) -> dict[str, Any]:
+            """Запомнить опыт мастера: как он работает, коротко его словами (одна мысль — одна запись).
+
+            service_id — если это об одной услуге; без него — общее («сложное — с утра»).
+            """
+            granted = await caller(ctx, ticket, "remember_practice")
+            return await toolkit.remember_practice(granted, text, service_id)
+
+        async def revise_practice(ticket: str, practice_id: str, text: str, ctx: Context) -> dict[str, Any]:
+            """Изменить запись опыта мастера (id — в квадратных скобках в инструкциях)."""
+            granted = await caller(ctx, ticket, "revise_practice")
+            return await toolkit.revise_practice(granted, practice_id, text)
+
+        async def forget_practice(ticket: str, practice_id: str, ctx: Context) -> dict[str, Any]:
+            """Удалить устаревшую запись опыта мастера."""
+            granted = await caller(ctx, ticket, "forget_practice")
+            return await toolkit.forget_practice(granted, practice_id)
+
+        async def set_booking_autonomy(ticket: str, on: bool, ctx: Context) -> dict[str, Any]:
+            """on=true — ресепшн записывает клиентов сразу, сам; false — заявкой, мастер подтверждает."""
+            granted = await caller(ctx, ticket, "set_booking_autonomy")
+            return await toolkit.set_booking_autonomy(granted, on)
+
+        async def set_service_description(
+            ticket: str, service_id: str, text: str, ctx: Context
+        ) -> dict[str, Any]:
+            """Описание услуги для клиентов на странице мастера (до 1000 символов) — с согласия мастера."""
+            granted = await caller(ctx, ticket, "set_service_description")
+            return await toolkit.set_service_description(granted, service_id, text)
+
+        return (
+            remember_practice,
+            revise_practice,
+            forget_practice,
+            set_booking_autonomy,
+            set_service_description,
         )
 
 

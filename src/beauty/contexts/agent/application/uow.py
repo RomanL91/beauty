@@ -6,6 +6,7 @@ from beauty.contexts.agent.domain.repositories import (
     AgentProfileRepository,
     AgentRunRepository,
     OfficeMessageRepository,
+    PlaybookRepository,
     RunTicketRepository,
 )
 from beauty.shared.application.uow import UnitOfWork
@@ -18,3 +19,4 @@ class AgentUnitOfWork(UnitOfWork):
     tickets: RunTicketRepository
     office: OfficeMessageRepository
     runs: AgentRunRepository
+    playbooks: PlaybookRepository

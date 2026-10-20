@@ -11,7 +11,14 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from beauty.contexts.agent.application.instructions import catalog_digest, office_instructions, turn_input
+from beauty.contexts.agent.application.instructions import (
+    catalog_digest,
+    interview_input,
+    office_instructions,
+    price_text,
+    turn_input,
+)
+from beauty.contexts.agent.application.playbook import load_playbook
 from beauty.contexts.agent.application.ports import AgentRuntime, MasterBriefs, RunRequest
 from beauty.contexts.agent.application.run_log import log_run
 from beauty.contexts.agent.application.uow import AgentUnitOfWork
@@ -179,6 +186,8 @@ class RunOfficeTurn(Command[None]):
     master_id: UUID
     input: str | None
     idempotency_key: str
+    automatic: bool = False
+    """Ход начал сам агент (интервью о новой услуге): не подключён или сбой — молча."""
 
 
 class RunOfficeTurnHandler(Handler[RunOfficeTurn, None]):
@@ -211,7 +220,8 @@ class RunOfficeTurnHandler(Handler[RunOfficeTurn, None]):
             profile = await uow.profiles.get(message.master_id)
             seat = profile.seat(AgentFace.BACK_OFFICE) if profile is not None and profile.enabled else None
         if not self._runtime.enabled or seat is None:
-            await self._post(message.master_id, OfficeSystem(NOT_CONNECTED, OfficeTone.WARNING))
+            if not message.automatic:
+                await self._post(message.master_id, OfficeSystem(NOT_CONNECTED, OfficeTone.WARNING))
             return
         if message.input is None:
             await self._post(message.master_id, OfficeText(VOICE_REPLY))
@@ -221,6 +231,7 @@ class RunOfficeTurnHandler(Handler[RunOfficeTurn, None]):
             return
         now = self._clock.now()
         catalog = catalog_digest(master)
+        playbook = await load_playbook(self._uow_factory, master)
         ticket = RunTicket.issue_office(
             master_id=message.master_id, now=now, ttl=self._ticket_ttl, catalog=catalog
         )
@@ -243,14 +254,15 @@ class RunOfficeTurnHandler(Handler[RunOfficeTurn, None]):
                 api_key=seat[1],
                 session_id=f"office-{message.master_id}-{day.isoformat()}",
                 input=turn_input(message.input, catalog_changed=changed),
-                instructions=office_instructions(master, ticket.id, now),
+                instructions=office_instructions(master, ticket.id, now, playbook),
                 idempotency_key=message.idempotency_key,
             )
         )
         await log_run(self._uow_factory, ticket, outcome, time.monotonic() - started)
         if not outcome.ok:
             logger.warning("Ход кабинета %s: %s", seat[0], outcome.status)
-            await self._post(message.master_id, OfficeSystem(FAILURE_REPLY, OfficeTone.WARNING))
+            if not message.automatic:
+                await self._post(message.master_id, OfficeSystem(FAILURE_REPLY, OfficeTone.WARNING))
             return
         async with self._uow_factory() as uow:
             stored = await uow.tickets.get(ticket.id)
@@ -266,3 +278,38 @@ class RunOfficeTurnHandler(Handler[RunOfficeTurn, None]):
                 )
             )
             await uow.commit()
+
+
+@dataclass(frozen=True, slots=True)
+class StartServiceInterview(Command[None]):
+    """Мастер добавил услугу — агент кабинета сам начинает о ней короткое интервью."""
+
+    master_id: UUID
+    service_id: UUID
+    idempotency_key: str
+
+
+class StartServiceInterviewHandler(Handler[StartServiceInterview, None]):
+    """Реплика об услуге → ход кабинета; услугу уже убрали — ничего."""
+
+    def __init__(self, masters: MasterBriefs, turn: RunOfficeTurnHandler) -> None:
+        """Получить каталог и обработчик хода кабинета."""
+        self._masters = masters
+        self._turn = turn
+
+    async def handle(self, message: StartServiceInterview) -> None:
+        """Начать интервью."""
+        master = await self._masters.brief(message.master_id)
+        service = next((s for s in master.services if s.id == message.service_id), None) if master else None
+        if service is None:
+            return
+        await self._turn.handle(
+            RunOfficeTurn(
+                master_id=message.master_id,
+                input=interview_input(
+                    service.title, service.duration_min, price_text(service.price_amount), service.description
+                ),
+                idempotency_key=message.idempotency_key,
+                automatic=True,
+            )
+        )

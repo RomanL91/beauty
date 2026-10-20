@@ -6,7 +6,11 @@ from __future__ import annotations
 from uuid import UUID
 
 from beauty.contexts.agent.application.commands import AnswerClient
-from beauty.contexts.agent.application.office import RunOfficeTurn, TranscribeOfficeTask
+from beauty.contexts.agent.application.office import (
+    RunOfficeTurn,
+    StartServiceInterview,
+    TranscribeOfficeTask,
+)
 from beauty.contexts.agent.domain.events import OfficeChoiceAnswered, OfficeTaskGiven, OfficeVoiceTranscribed
 from beauty.shared.application.mediator import Mediator
 from beauty.shared.infrastructure.messaging.handler import IntegrationEventHandler
@@ -44,15 +48,18 @@ class FrontDeskConsumer(IntegrationEventHandler):
         )
 
 
+SERVICES_CHANGED = "tenancy.master.services_changed"
 OFFICE_EVENTS = (
     OfficeTaskGiven.routing_key,
     OfficeChoiceAnswered.routing_key,
     OfficeVoiceTranscribed.routing_key,
+    SERVICES_CHANGED,
 )
 
 
 class BackOfficeConsumer(IntegrationEventHandler):
-    """Поручение, выбор мастера или расшифрованное голосовое поручение → ход кабинета."""
+    """Поручение, выбор мастера или расшифрованное голосовое поручение → ход кабинета; новая
+    услуга → интервью о ней (в той же очереди: ходы кабинета мастера идут по одному)."""
 
     def __init__(self, mediator: Mediator) -> None:
         """Получить медиатор."""
@@ -65,12 +72,20 @@ class BackOfficeConsumer(IntegrationEventHandler):
             await self._mediator.send(command)
 
     @staticmethod
-    def command(envelope: EventEnvelope) -> RunOfficeTurn | None:
+    def command(envelope: EventEnvelope) -> RunOfficeTurn | StartServiceInterview | None:
         """Ход кабинета по событию; голосовое поручение ждёт расшифровки (``None``).
 
         Расшифровка не удалась — ``input=None``: агент попросит повторить или написать текстом.
         """
         payload = envelope.payload
+        if envelope.routing_key == SERVICES_CHANGED:
+            if payload.get("change") != "added":
+                return None
+            return StartServiceInterview(
+                master_id=UUID(str(payload["master_id"])),
+                service_id=UUID(str(payload["service_id"])),
+                idempotency_key=f"{envelope.message_id}:interview",
+            )
         message_id = str(payload["message_id"])
         if envelope.routing_key == OfficeTaskGiven.routing_key and payload.get("text") is None:
             return None

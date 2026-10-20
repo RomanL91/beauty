@@ -7,11 +7,13 @@ from uuid import UUID
 from sqlalchemy import or_, select
 
 from beauty.contexts.agent.domain.office import OfficeMessage
+from beauty.contexts.agent.domain.playbook import Playbook
 from beauty.contexts.agent.domain.profile import AgentProfile
 from beauty.contexts.agent.domain.repositories import (
     AgentProfileRepository,
     AgentRunRepository,
     OfficeMessageRepository,
+    PlaybookRepository,
     RunTicketRepository,
 )
 from beauty.contexts.agent.domain.run import AgentRun
@@ -90,3 +92,11 @@ class SqlAlchemyOfficeMessageRepository(SqlAlchemyRepository[OfficeMessage], Off
 
 class SqlAlchemyAgentRunRepository(SqlAlchemyRepository[AgentRun], AgentRunRepository):
     """Журнал ходов (только запись; читают отчёты)."""
+
+
+class SqlAlchemyPlaybookRepository(SqlAlchemyRepository[Playbook], PlaybookRepository):
+    """Опыт мастеров (записи — вместе с агрегатом)."""
+
+    async def get(self, master_id: UUID) -> Playbook | None:
+        """По мастеру."""
+        return self._seen(await self._session.get(Playbook, master_id))

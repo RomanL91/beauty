@@ -27,10 +27,25 @@ from beauty.contexts.agent.application.office import (
     ListOfficeMessagesHandler,
     RunOfficeTurn,
     RunOfficeTurnHandler,
+    StartServiceInterview,
+    StartServiceInterviewHandler,
     TranscribeOfficeTask,
     TranscribeOfficeTaskHandler,
 )
 from beauty.contexts.agent.application.office_tools import OfficeToolkit
+from beauty.contexts.agent.application.playbook import (
+    AddPractice,
+    AddPracticeHandler,
+    EditPractice,
+    EditPracticeHandler,
+    GetPlaybook,
+    GetPlaybookHandler,
+    Playbooks,
+    RemovePractice,
+    RemovePracticeHandler,
+    SetBookingAutonomy,
+    SetBookingAutonomyHandler,
+)
 from beauty.contexts.agent.application.ports import (
     AgentRuntime,
     Booking,
@@ -77,6 +92,9 @@ _HTTP_STATUSES: dict[str, int] = {
     "invalid_ticket": 403,
     "choice_not_found": 404,
     "choice_already_answered": 409,
+    "invalid_practice": 422,
+    "practices_limit": 409,
+    "practice_not_found": 404,
 }
 
 
@@ -132,17 +150,31 @@ class AgentModule:
         mediator.register(GiveOfficeTask, lambda: GiveOfficeTaskHandler(self._uow(), deps.clock, deps.ids))
         mediator.register(AnswerOfficeChoice, lambda: AnswerOfficeChoiceHandler(self._uow(), deps.clock))
         mediator.register(ListOfficeMessages, lambda: ListOfficeMessagesHandler(self._uow()))
+        mediator.register(RunOfficeTurn, self._office_turn)
         mediator.register(
-            RunOfficeTurn,
-            lambda: RunOfficeTurnHandler(
-                self._uow, deps.runtime, deps.masters, deps.clock, deps.ids, deps.ticket_ttl
-            ),
+            StartServiceInterview, lambda: StartServiceInterviewHandler(deps.masters, self._office_turn())
         )
         mediator.register(
             TranscribeOfficeTask, lambda: TranscribeOfficeTaskHandler(self._uow, deps.transcriber, deps.clock)
         )
+        mediator.register(GetPlaybook, lambda: GetPlaybookHandler(self.playbooks()))
+        mediator.register(AddPractice, lambda: AddPracticeHandler(self.playbooks()))
+        mediator.register(EditPractice, lambda: EditPracticeHandler(self.playbooks()))
+        mediator.register(RemovePractice, lambda: RemovePracticeHandler(self.playbooks()))
+        mediator.register(SetBookingAutonomy, lambda: SetBookingAutonomyHandler(self.playbooks()))
         for code, status in _HTTP_STATUSES.items():
             http_errors.register(code, status)
+
+    def _office_turn(self) -> RunOfficeTurnHandler:
+        deps = self._deps
+        return RunOfficeTurnHandler(
+            self._uow, deps.runtime, deps.masters, deps.clock, deps.ids, deps.ticket_ttl
+        )
+
+    def playbooks(self) -> Playbooks:
+        """Опыт мастера: кабинет и инструменты агента."""
+        deps = self._deps
+        return Playbooks(self._uow, deps.masters, deps.clock, deps.ids)
 
     def office_transcribe_handler(self, transcriber: VoiceTranscriber) -> TranscribeOfficeTaskHandler:
         """Обработчик расшифровки поручений с этим распознавателем (в тестах — сценарным)."""

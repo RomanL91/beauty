@@ -21,3 +21,21 @@ class UnknownChoiceOption(DomainError):
     """Такого вопроса или варианта нет."""
 
     code = "choice_not_found"
+
+
+class InvalidPractice(DomainError):
+    """Запись опыта — от 1 до 500 символов."""
+
+    code = "invalid_practice"
+
+
+class PracticesLimit(DomainError):
+    """У мастера уже 200 записей опыта — удалите устаревшие."""
+
+    code = "practices_limit"
+
+
+class UnknownPractice(DomainError):
+    """Запись опыта не найдена."""
+
+    code = "practice_not_found"

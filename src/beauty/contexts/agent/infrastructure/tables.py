@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Index, Integer, Table, Text, text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, Table, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 
 from beauty.contexts.agent.domain.office import OfficeAuthor
+from beauty.contexts.agent.domain.playbook import PracticeAuthor
 from beauty.contexts.agent.domain.ticket import AgentFace
 from beauty.contexts.agent.infrastructure.serialization import dump_office, load_office
 from beauty.shared.domain.secrets import HashedSecret
@@ -16,6 +17,7 @@ TokenDigestType = StringValueObjectType(HashedSecret, lambda secret: secret.dige
 FaceType = StringValueObjectType(AgentFace, lambda face: face.value)
 OfficeAuthorType = StringValueObjectType(OfficeAuthor, lambda author: author.value)
 OfficeContentType = JsonValueObjectType(dump_office, load_office)
+PracticeAuthorType = StringValueObjectType(PracticeAuthor, lambda author: author.value)
 
 profiles = Table(
     "profiles",
@@ -91,4 +93,31 @@ runs = Table(
     Index("ix_runs_created_at", "created_at"),
     schema="agent",
     comment="Журнал ходов агента (итог и длительность)",
+)
+
+playbooks = Table(
+    "playbooks",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True, comment="id мастера"),
+    Column("auto_confirm", Boolean, nullable=False, comment="агент сам подтверждает записи клиентов"),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    Column("version", Integer, nullable=False),
+    schema="agent",
+    comment="Опыт мастера для его ИИ-администратора",
+)
+
+practices = Table(
+    "practices",
+    metadata,
+    Column("id", UUID(as_uuid=True), primary_key=True),
+    Column("playbook_id", UUID(as_uuid=True), ForeignKey(playbooks.c.id, ondelete="CASCADE"), nullable=False),
+    Column("service_id", UUID(as_uuid=True), comment="услуга мастера; NULL — общая запись"),
+    Column("text", Text, nullable=False),
+    Column("author", PracticeAuthorType, nullable=False, comment="master | agent"),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    Index("ix_practices_playbook_created", "playbook_id", "created_at"),
+    schema="agent",
+    comment="Записи опыта мастера: общие и к услугам",
 )

@@ -9,6 +9,7 @@ from beauty.contexts.agent.infrastructure.repositories import (
     SqlAlchemyAgentProfileRepository,
     SqlAlchemyAgentRunRepository,
     SqlAlchemyOfficeMessageRepository,
+    SqlAlchemyPlaybookRepository,
     SqlAlchemyRunTicketRepository,
 )
 from beauty.shared.infrastructure.db.tracker import AggregateTracker
@@ -24,3 +25,4 @@ class SqlAlchemyAgentUnitOfWork(SqlAlchemyUnitOfWork, AgentUnitOfWork):
         self.tickets = SqlAlchemyRunTicketRepository(session, tracker)
         self.office = SqlAlchemyOfficeMessageRepository(session, tracker)
         self.runs = SqlAlchemyAgentRunRepository(session, tracker)
+        self.playbooks = SqlAlchemyPlaybookRepository(session, tracker)
