@@ -1,10 +1,10 @@
 # Фронтенд beautiful.kz — три PWA
 
-| Приложение                                  | Адрес (dev)                 | Адрес (docker)               | Прод                  |
-| ------------------------------------------- | --------------------------- | ---------------------------- | --------------------- |
-| `apps/client` — страница мастера, вход, чат | http://alisa.localhost:5173 | http://alisa.localhost:8080  | `<slug>.beautiful.kz` |
-| `apps/master` — график, чаты, поручения     | http://localhost:5174       | http://master.localhost:8080 | `master.beautiful.kz` |
-| `apps/admin` — панель хозяина сервиса       | http://localhost:5175       | http://admin.localhost:8080  | `admin.beautiful.kz`  |
+| Приложение                                       | Адрес (dev)                 | Адрес (docker)               | Прод                  |
+| ------------------------------------------------ | --------------------------- | ---------------------------- | --------------------- |
+| `apps/client` — страница мастера, вход, чат      | http://alisa.localhost:5173 | http://alisa.localhost:8080  | `<slug>.beautiful.kz` |
+| `apps/master` — график, чаты, поручения, клиенты | http://localhost:5174       | http://master.localhost:8080 | `master.beautiful.kz` |
+| `apps/admin` — панель хозяина сервиса            | http://localhost:5175       | http://admin.localhost:8080  | `admin.beautiful.kz`  |
 
 Макеты и токены — `docs/design/mockups/`, ТЗ — `docs/tasks/frontend-iteration-1.md`,
 отчёт итерации — `docs/frontend/iteration-1-report.md`. Контракт API —
@@ -61,7 +61,8 @@ e2e                        Playwright: сценарии и скриншоты 39
 
 Компоненты зависят только от портов (`AuthGateway`, `MasterGateway`,
 `ConversationGateway`, `ScheduleGateway`, `InboxGateway`, `AssistantGateway`,
-`MasterEventsGateway`, `MasterSettingsGateway`, `PushGateway`, `AdminGateway`); адаптеры собирает `AppContainer`
+`MasterEventsGateway`, `MasterSettingsGateway`, `PushGateway`, `ClientsGateway`,
+`BroadcastsGateway`, `AdminGateway`); адаптеры собирает `AppContainer`
 (`apps/*/src/app/container.ts`) и отдаёт через React context.
 
 Сессия: access-токен только в памяти (`SessionStore`), refresh — httpOnly-cookie;
